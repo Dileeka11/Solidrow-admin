@@ -11,9 +11,10 @@ class AttendanceScanController extends Controller
     /**
      * Called by the mobile app when a QR code is scanned.
      *
+     * Requires a valid Sanctum token (staff must be logged in).
      * Payload: { candidate_reg_no: string, attended_date?: string (default = today) }
      *
-     * Stores { date, time } records.
+     * Stores { date, time, source, staff_id, staff_name } records.
      * Rejects duplicate for the same date.
      */
     public function scan(Request $request)
@@ -23,11 +24,18 @@ class AttendanceScanController extends Controller
             'attended_date'    => ['nullable', 'date'],
         ]);
 
+        $staff  = $request->user();
         $regNo  = trim($validated['candidate_reg_no']);
         $now    = now();
         $date   = $validated['attended_date'] ?? $now->toDateString();
         $time   = $now->format('H:i:s');
-        $record = ['date' => $date, 'time' => $time, 'source' => 'qr'];
+        $record = [
+            'date'       => $date,
+            'time'       => $time,
+            'source'     => 'qr',
+            'staff_id'   => $staff->id,
+            'staff_name' => $staff->name,
+        ];
 
         $candidate = Candidate::where('candidate_reg_no', $regNo)->first();
         if (! $candidate) {

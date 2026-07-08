@@ -15,11 +15,11 @@ use Illuminate\Support\Facades\Route;
 // Public
 Route::post('/login', [AuthController::class, 'login']);
 
-// Mobile app — QR attendance scan (no auth required)
-Route::post('/attendance/scan', [AttendanceScanController::class, 'scan']);
-
 // Authenticated (Sanctum bearer token)
 Route::middleware('auth:sanctum')->group(function () {
+    // Mobile app — QR attendance scan (requires logged-in staff)
+    Route::post('/attendance/scan', [AttendanceScanController::class, 'scan']);
+
     Route::get('/me', [AuthController::class, 'me']);
     Route::post('/logout', [AuthController::class, 'logout']);
 
