@@ -1,0 +1,108 @@
+/* ── Design tokens (ported 1:1 from Admin Panel.dc.html) ───────────────── */
+:root {
+  --font: -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
+
+  --page-bg: oklch(0.97 0.004 250);
+  --text: oklch(0.22 0.01 250);
+
+  --panel: oklch(0.28 0.05 250);          /* dark sidebar / login art panel */
+  --panel-circle-1: oklch(0.35 0.06 250);
+  --panel-circle-2: oklch(0.24 0.045 250);
+  --panel-border: oklch(0.4 0.03 250);
+
+  --accent: oklch(0.55 0.18 250);
+  --accent-hover: oklch(0.5 0.18 250);
+  --accent-ring: oklch(0.55 0.18 250 / 0.15);
+  --logo: oklch(0.7 0.15 250);
+  --nav-active: oklch(0.45 0.1 250);
+  --nav-hover: oklch(0.35 0.04 250);
+
+  --card: #ffffff;
+  --card-shadow: 0 1px 3px oklch(0 0 0 / 0.06);
+  --border: oklch(0.88 0.005 250);
+  --border-soft: oklch(0.94 0.005 250);
+  --row-border: oklch(0.96 0.003 250);
+
+  --muted: oklch(0.5 0.01 250);
+  --muted-2: oklch(0.55 0.01 250);
+  --label: oklch(0.35 0.01 250);
+  --label-2: oklch(0.4 0.01 250);
+
+  --track: oklch(0.94 0.005 250);
+  --danger: oklch(0.5 0.18 30);
+}
+
+* { box-sizing: border-box; }
+html, body, #root { margin: 0; min-height: 100vh; }
+body {
+  font-family: var(--font);
+  background: var(--page-bg);
+  color: var(--text);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-in    { animation: fadeIn 0.4s ease; }
+.fade-in-s  { animation: fadeIn 0.3s ease; }
+.fade-in-xs { animation: fadeIn 0.2s ease; }
+
+/* Inputs / selects: focus ring matching the design */
+.sr-input {
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  font-size: 15px;
+  outline: none;
+  font-family: inherit;
+  color: var(--text);
+  background: #fff;
+}
+.sr-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+/* Primary button */
+.sr-btn-primary {
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+.sr-btn-primary:hover { background: var(--accent-hover); }
+
+/* Sidebar nav buttons */
+.sr-nav-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  border-radius: 8px;
+  border: none;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  background: transparent;
+}
+.sr-logout-btn:hover { background: var(--nav-hover); }
+
+/* Icon buttons in the staff table */
+.sr-icon-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid oklch(0.9 0.005 250);
+  background: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.sr-icon-btn:hover { background: oklch(0.97 0.004 250); }
