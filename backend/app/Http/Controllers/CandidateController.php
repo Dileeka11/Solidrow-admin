@@ -124,9 +124,11 @@ class CandidateController extends Controller
         ]);
         $n = (int) $validated['section_no'];
 
-        CandidateSection::where('candidate_id', $candidate->id)
-            ->where('section_no', $n)
-            ->update(['status' => 'submitted', 'submitted_at' => now()]);
+        // updateOrCreate so legacy candidates without a seeded section row still submit.
+        CandidateSection::updateOrCreate(
+            ['candidate_id' => $candidate->id, 'section_no' => $n],
+            ['status' => 'submitted', 'submitted_at' => now()]
+        );
 
         $next = min($n + 1, self::TOTAL_SECTIONS);
         $candidate->update([
