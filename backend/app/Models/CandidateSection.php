@@ -16,6 +16,9 @@ class CandidateSection extends Model
     ];
 
     protected $casts = [
+        'candidate_id' => 'integer',
+        'section_no' => 'integer',
+        'assigned_staff_id' => 'integer',
         'submitted_at' => 'datetime',
         'assigned_staff_ids' => 'array',
     ];

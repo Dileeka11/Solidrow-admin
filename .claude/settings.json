@@ -17,7 +17,11 @@
       "Bash(grep -rnE \"copy|cpx|xcopy|robocopy|dist\" frontend/package.json package.json)",
       "Bash(rm -f backend/public/assets/index-*.js backend/public/assets/index-*.css)",
       "Bash(cp frontend/dist/index.html backend/public/index.html)",
-      "Bash(cp -r frontend/dist/assets/* backend/public/assets/)"
+      "Bash(cp -r frontend/dist/assets/* backend/public/assets/)",
+      "Bash(echo \"=== does deployed JS contain the unlock text + markSectionComplete\\(1\\) ? ===\"; curl -s https://registration.solidrow.lk/assets/index-D1izY_ZR.js 2>/dev/null > /tmp/live.js; wc -c /tmp/live.js; grep -oE \"complete & submit Section\" /tmp/live.js | head -1; grep -oE \"saving Section 1 unlocks|Candidate updated\" /tmp/live.js | head; echo \"=== compare with local build ===\"; grep -oE \"saving Section 1 unlocks|Candidate updated\" \"d:/My Projects/Solidrow-admin/frontend/dist/assets/index-D1izY_ZR.js\" | head)"
+    ],
+    "additionalDirectories": [
+      "\\tmp"
     ]
   }
 }
