@@ -121,6 +121,59 @@ export interface CandidateTraining {
   final_test_result: TestResult;
 }
 
+/** Section 3 — Personal Details (Attachment). File fields expose a *_url from the API. */
+export interface CandidateDocuments {
+  id?: number;
+  candidate_id?: number;
+  passport_size_photo_url: string | null;
+  nic_color_copy_url: string | null;
+  passport_color_copy_url: string | null;
+  professional_certificate_url: string | null;
+  working_experience_url: string | null;
+  cv_copy_url: string | null;
+  local_pcc_url: string | null;
+  second_pcc_color_copy_url: string | null;
+  local_pcc_attach_date: string | null;
+  second_pcc_submit_date: string | null;
+  document_submission_date: string | null;
+}
+
+/** Attachment file field keys (used for uploads). */
+export type CandidateDocumentFileField =
+  | 'passport_size_photo'
+  | 'nic_color_copy'
+  | 'passport_color_copy'
+  | 'professional_certificate'
+  | 'working_experience'
+  | 'cv_copy'
+  | 'local_pcc'
+  | 'second_pcc_color_copy';
+
+export type VisaStatus = 'visa_received' | 'visa_cancel';
+export type PibaSubmissionStatus = 'submitted' | 'not_yet_submitted';
+
+/** Section 4 — Job & Visa Processing. Fields are country-scoped in the UI. */
+export interface CandidateVisaDetails {
+  id?: number;
+  candidate_id?: number;
+  // Romania workflow dates
+  offer_letter_date: string | null;
+  confirmation_letter_date: string | null;
+  document_submission_date: string | null;
+  work_permit_received_date: string | null;
+  embassy_submission_date: string | null;
+  police_report_issued_date: string | null;
+  process_interview_date: string | null;
+  visa_received_date: string | null;
+  // Israel workflow dates
+  agreement_sign_date: string | null;
+  police_report_date: string | null;
+  // Common (both countries)
+  visa_status: VisaStatus | null;
+  visa_status_date: string | null;
+  piba_submission_status: PibaSubmissionStatus | null;
+}
+
 export interface Role {
   id: number;
   name: string;

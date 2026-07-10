@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(php -l app/Http/Controllers/CandidateController.php)",
+      "Bash(cp C:/Users/ASUS/AppData/Local/Temp/claude/d--My-Projects-Solidrow-admin/aabaddb5-974b-4ee4-840c-ff72c2f9c50f/scratchpad/solidrow-update.zip C:/Users/ASUS/Desktop/solidrow-update.zip)",
+      "Read(//c/Users/ASUS/Desktop/**)"
+    ]
+  }
+}

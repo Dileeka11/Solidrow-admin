@@ -4,20 +4,57 @@ import { QRCodeCanvas } from 'qrcode.react';
 import { api } from '../api/client';
 import { toastError, toastSuccess } from '../lib/alerts';
 import { useAuth } from '../auth/AuthContext';
-import type { Candidate, CandidateSection, CandidateTraining, PreTestCycle, Staff, TrainingMode } from '../types';
+import type { Candidate, CandidateDocumentFileField, CandidateDocuments, CandidateSection, CandidateTraining, CandidateVisaDetails, PibaSubmissionStatus, PreTestCycle, Staff, TrainingMode, VisaStatus } from '../types';
 
 const SECTION_TITLES = [
   'Personal Details',
   'Training Details',
-  'Other Related Qualifications',
-  'Emergency Contact',
-  'Job Confirmation',
-  'Visa Related Documents',
-  'Visa Details',
-  'Completion & Notes',
+  'Document Attachment',
+  'Job & Visa Processing',
 ];
 
 const COUNTRY_LETTER: Record<string, string> = { Romania: 'R', Israel: 'I' };
+
+/**
+ * Derive birth date + gender from a Sri Lankan NIC.
+ * Old format: 9 digits + letter (V/X) → 2-digit year + 3-digit day-of-year.
+ * New format: 12 digits → 4-digit year + 3-digit day-of-year.
+ * Day-of-year > 500 means female (subtract 500). Returns null if not derivable yet.
+ */
+function nicToBirth(nicRaw: string): { birthDate: string; gender: 'Male' | 'Female' } | null {
+  const nic = nicRaw.trim().toUpperCase();
+  let year: number;
+  let days: number;
+
+  if (/^\d{9}[VX]$/.test(nic)) {
+    year = 1900 + parseInt(nic.slice(0, 2), 10);
+    days = parseInt(nic.slice(2, 5), 10);
+  } else if (/^\d{12}$/.test(nic)) {
+    year = parseInt(nic.slice(0, 4), 10);
+    days = parseInt(nic.slice(4, 7), 10);
+  } else {
+    return null; // incomplete / not a recognised NIC yet
+  }
+
+  const gender: 'Male' | 'Female' = days > 500 ? 'Female' : 'Male';
+  if (days > 500) days -= 500;
+  if (days < 1 || days > 366) return null;
+
+  // Day-of-year table (NIC encoding always reserves Feb 29).
+  const monthDays = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  let month = 0;
+  let day = days;
+  for (let i = 0; i < 12; i++) {
+    if (day <= monthDays[i]) {
+      month = i + 1;
+      break;
+    }
+    day -= monthDays[i];
+  }
+
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return { birthDate: `${year}/${pad(month)}/${pad(day)}`, gender };
+}
 
 interface Loc {
   id: number | string;
@@ -125,6 +162,43 @@ export default function CandidateFormPage() {
   };
   const [training, setTraining] = useState<CandidateTraining>(EMPTY_TRAINING);
   const [trainingSaving, setTrainingSaving] = useState(false);
+
+  // Section 3 — Personal Details (Attachment)
+  const EMPTY_DOCUMENTS: CandidateDocuments = {
+    passport_size_photo_url: null,
+    nic_color_copy_url: null,
+    passport_color_copy_url: null,
+    professional_certificate_url: null,
+    working_experience_url: null,
+    cv_copy_url: null,
+    local_pcc_url: null,
+    second_pcc_color_copy_url: null,
+    local_pcc_attach_date: null,
+    second_pcc_submit_date: null,
+    document_submission_date: null,
+  };
+  const [documents, setDocuments] = useState<CandidateDocuments>(EMPTY_DOCUMENTS);
+  const [documentFiles, setDocumentFiles] = useState<Partial<Record<CandidateDocumentFileField, File>>>({});
+  const [documentsSaving, setDocumentsSaving] = useState(false);
+
+  // Section 4 — Job & Visa Processing (country-scoped workflow)
+  const EMPTY_VISA: CandidateVisaDetails = {
+    offer_letter_date: null,
+    confirmation_letter_date: null,
+    document_submission_date: null,
+    work_permit_received_date: null,
+    embassy_submission_date: null,
+    police_report_issued_date: null,
+    process_interview_date: null,
+    visa_received_date: null,
+    agreement_sign_date: null,
+    police_report_date: null,
+    visa_status: null,
+    visa_status_date: null,
+    piba_submission_status: null,
+  };
+  const [visa, setVisa] = useState<CandidateVisaDetails>(EMPTY_VISA);
+  const [visaSaving, setVisaSaving] = useState(false);
 
   // Cascading location dropdowns (Province -> District -> DS Division -> GN Division).
   const [provinces, setProvinces] = useState<Loc[]>([]);
@@ -251,6 +325,26 @@ export default function CandidateFormPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
+  // Load attachment documents once the candidate exists.
+  useEffect(() => {
+    if (isEdit && id) {
+      api.get<CandidateDocuments>(`/candidates/${id}/documents`)
+        .then((r) => setDocuments(r.data))
+        .catch(() => setDocuments(EMPTY_DOCUMENTS));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  // Load visa/job details once the candidate exists.
+  useEffect(() => {
+    if (isEdit && id) {
+      api.get<CandidateVisaDetails>(`/candidates/${id}/visa-details`)
+        .then((r) => setVisa(r.data))
+        .catch(() => setVisa(EMPTY_VISA));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
   function hydrate(c: Candidate) {
     setCandidate(c);
     setRegistrationNo(c.registration_no);
@@ -331,6 +425,17 @@ export default function CandidateFormPage() {
     }
   }
 
+  /** Mark a section complete (best-effort) so the next section unlocks. No toast. */
+  async function markSectionComplete(sectionNo: number) {
+    if (!id) return;
+    try {
+      const r = await api.post<Candidate>(`/candidates/${id}/submit-section`, { section_no: sectionNo });
+      hydrate(r.data);
+    } catch {
+      /* leave the section locked; the manual Submit in the assignment list still works */
+    }
+  }
+
   async function submitSection(sectionNo: number) {
     try {
       const r = await api.post<Candidate>(`/candidates/${id}/submit-section`, {
@@ -369,6 +474,28 @@ export default function CandidateFormPage() {
   const staffName = (sid: string) => staff.find((s) => String(s.id) === sid)?.name ?? '—';
   const sectionByNo = (n: number): CandidateSection | undefined =>
     candidate?.sections?.find((s) => s.section_no === n);
+
+  // Sequential unlock: a section's edit card opens only once the previous one is submitted.
+  const isSectionSubmitted = (n: number) => sectionByNo(n)?.status === 'submitted';
+  const section1Done = isSectionSubmitted(1);
+  const section2Done = isSectionSubmitted(2);
+  const section3Done = isSectionSubmitted(3);
+
+  // Placeholder card shown while a section is still locked.
+  const LockedSectionCard = ({ no, title, needNo }: { no: string; title: string; needNo: number }) => (
+    <div style={cardStyle}>
+      <div style={{ color: 'var(--accent, #6366f1)', fontWeight: 700, marginBottom: 4 }}>
+        {no}. {title}
+      </div>
+      <hr style={{ border: 'none', borderTop: '1px solid var(--border-soft)', margin: '10px 0 18px' }} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 0', color: 'var(--muted)' }}>
+        <span style={{ fontSize: 20 }}>🔒</span>
+        <span style={{ fontSize: 13 }}>
+          Locked — complete &amp; submit Section {needNo} first (in Sections &amp; Staff Assignment below).
+        </span>
+      </div>
+    </div>
+  );
 
   // ── Training helpers ──────────────────────────────────────────────────────
 
@@ -453,6 +580,7 @@ export default function CandidateFormPage() {
       const r = await api.post<CandidateTraining>(`/candidates/${id}/training`, fd);
       setTraining(r.data);
       setTrainingBondFile(null);
+      await markSectionComplete(2); // completing Section 2 unlocks Section 3
       toastSuccess('Training details saved');
     } catch {
       toastError('Could not save training details.');
@@ -460,6 +588,83 @@ export default function CandidateFormPage() {
       setTrainingSaving(false);
     }
   }
+
+  // ── Section 3: Documents helpers ──────────────────────────────────────────
+
+  const setDocDate = (key: 'local_pcc_attach_date' | 'second_pcc_submit_date' | 'document_submission_date', value: string) =>
+    setDocuments((d) => ({ ...d, [key]: value || null }));
+
+  const setDocFile = (field: CandidateDocumentFileField, file: File | null) =>
+    setDocumentFiles((prev) => {
+      const next = { ...prev };
+      if (file) next[field] = file;
+      else delete next[field];
+      return next;
+    });
+
+  async function saveDocuments() {
+    if (!id) return;
+    setDocumentsSaving(true);
+    try {
+      const fd = new FormData();
+      (Object.entries(documentFiles) as [CandidateDocumentFileField, File][]).forEach(([field, file]) => {
+        fd.append(field, file);
+      });
+      fd.append('local_pcc_attach_date', documents.local_pcc_attach_date ?? '');
+      fd.append('second_pcc_submit_date', documents.second_pcc_submit_date ?? '');
+      fd.append('document_submission_date', documents.document_submission_date ?? '');
+      const r = await api.post<CandidateDocuments>(`/candidates/${id}/documents`, fd);
+      setDocuments(r.data);
+      setDocumentFiles({});
+      await markSectionComplete(3); // completing Section 3 advances the workflow
+      toastSuccess('Documents saved');
+    } catch {
+      toastError('Could not save documents.');
+    } finally {
+      setDocumentsSaving(false);
+    }
+  }
+
+  // ── Section 4: Job & Visa Processing helpers ──────────────────────────────
+
+  const setVisaField = <K extends keyof CandidateVisaDetails>(key: K, value: CandidateVisaDetails[K]) =>
+    setVisa((v) => ({ ...v, [key]: value }));
+
+  const setVisaDate = (key: keyof CandidateVisaDetails, value: string) =>
+    setVisaField(key, (value || null) as CandidateVisaDetails[typeof key]);
+
+  async function saveVisa() {
+    if (!id) return;
+    setVisaSaving(true);
+    try {
+      const r = await api.post<CandidateVisaDetails>(`/candidates/${id}/visa-details`, visa);
+      setVisa(r.data);
+      await markSectionComplete(4); // completing Section 4 advances the workflow
+      const statusMsg =
+        r.data.visa_status === 'visa_received' ? ' — visa received SMS queued'
+        : r.data.visa_status === 'visa_cancel' ? ' — visa cancelled SMS queued'
+        : '';
+      toastSuccess(`Section 4 saved${statusMsg}`);
+    } catch {
+      toastError('Could not save visa details.');
+    } finally {
+      setVisaSaving(false);
+    }
+  }
+
+  // A labelled date input bound to a visa field (compact helper for the grid).
+  const VisaDate = ({ label, field }: { label: string; field: keyof CandidateVisaDetails }) => (
+    <div>
+      <label style={labelStyle}>{label}</label>
+      <input
+        className="sr-input"
+        type="date"
+        style={inputStyle}
+        value={(visa[field] as string | null) ?? ''}
+        onChange={(e) => setVisaDate(field, e.target.value)}
+      />
+    </div>
+  );
 
   return (
     <div className="fade-in-s" style={{ maxWidth: 1080 }}>
@@ -560,7 +765,21 @@ export default function CandidateFormPage() {
 
           <div>
             <label style={labelStyle}>NIC Number</label>
-            <input className="sr-input" style={inputStyle} value={form.nic} onChange={(e) => set('nic', e.target.value)} placeholder="Enter NIC Number" />
+            <input
+              className="sr-input"
+              style={inputStyle}
+              value={form.nic}
+              onChange={(e) => {
+                const nic = e.target.value;
+                const derived = nicToBirth(nic);
+                setForm((f) => ({
+                  ...f,
+                  nic,
+                  ...(derived ? { birth_date: derived.birthDate, gender: derived.gender } : {}),
+                }));
+              }}
+              placeholder="Enter NIC Number"
+            />
           </div>
 
           <div>
@@ -711,7 +930,10 @@ export default function CandidateFormPage() {
       )}
 
       {/* ── Section 2: Training Details ─────────────────────────────────── */}
-      {isEdit && candidate && (
+      {isEdit && candidate && !section1Done && (
+        <LockedSectionCard no="02" title="Training Details" needNo={1} />
+      )}
+      {isEdit && candidate && section1Done && (
         <div style={cardStyle}>
           <div style={{ color: 'var(--accent, #6366f1)', fontWeight: 700, marginBottom: 4 }}>
             02. Training Details
@@ -1046,6 +1268,194 @@ export default function CandidateFormPage() {
                 style={{ padding: '11px 22px', borderRadius: 8, fontSize: 14 }}
               >
                 {trainingSaving ? 'Saving…' : 'Save Training Details'}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Section 3: Personal Details (Attachment) ──────────────────────── */}
+      {isEdit && candidate && !section2Done && (
+        <LockedSectionCard no="03" title="Document Attachment" needNo={2} />
+      )}
+      {isEdit && candidate && section2Done && (
+        <div style={cardStyle}>
+          <div style={{ color: 'var(--accent, #6366f1)', fontWeight: 700, marginBottom: 4 }}>
+            03. Document Attachment
+          </div>
+          <hr style={{ border: 'none', borderTop: '1px solid var(--border-soft)', margin: '10px 0 18px' }} />
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
+            {([
+              { field: 'passport_size_photo', label: 'Passport Size Photo', hint: '826px x 1062px', accept: 'image/*' },
+              { field: 'nic_color_copy', label: 'NIC Color Copy (Attach)' },
+              { field: 'passport_color_copy', label: 'Passport Color Copy (Attach)' },
+              { field: 'professional_certificate', label: 'Professional Certificate (Attach)' },
+              { field: 'working_experience', label: 'Attach Working Experience' },
+              { field: 'cv_copy', label: 'CV Copy (Attach)' },
+              { field: 'local_pcc', label: 'Local PCC (Attach)' },
+              { field: 'second_pcc_color_copy', label: '2nd PCC Color Copy (Attach)' },
+            ] as { field: CandidateDocumentFileField; label: string; hint?: string; accept?: string }[]).map(
+              ({ field, label, hint, accept }) => {
+                const url = documents[`${field}_url` as keyof CandidateDocuments] as string | null;
+                const picked = documentFiles[field];
+                return (
+                  <div key={field}>
+                    <label style={labelStyle}>
+                      {label}
+                      {hint && <span style={{ color: 'oklch(0.62 0.19 25)', fontWeight: 400 }}> ({hint})</span>}
+                    </label>
+                    <input
+                      className="sr-input"
+                      type="file"
+                      accept={accept ?? '.pdf,.jpg,.jpeg,.png'}
+                      style={inputStyle}
+                      onChange={(e) => setDocFile(field, e.target.files?.[0] ?? null)}
+                    />
+                    {url && !picked && (
+                      <a
+                        href={url}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ fontSize: 12, color: 'var(--accent, #6366f1)', marginTop: 4, display: 'block' }}
+                      >
+                        View current file
+                      </a>
+                    )}
+                  </div>
+                );
+              },
+            )}
+
+            <div>
+              <label style={labelStyle}>Local PCC Attach Date</label>
+              <input
+                className="sr-input"
+                type="date"
+                style={inputStyle}
+                value={documents.local_pcc_attach_date ?? ''}
+                onChange={(e) => setDocDate('local_pcc_attach_date', e.target.value)}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>2nd PCC Submit Date</label>
+              <input
+                className="sr-input"
+                type="date"
+                style={inputStyle}
+                value={documents.second_pcc_submit_date ?? ''}
+                onChange={(e) => setDocDate('second_pcc_submit_date', e.target.value)}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Document Submission Date</label>
+              <input
+                className="sr-input"
+                type="date"
+                style={inputStyle}
+                value={documents.document_submission_date ?? ''}
+                onChange={(e) => setDocDate('document_submission_date', e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div style={{ marginTop: 24 }}>
+            <button
+              className="sr-btn-primary"
+              onClick={saveDocuments}
+              disabled={documentsSaving}
+              style={{ padding: '11px 22px', borderRadius: 8, fontSize: 14 }}
+            >
+              {documentsSaving ? 'Saving…' : 'Save Section 3'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Section 4: Job & Visa Processing (country-scoped) ─────────────── */}
+      {isEdit && candidate && !section3Done && (
+        <LockedSectionCard no="04" title="Job & Visa Processing" needNo={3} />
+      )}
+      {isEdit && candidate && section3Done && (
+        <div style={cardStyle}>
+          <div style={{ color: 'var(--accent, #6366f1)', fontWeight: 700, marginBottom: 4 }}>
+            04. Job &amp; Visa Processing
+          </div>
+          <hr style={{ border: 'none', borderTop: '1px solid var(--border-soft)', margin: '10px 0 18px' }} />
+
+          {!form.country && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 0', color: 'var(--muted)', fontSize: 13 }}>
+              Select a country in Section 1 first — the visa workflow differs by country.
+            </div>
+          )}
+
+          {/* Romania workflow */}
+          {form.country === 'Romania' && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 20 }}>
+              <VisaDate label="Offer Letter Date" field="offer_letter_date" />
+              <VisaDate label="Confirmation Letter Date" field="confirmation_letter_date" />
+              <VisaDate label="Document Submission Date" field="document_submission_date" />
+              <VisaDate label="Work Permit Received Date" field="work_permit_received_date" />
+              <VisaDate label="Embassy Submission Date" field="embassy_submission_date" />
+              <VisaDate label="Police Report Issued Date" field="police_report_issued_date" />
+              <VisaDate label="Process Interview Date" field="process_interview_date" />
+              <VisaDate label="Visa Received Date" field="visa_received_date" />
+            </div>
+          )}
+
+          {/* Israel workflow */}
+          {form.country === 'Israel' && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 20 }}>
+              <VisaDate label="Agreement Sign Date" field="agreement_sign_date" />
+              <VisaDate label="Police Report Date" field="police_report_date" />
+            </div>
+          )}
+
+          {/* Common — Visa status (+ date) & PIBA submission (both countries) */}
+          {form.country && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+              <div>
+                <label style={labelStyle}>Visa Status</label>
+                <select
+                  className="sr-input"
+                  style={inputStyle}
+                  value={visa.visa_status ?? ''}
+                  onChange={(e) => setVisaField('visa_status', (e.target.value || null) as VisaStatus | null)}
+                >
+                  <option value="">-- Select Visa Status --</option>
+                  <option value="visa_received">Visa Received</option>
+                  <option value="visa_cancel">Visa Cancel</option>
+                </select>
+                <span style={{ display: 'block', fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
+                  Saving a status sends an SMS to the candidate.
+                </span>
+              </div>
+              <VisaDate label="Visa Status Date" field="visa_status_date" />
+              <div>
+                <label style={labelStyle}>PIBA Submission Status</label>
+                <select
+                  className="sr-input"
+                  style={inputStyle}
+                  value={visa.piba_submission_status ?? ''}
+                  onChange={(e) => setVisaField('piba_submission_status', (e.target.value || null) as PibaSubmissionStatus | null)}
+                >
+                  <option value="">-- Select PIBA Status --</option>
+                  <option value="submitted">Submitted</option>
+                  <option value="not_yet_submitted">Not Yet Submitted</option>
+                </select>
+              </div>
+            </div>
+          )}
+
+          {form.country && (
+            <div style={{ marginTop: 24 }}>
+              <button
+                className="sr-btn-primary"
+                onClick={saveVisa}
+                disabled={visaSaving}
+                style={{ padding: '11px 22px', borderRadius: 8, fontSize: 14 }}
+              >
+                {visaSaving ? 'Saving…' : 'Save Section 4'}
               </button>
             </div>
           )}

@@ -9,10 +9,10 @@ use Illuminate\Support\Facades\DB;
 
 class SectionAssignmentController extends Controller
 {
-    private const TOTAL_SECTIONS = 8;
+    private const TOTAL_SECTIONS = 4;
 
     /**
-     * Return the current global staff mapping for all 8 sections
+     * Return the current global staff mapping for all sections
      * (missing sections come back as null).
      */
     public function index()

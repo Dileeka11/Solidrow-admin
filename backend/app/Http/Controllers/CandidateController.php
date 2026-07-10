@@ -11,7 +11,7 @@ use Illuminate\Validation\Rule;
 
 class CandidateController extends Controller
 {
-    private const TOTAL_SECTIONS = 8;
+    private const TOTAL_SECTIONS = 4;
 
     /**
      * List candidates with their section assignments.
@@ -40,7 +40,7 @@ class CandidateController extends Controller
     }
 
     /**
-     * Create a candidate (Section 1) + seed the 8 section assignments.
+     * Create a candidate (Section 1) + seed the section assignments.
      */
     public function store(Request $request)
     {

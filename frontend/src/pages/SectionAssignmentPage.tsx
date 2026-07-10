@@ -7,13 +7,9 @@ import type { Staff } from '../types';
 
 const SECTION_TITLES = [
   'Personal Details',
-  'Personal Details (Attachments)',
-  'Other Related Qualifications',
-  'Emergency Contact',
-  'Job Confirmation',
-  'Visa Related Documents',
-  'Visa Details',
-  'Completion & Notes',
+  'Training Details',
+  'Document Attachment',
+  'Job & Visa Processing',
 ];
 
 interface SectionAssignment {
