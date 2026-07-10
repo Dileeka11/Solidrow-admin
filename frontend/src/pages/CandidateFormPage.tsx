@@ -409,6 +409,7 @@ export default function CandidateFormPage() {
         fd.append('_method', 'PUT');
         const r = await api.post<Candidate>(`/candidates/${id}`, fd);
         hydrate(r.data);
+        await markSectionComplete(1); // saving Section 1 unlocks Section 2
         toastSuccess('Candidate updated');
       } else {
         const r = await api.post<Candidate>('/candidates', buildFormData());

@@ -3,7 +3,21 @@
     "allow": [
       "Bash(php -l app/Http/Controllers/CandidateController.php)",
       "Bash(cp C:/Users/ASUS/AppData/Local/Temp/claude/d--My-Projects-Solidrow-admin/aabaddb5-974b-4ee4-840c-ff72c2f9c50f/scratchpad/solidrow-update.zip C:/Users/ASUS/Desktop/solidrow-update.zip)",
-      "Read(//c/Users/ASUS/Desktop/**)"
+      "Read(//c/Users/ASUS/Desktop/**)",
+      "Bash(ls database/*.sqlite)",
+      "Bash(php -r ' *)",
+      "Bash(cd \"C:/xampp/htdocs/solidrow-admin\")",
+      "Bash(grep -E \"^DB_CONNECTION\" backend/.env)",
+      "Bash(cd \"d:/My Projects/Solidrow-admin\"; echo \"=== index.html asset ref ===\"; grep -oE 'index-[A-Za-z0-9_]+\\\\.js' backend/public/index.html 2>/dev/null; echo \"=== built assets present ===\"; ls -1 backend/public/assets/ 2>/dev/null | grep index; echo \"=== source mtime vs build mtime ===\"; stat -c '%y %n' frontend/src/pages/CandidateFormPage.tsx backend/public/assets/index-*.js 2>/dev/null)",
+      "Read(//c/xampp/htdocs/solidrow-admin/**)",
+      "Bash(ls -1 frontend/dist/assets)",
+      "Bash(ls -1 backend/public/assets)",
+      "Bash(grep -oE '\\(src|href\\)=\"[^\"]+\"' backend/public/index.html)",
+      "Bash(ls -1 backend/public/.htaccess deploy* Procfile*)",
+      "Bash(grep -rnE \"copy|cpx|xcopy|robocopy|dist\" frontend/package.json package.json)",
+      "Bash(rm -f backend/public/assets/index-*.js backend/public/assets/index-*.css)",
+      "Bash(cp frontend/dist/index.html backend/public/index.html)",
+      "Bash(cp -r frontend/dist/assets/* backend/public/assets/)"
     ]
   }
 }
