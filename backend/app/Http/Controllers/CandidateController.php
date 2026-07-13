@@ -11,7 +11,16 @@ use Illuminate\Validation\Rule;
 
 class CandidateController extends Controller
 {
-    private const TOTAL_SECTIONS = 4;
+    private const TOTAL_SECTIONS = 6;
+
+    private const SECTION_TITLES = [
+        'Personal Details',
+        'Training Details',
+        'Document Attachment',
+        'Job & Visa Processing',
+        'Employee Details',
+        'Departure Details',
+    ];
 
     /**
      * List candidates with their section assignments.
@@ -19,6 +28,48 @@ class CandidateController extends Controller
     public function index()
     {
         return Candidate::with('sections')->orderByDesc('id')->get();
+    }
+
+    /**
+     * Public progress lookup — match a candidate by passport / mobile / NIC
+     * and return only their per-section completion state (no other personal data).
+     */
+    public function publicProgress(Request $request)
+    {
+        $q = trim((string) $request->query('q', ''));
+        if ($q === '') {
+            return response()->json(['message' => 'Enter your passport, mobile or NIC number.'], 422);
+        }
+
+        $candidate = Candidate::with('sections')
+            ->where(function ($query) use ($q) {
+                $query->where('passport_number', $q)
+                    ->orWhere('nic', $q)
+                    ->orWhere('phone_number', $q)
+                    ->orWhere('whatsapp_number', $q);
+            })
+            ->first();
+
+        if (! $candidate) {
+            return response()->json(['message' => 'No registration found for that number.'], 404);
+        }
+
+        $submitted = $candidate->sections
+            ->where('status', 'submitted')
+            ->pluck('section_no')
+            ->all();
+
+        return response()->json([
+            'full_name' => $candidate->full_name,
+            'registration_no' => $candidate->registration_no,
+            'total_sections' => self::TOTAL_SECTIONS,
+            'is_completed' => (bool) $candidate->is_completed,
+            'sections' => array_map(fn ($n) => [
+                'section_no' => $n,
+                'title' => self::SECTION_TITLES[$n - 1],
+                'submitted' => in_array($n, $submitted, true),
+            ], range(1, self::TOTAL_SECTIONS)),
+        ]);
     }
 
     /**

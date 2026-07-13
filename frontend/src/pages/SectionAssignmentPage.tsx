@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api/client';
-import { toastError, toastSuccess } from '../lib/alerts';
+import { confirmAction, toastError, toastSuccess } from '../lib/alerts';
 import { useAuth } from '../auth/AuthContext';
 import { can } from '../lib/permissions';
 import type { Staff } from '../types';
@@ -10,6 +10,8 @@ const SECTION_TITLES = [
   'Training Details',
   'Document Attachment',
   'Job & Visa Processing',
+  'Employee Details',
+  'Departure Details',
 ];
 
 interface SectionAssignment {
@@ -158,6 +160,8 @@ export default function SectionAssignmentPage() {
   }, []);
 
   async function handleSave() {
+    const ok = await confirmAction('Save these section assignments?', 'Save assignments', 'Yes, save');
+    if (!ok) return;
     setSaving(true);
     try {
       const r = await api.put<SectionAssignment[]>('/section-assignments', { assignments });

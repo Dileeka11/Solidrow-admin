@@ -56,7 +56,7 @@ class Candidate extends Model
     public function getPassportImageUrlAttribute(): ?string
     {
         return $this->passport_image
-            ? asset('storage/' . $this->passport_image)
+            ? url('media/' . $this->passport_image)
             : null;
     }
 }

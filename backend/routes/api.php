@@ -3,10 +3,13 @@
 use App\Http\Controllers\AttendanceScanController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CandidateController;
+use App\Http\Controllers\CandidateDepartureDetailController;
 use App\Http\Controllers\CandidateDocumentController;
 use App\Http\Controllers\CandidateTrainingController;
 use App\Http\Controllers\CandidateVisaDetailController;
+use App\Http\Controllers\CandidateEmployeeDetailController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\JobCategoryController;
 use App\Http\Controllers\LocationController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\RoleController;
@@ -16,6 +19,9 @@ use Illuminate\Support\Facades\Route;
 
 // Public
 Route::post('/login', [AuthController::class, 'login']);
+
+// Public — candidate self-service progress lookup (passport / mobile / NIC)
+Route::get('/progress', [CandidateController::class, 'publicProgress']);
 
 // Authenticated (Sanctum bearer token)
 Route::middleware('auth:sanctum')->group(function () {
@@ -54,6 +60,20 @@ Route::middleware('auth:sanctum')->group(function () {
     // Section 4 — Job & Visa Processing
     Route::get('/candidates/{candidate}/visa-details', [CandidateVisaDetailController::class, 'show']);
     Route::post('/candidates/{candidate}/visa-details', [CandidateVisaDetailController::class, 'save']);
+
+    // Section 5 — Employee Details
+    Route::get('/candidates/{candidate}/employee-details', [CandidateEmployeeDetailController::class, 'show']);
+    Route::post('/candidates/{candidate}/employee-details', [CandidateEmployeeDetailController::class, 'save']);
+
+    // Section 6 — Departure Details
+    Route::get('/candidates/{candidate}/departure-details', [CandidateDepartureDetailController::class, 'show']);
+    Route::post('/candidates/{candidate}/departure-details', [CandidateDepartureDetailController::class, 'save']);
+
+    // Job categories (master data for Section 5)
+    Route::get('/job-categories', [JobCategoryController::class, 'index']);
+    Route::post('/job-categories', [JobCategoryController::class, 'store']);
+    Route::put('/job-categories/{jobCategory}', [JobCategoryController::class, 'update']);
+    Route::delete('/job-categories/{jobCategory}', [JobCategoryController::class, 'destroy']);
 
     Route::get('/roles', [RoleController::class, 'index']);
     Route::post('/roles', [RoleController::class, 'store']);

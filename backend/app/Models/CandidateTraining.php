@@ -34,7 +34,7 @@ class CandidateTraining extends Model
     public function getTrainingBondUrlAttribute(): ?string
     {
         return $this->training_bond
-            ? asset('storage/' . $this->training_bond)
+            ? url('media/' . $this->training_bond)
             : null;
     }
 }

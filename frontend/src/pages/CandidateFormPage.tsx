@@ -2,18 +2,32 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { QRCodeCanvas } from 'qrcode.react';
 import { api } from '../api/client';
-import { toastError, toastSuccess } from '../lib/alerts';
+import { DatePicker } from '../components/DatePicker';
+import { confirmAction, toastError, toastSuccess } from '../lib/alerts';
 import { useAuth } from '../auth/AuthContext';
-import type { Candidate, CandidateDocumentFileField, CandidateDocuments, CandidateSection, CandidateTraining, CandidateVisaDetails, PibaSubmissionStatus, PreTestCycle, Staff, TrainingMode, VisaStatus } from '../types';
+import type { Candidate, CandidateDepartureDetails, CandidateDocumentFileField, CandidateDocuments, CandidateEmployeeDetails, CandidateSection, CandidateTraining, CandidateVisaDetails, JobCategory, PibaSubmissionStatus, PreTestCycle, Staff, TrainingMode, VisaStatus } from '../types';
 
 const SECTION_TITLES = [
   'Personal Details',
   'Training Details',
   'Document Attachment',
   'Job & Visa Processing',
+  'Employee Details',
+  'Departure Details',
 ];
 
 const COUNTRY_LETTER: Record<string, string> = { Romania: 'R', Israel: 'I' };
+
+/** Default profile placeholder shown when no passport photo is uploaded yet. */
+const DEFAULT_PROFILE_IMAGE =
+  "data:image/svg+xml;utf8," +
+  encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="112" height="144" viewBox="0 0 112 144">' +
+      '<rect width="112" height="144" fill="#e5e7eb"/>' +
+      '<circle cx="56" cy="54" r="26" fill="#9ca3af"/>' +
+      '<path d="M16 132c0-24 18-40 40-40s40 16 40 40z" fill="#9ca3af"/>' +
+      '</svg>',
+  );
 
 /**
  * Derive birth date + gender from a Sri Lankan NIC.
@@ -162,6 +176,9 @@ export default function CandidateFormPage() {
   };
   const [training, setTraining] = useState<CandidateTraining>(EMPTY_TRAINING);
   const [trainingSaving, setTrainingSaving] = useState(false);
+  // "Add date" pickers for attendance (per pre-test cycle + the final test).
+  const [preAttDate, setPreAttDate] = useState<Record<number, string>>({});
+  const [finalAttDate, setFinalAttDate] = useState('');
 
   // Section 3 — Personal Details (Attachment)
   const EMPTY_DOCUMENTS: CandidateDocuments = {
@@ -199,6 +216,26 @@ export default function CandidateFormPage() {
   };
   const [visa, setVisa] = useState<CandidateVisaDetails>(EMPTY_VISA);
   const [visaSaving, setVisaSaving] = useState(false);
+
+  // Section 5 — Employee Details
+  const EMPTY_EMPLOYEE: CandidateEmployeeDetails = {
+    registration_number: null,
+    job_category_id: null,
+  };
+  const [employee, setEmployee] = useState<CandidateEmployeeDetails>(EMPTY_EMPLOYEE);
+  const [employeeSaving, setEmployeeSaving] = useState(false);
+  const [jobCategories, setJobCategories] = useState<JobCategory[]>([]);
+
+  // Section 6 — Departure Details
+  const EMPTY_DEPARTURE: CandidateDepartureDetails = {
+    final_approval_date: null,
+    receipt_number: null,
+    flight_number: null,
+    airticket_number: null,
+    departure_date: null,
+  };
+  const [departure, setDeparture] = useState<CandidateDepartureDetails>(EMPTY_DEPARTURE);
+  const [departureSaving, setDepartureSaving] = useState(false);
 
   // Cascading location dropdowns (Province -> District -> DS Division -> GN Division).
   const [provinces, setProvinces] = useState<Loc[]>([]);
@@ -345,6 +382,31 @@ export default function CandidateFormPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
+  // Load employee details once the candidate exists.
+  useEffect(() => {
+    if (isEdit && id) {
+      api.get<CandidateEmployeeDetails>(`/candidates/${id}/employee-details`)
+        .then((r) => setEmployee(r.data))
+        .catch(() => setEmployee(EMPTY_EMPLOYEE));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  // Load departure details once the candidate exists.
+  useEffect(() => {
+    if (isEdit && id) {
+      api.get<CandidateDepartureDetails>(`/candidates/${id}/departure-details`)
+        .then((r) => setDeparture(r.data))
+        .catch(() => setDeparture(EMPTY_DEPARTURE));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  // Load the managed job-category list (for the Section 5 dropdown).
+  useEffect(() => {
+    api.get<JobCategory[]>('/job-categories').then((r) => setJobCategories(r.data)).catch(() => setJobCategories([]));
+  }, []);
+
   function hydrate(c: Candidate) {
     setCandidate(c);
     setRegistrationNo(c.registration_no);
@@ -402,6 +464,12 @@ export default function CandidateFormPage() {
       toastError('Name (as in passport) is required.');
       return;
     }
+    const ok = await confirmAction(
+      isEdit ? 'Save the changes to this candidate?' : 'Save this candidate?',
+      'Save candidate',
+      'Yes, save',
+    );
+    if (!ok) return;
     setSaving(true);
     try {
       if (isEdit) {
@@ -438,6 +506,12 @@ export default function CandidateFormPage() {
   }
 
   async function submitSection(sectionNo: number) {
+    const ok = await confirmAction(
+      `Submit Section ${sectionNo}? This finalises the section.`,
+      'Submit section',
+      'Yes, submit',
+    );
+    if (!ok) return;
     try {
       const r = await api.post<Candidate>(`/candidates/${id}/submit-section`, {
         section_no: sectionNo,
@@ -481,6 +555,8 @@ export default function CandidateFormPage() {
   const section1Done = isSectionSubmitted(1);
   const section2Done = isSectionSubmitted(2);
   const section3Done = isSectionSubmitted(3);
+  const section4Done = isSectionSubmitted(4);
+  const section5Done = isSectionSubmitted(5);
 
   // Placeholder card shown while a section is still locked.
   const LockedSectionCard = ({ no, title, needNo }: { no: string; title: string; needNo: number }) => (
@@ -569,6 +645,8 @@ export default function CandidateFormPage() {
     ((training.training_mode === 'pre_test' || training.training_mode === 'both') && preTestPassed);
 
   async function saveTraining() {
+    const ok = await confirmAction('Save the training details?', 'Save training', 'Yes, save');
+    if (!ok) return;
     setTrainingSaving(true);
     try {
       const fd = new FormData();
@@ -605,6 +683,8 @@ export default function CandidateFormPage() {
 
   async function saveDocuments() {
     if (!id) return;
+    const ok = await confirmAction('Save the attached documents?', 'Save documents', 'Yes, save');
+    if (!ok) return;
     setDocumentsSaving(true);
     try {
       const fd = new FormData();
@@ -636,6 +716,8 @@ export default function CandidateFormPage() {
 
   async function saveVisa() {
     if (!id) return;
+    const ok = await confirmAction('Save the job & visa details?', 'Save visa details', 'Yes, save');
+    if (!ok) return;
     setVisaSaving(true);
     try {
       const r = await api.post<CandidateVisaDetails>(`/candidates/${id}/visa-details`, visa);
@@ -653,16 +735,61 @@ export default function CandidateFormPage() {
     }
   }
 
+  // ── Section 5: Employee Details helpers ───────────────────────────────────
+
+  async function saveEmployee() {
+    if (!id) return;
+    const ok = await confirmAction('Save the employee details?', 'Save employee details', 'Yes, save');
+    if (!ok) return;
+    setEmployeeSaving(true);
+    try {
+      const r = await api.post<CandidateEmployeeDetails>(`/candidates/${id}/employee-details`, {
+        registration_number: employee.registration_number ?? '',
+        job_category_id: employee.job_category_id ?? '',
+      });
+      setEmployee(r.data);
+      await markSectionComplete(5); // completing Section 5 finalises the workflow
+      toastSuccess('Employee details saved');
+    } catch {
+      toastError('Could not save employee details.');
+    } finally {
+      setEmployeeSaving(false);
+    }
+  }
+
+  // ── Section 6: Departure Details helpers ──────────────────────────────────
+
+  async function saveDeparture() {
+    if (!id) return;
+    const ok = await confirmAction('Save the departure details?', 'Save departure details', 'Yes, save');
+    if (!ok) return;
+    setDepartureSaving(true);
+    try {
+      const r = await api.post<CandidateDepartureDetails>(`/candidates/${id}/departure-details`, {
+        final_approval_date: departure.final_approval_date ?? '',
+        receipt_number: departure.receipt_number ?? '',
+        flight_number: departure.flight_number ?? '',
+        airticket_number: departure.airticket_number ?? '',
+        departure_date: departure.departure_date ?? '',
+      });
+      setDeparture(r.data);
+      await markSectionComplete(6); // completing Section 6 finalises the workflow
+      toastSuccess('Departure details saved');
+    } catch {
+      toastError('Could not save departure details.');
+    } finally {
+      setDepartureSaving(false);
+    }
+  }
+
   // A labelled date input bound to a visa field (compact helper for the grid).
   const VisaDate = ({ label, field }: { label: string; field: keyof CandidateVisaDetails }) => (
     <div>
       <label style={labelStyle}>{label}</label>
-      <input
-        className="sr-input"
-        type="date"
+      <DatePicker
         style={inputStyle}
         value={(visa[field] as string | null) ?? ''}
-        onChange={(e) => setVisaDate(field, e.target.value)}
+        onChange={(iso) => setVisaDate(field, iso)}
       />
     </div>
   );
@@ -746,12 +873,19 @@ export default function CandidateFormPage() {
 
           <div>
             <label style={labelStyle}>Registration Date *</label>
-            <input className="sr-input" type="date" style={inputStyle} value={form.registration_date} onChange={(e) => set('registration_date', e.target.value)} />
+            <DatePicker style={inputStyle} value={form.registration_date} onChange={(iso) => set('registration_date', iso)} />
           </div>
 
           <div>
             <label style={labelStyle}>Passport Size Photo (Profile)</label>
-            <input className="sr-input" type="file" accept="image/*" style={inputStyle} onChange={(e) => onPassportChange(e.target.files?.[0] ?? null)} />
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+              <img
+                src={passportPreview || DEFAULT_PROFILE_IMAGE}
+                alt="passport"
+                style={{ width: 56, height: 72, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)', flexShrink: 0, background: 'var(--row-border, #f3f4f6)' }}
+              />
+              <input className="sr-input" type="file" accept="image/*" style={inputStyle} onChange={(e) => onPassportChange(e.target.files?.[0] ?? null)} />
+            </div>
           </div>
 
           <div>
@@ -796,7 +930,7 @@ export default function CandidateFormPage() {
             <>
               <div>
                 <label style={labelStyle}>Passport Collected Date</label>
-                <input className="sr-input" type="date" style={inputStyle} value={form.passport_collected_date} onChange={(e) => set('passport_collected_date', e.target.value)} />
+                <DatePicker style={inputStyle} value={form.passport_collected_date} onChange={(iso) => set('passport_collected_date', iso)} />
               </div>
               <div>
                 <label style={labelStyle}>Passport Number</label>
@@ -807,15 +941,25 @@ export default function CandidateFormPage() {
 
           <div>
             <label style={labelStyle}>Birth Date</label>
-            <input className="sr-input" style={inputStyle} value={form.birth_date} onChange={(e) => set('birth_date', e.target.value)} placeholder="YYYY/MM/DD" />
+            <input
+              className="sr-input"
+              style={{ ...inputStyle, background: 'var(--row-border, #f3f4f6)' }}
+              value={form.birth_date}
+              readOnly
+              placeholder="Auto-filled from NIC"
+              title="Auto-filled from NIC number"
+            />
           </div>
           <div>
             <label style={labelStyle}>Gender</label>
-            <select className="sr-input" style={inputStyle} value={form.gender} onChange={(e) => set('gender', e.target.value)}>
-              <option value="">-- Select --</option>
-              <option value="Male">Male</option>
-              <option value="Female">Female</option>
-            </select>
+            <input
+              className="sr-input"
+              style={{ ...inputStyle, background: 'var(--row-border, #f3f4f6)' }}
+              value={form.gender}
+              readOnly
+              placeholder="Auto-filled from NIC"
+              title="Auto-filled from NIC number"
+            />
           </div>
 
           <div>
@@ -895,12 +1039,10 @@ export default function CandidateFormPage() {
             )}
           </div>
 
-          {passportPreview && (
-            <div>
-              <label style={labelStyle}>Photo Preview</label>
-              <img src={passportPreview} alt="passport" style={{ width: 96, height: 120, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)' }} />
-            </div>
-          )}
+          <div>
+            <label style={labelStyle}>Photo Preview</label>
+            <img src={passportPreview || DEFAULT_PROFILE_IMAGE} alt="passport" style={{ width: 96, height: 120, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--row-border, #f3f4f6)' }} />
+          </div>
         </div>
 
         <div style={{ marginTop: 24 }}>
@@ -1030,7 +1172,7 @@ export default function CandidateFormPage() {
                           <tr style={{ background: 'var(--row-border,#f3f4f6)' }}>
                             <th style={{ padding: '7px 12px', textAlign: 'left', fontWeight: 600, fontSize: 11, color: 'var(--label-2)', borderBottom: '1px solid var(--border-soft)', width: 36 }}>#</th>
                             <th style={{ padding: '7px 12px', textAlign: 'left', fontWeight: 600, fontSize: 11, color: 'var(--label-2)', borderBottom: '1px solid var(--border-soft)' }}>Date &amp; Time</th>
-                            <th style={{ padding: '7px 12px', textAlign: 'left', fontWeight: 600, fontSize: 11, color: 'var(--label-2)', borderBottom: '1px solid var(--border-soft)', width: 90 }}>Status</th>
+                            <th style={{ padding: '7px 12px', textAlign: 'left', fontWeight: 600, fontSize: 11, color: 'var(--label-2)', borderBottom: '1px solid var(--border-soft)', width: 110 }}>Status</th>
                             <th style={{ padding: '7px 12px', textAlign: 'left', fontWeight: 600, fontSize: 11, color: 'var(--label-2)', borderBottom: '1px solid var(--border-soft)', width: 80 }}>Source</th>
                             <th style={{ padding: '7px 12px', borderBottom: '1px solid var(--border-soft)', width: 40 }}></th>
                           </tr>
@@ -1046,8 +1188,8 @@ export default function CandidateFormPage() {
                                   {rec.time && <span style={{ marginLeft: 10, color: 'var(--muted)', fontSize: 12 }}>{rec.time}</span>}
                                 </td>
                                 <td style={{ padding: '7px 12px' }}>
-                                  <span style={{ fontSize: 11, fontWeight: 700, color: 'oklch(0.40 0.14 150)', background: 'oklch(0.92 0.05 150)', padding: '2px 8px', borderRadius: 20 }}>
-                                    ✓ Present
+                                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap', fontSize: 11, fontWeight: 700, color: 'oklch(0.40 0.14 150)', background: 'oklch(0.92 0.05 150)', padding: '3px 10px', borderRadius: 20 }}>
+                                    <span aria-hidden>✓</span> Present
                                   </span>
                                 </td>
                                 <td style={{ padding: '7px 12px' }}>
@@ -1077,18 +1219,17 @@ export default function CandidateFormPage() {
 
                       {/* Add date row */}
                       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                        <input
-                          type="date"
-                          className="sr-input"
+                        <DatePicker
                           style={{ ...inputStyle, width: 180 }}
-                          id={`att-pre-${cycle.cycle_no}`}
+                          value={preAttDate[cycle.cycle_no] ?? ''}
+                          onChange={(iso) => setPreAttDate((m) => ({ ...m, [cycle.cycle_no]: iso }))}
                         />
                         <button
                           className="sr-btn-primary"
                           style={{ padding: '8px 14px', borderRadius: 7, fontSize: 12 }}
                           onClick={async () => {
-                            const el = document.getElementById(`att-pre-${cycle.cycle_no}`) as HTMLInputElement;
-                            if (el?.value) { await addAttendanceRecord(cycle.cycle_no, el.value); el.value = ''; }
+                            const v = preAttDate[cycle.cycle_no];
+                            if (v) { await addAttendanceRecord(cycle.cycle_no, v); setPreAttDate((m) => ({ ...m, [cycle.cycle_no]: '' })); }
                           }}
                         >
                           + Add Date
@@ -1100,13 +1241,11 @@ export default function CandidateFormPage() {
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                       <div>
                         <label style={labelStyle}>Pre Test Date</label>
-                        <input
-                          type="date"
-                          className="sr-input"
+                        <DatePicker
                           style={{ ...inputStyle, opacity: canTest ? 1 : 0.45 }}
                           disabled={!canTest}
                           value={cycle.test_date ?? ''}
-                          onChange={(e) => updateCycle(cycle.cycle_no, { test_date: e.target.value || null })}
+                          onChange={(iso) => updateCycle(cycle.cycle_no, { test_date: iso || null })}
                           title={!canTest ? 'Need 7+ attendance days first' : ''}
                         />
                       </div>
@@ -1216,13 +1355,16 @@ export default function CandidateFormPage() {
                   </tbody>
                 </table>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <input type="date" className="sr-input" style={{ ...inputStyle, width: 180 }} id="att-final" />
+                  <DatePicker
+                    style={{ ...inputStyle, width: 180 }}
+                    value={finalAttDate}
+                    onChange={setFinalAttDate}
+                  />
                   <button
                     className="sr-btn-primary"
                     style={{ padding: '8px 14px', borderRadius: 7, fontSize: 12 }}
                     onClick={async () => {
-                      const el = document.getElementById('att-final') as HTMLInputElement;
-                      if (el?.value) { await addAttendanceRecord('final', el.value); el.value = ''; }
+                      if (finalAttDate) { await addAttendanceRecord('final', finalAttDate); setFinalAttDate(''); }
                     }}
                   >
                     + Add Date
@@ -1234,12 +1376,10 @@ export default function CandidateFormPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                 <div>
                   <label style={labelStyle}>Final Test Date</label>
-                  <input
-                    type="date"
-                    className="sr-input"
+                  <DatePicker
                     style={inputStyle}
                     value={training.final_test_date ?? ''}
-                    onChange={(e) => setTraining((t) => ({ ...t, final_test_date: e.target.value || null }))}
+                    onChange={(iso) => setTraining((t) => ({ ...t, final_test_date: iso || null }))}
                   />
                 </div>
                 <div>
@@ -1330,32 +1470,26 @@ export default function CandidateFormPage() {
 
             <div>
               <label style={labelStyle}>Local PCC Attach Date</label>
-              <input
-                className="sr-input"
-                type="date"
+              <DatePicker
                 style={inputStyle}
                 value={documents.local_pcc_attach_date ?? ''}
-                onChange={(e) => setDocDate('local_pcc_attach_date', e.target.value)}
+                onChange={(iso) => setDocDate('local_pcc_attach_date', iso)}
               />
             </div>
             <div>
               <label style={labelStyle}>2nd PCC Submit Date</label>
-              <input
-                className="sr-input"
-                type="date"
+              <DatePicker
                 style={inputStyle}
                 value={documents.second_pcc_submit_date ?? ''}
-                onChange={(e) => setDocDate('second_pcc_submit_date', e.target.value)}
+                onChange={(iso) => setDocDate('second_pcc_submit_date', iso)}
               />
             </div>
             <div>
               <label style={labelStyle}>Document Submission Date</label>
-              <input
-                className="sr-input"
-                type="date"
+              <DatePicker
                 style={inputStyle}
                 value={documents.document_submission_date ?? ''}
-                onChange={(e) => setDocDate('document_submission_date', e.target.value)}
+                onChange={(iso) => setDocDate('document_submission_date', iso)}
               />
             </div>
           </div>
@@ -1460,6 +1594,145 @@ export default function CandidateFormPage() {
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── Section 5: Employee Details ───────────────────────────────────── */}
+      {isEdit && candidate && !section4Done && (
+        <LockedSectionCard no="05" title="Employee Details" needNo={4} />
+      )}
+      {isEdit && candidate && section4Done && (
+        <div style={cardStyle}>
+          <div style={{ color: 'var(--accent, #6366f1)', fontWeight: 700, marginBottom: 4 }}>
+            05. Employee Details
+          </div>
+          <hr style={{ border: 'none', borderTop: '1px solid var(--border-soft)', margin: '10px 0 18px' }} />
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
+            <div>
+              <label style={labelStyle}>Registration Number</label>
+              <input
+                className="sr-input"
+                style={inputStyle}
+                value={employee.registration_number || ''}
+                onChange={(e) =>
+                  setEmployee((s) => ({ ...s, registration_number: e.target.value }))
+                }
+                placeholder="Enter registration number"
+              />
+              <span style={{ display: 'block', fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
+                Type the registration number manually.
+              </span>
+            </div>
+
+            <div>
+              <label style={labelStyle}>Job Category</label>
+              <select
+                className="sr-input"
+                style={inputStyle}
+                value={employee.job_category_id ?? ''}
+                onChange={(e) =>
+                  setEmployee((s) => ({ ...s, job_category_id: e.target.value ? Number(e.target.value) : null }))
+                }
+              >
+                <option value="">-- Select Job Category --</option>
+                {jobCategories.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+              <span style={{ display: 'block', fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
+                Manage the list on the <strong>Job Categories</strong> page.
+              </span>
+            </div>
+          </div>
+
+          <div style={{ marginTop: 24 }}>
+            <button
+              className="sr-btn-primary"
+              onClick={saveEmployee}
+              disabled={employeeSaving}
+              style={{ padding: '11px 22px', borderRadius: 8, fontSize: 14 }}
+            >
+              {employeeSaving ? 'Saving…' : 'Save Section 5'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Section 6: Departure Details ──────────────────────────────────── */}
+      {isEdit && candidate && !section5Done && (
+        <LockedSectionCard no="06" title="Departure Details" needNo={5} />
+      )}
+      {isEdit && candidate && section5Done && (
+        <div style={cardStyle}>
+          <div style={{ color: 'var(--accent, #6366f1)', fontWeight: 700, marginBottom: 4 }}>
+            06. Departure Details
+          </div>
+          <hr style={{ border: 'none', borderTop: '1px solid var(--border-soft)', margin: '10px 0 18px' }} />
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
+            <div>
+              <label style={labelStyle}>Final Approval Date</label>
+              <DatePicker
+                style={inputStyle}
+                value={departure.final_approval_date ?? ''}
+                onChange={(v) => setDeparture((s) => ({ ...s, final_approval_date: v || null }))}
+              />
+            </div>
+
+            <div>
+              <label style={labelStyle}>Receipt Number</label>
+              <input
+                className="sr-input"
+                style={inputStyle}
+                value={departure.receipt_number || ''}
+                onChange={(e) => setDeparture((s) => ({ ...s, receipt_number: e.target.value }))}
+                placeholder="Enter receipt number"
+              />
+            </div>
+
+            <div>
+              <label style={labelStyle}>Flight Number</label>
+              <input
+                className="sr-input"
+                style={inputStyle}
+                value={departure.flight_number || ''}
+                onChange={(e) => setDeparture((s) => ({ ...s, flight_number: e.target.value }))}
+                placeholder="Enter flight number"
+              />
+            </div>
+
+            <div>
+              <label style={labelStyle}>Airticket Number</label>
+              <input
+                className="sr-input"
+                style={inputStyle}
+                value={departure.airticket_number || ''}
+                onChange={(e) => setDeparture((s) => ({ ...s, airticket_number: e.target.value }))}
+                placeholder="Enter airticket number"
+              />
+            </div>
+
+            <div>
+              <label style={labelStyle}>Departure Date</label>
+              <DatePicker
+                style={inputStyle}
+                value={departure.departure_date ?? ''}
+                onChange={(v) => setDeparture((s) => ({ ...s, departure_date: v || null }))}
+              />
+            </div>
+          </div>
+
+          <div style={{ marginTop: 24 }}>
+            <button
+              className="sr-btn-primary"
+              onClick={saveDeparture}
+              disabled={departureSaving}
+              style={{ padding: '11px 22px', borderRadius: 8, fontSize: 14 }}
+            >
+              {departureSaving ? 'Saving…' : 'Save Section 6'}
+            </button>
+          </div>
         </div>
       )}
 

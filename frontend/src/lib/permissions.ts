@@ -5,6 +5,7 @@ export const ROUTE_PERMISSION: Record<string, string> = {
   '/dashboard': 'dashboard.view',
   '/candidates': 'candidates.view',
   '/staff': 'staff.view',
+  '/job-categories': 'staff.view',
   '/section-assignments': 'sections.view',
   '/roles': 'roles.view',
   '/permissions': 'permissions.view',

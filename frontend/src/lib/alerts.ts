@@ -43,6 +43,26 @@ export async function confirmDelete(
   return res.isConfirmed;
 }
 
+/** Ask the user to confirm a non-destructive action (e.g. saving). Resolves true if confirmed. */
+export async function confirmAction(
+  text = 'Do you want to continue?',
+  title = 'Are you sure?',
+  confirmButtonText = 'Yes, continue',
+): Promise<boolean> {
+  const res = await Swal.fire({
+    title,
+    text,
+    icon: 'question',
+    showCancelButton: true,
+    confirmButtonText,
+    cancelButtonText: 'Cancel',
+    confirmButtonColor: ACCENT,
+    cancelButtonColor: '#6b7280',
+    reverseButtons: true,
+  });
+  return res.isConfirmed;
+}
+
 /** Prompt for a single text value. Resolves the trimmed value, or null if cancelled. */
 export async function promptText(
   title: string,

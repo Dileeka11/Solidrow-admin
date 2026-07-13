@@ -116,6 +116,22 @@ export function EditIcon() {
   );
 }
 
+export function EyeIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+      <path
+        d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"
+        stroke="oklch(0.4 0.01 250)"
+        strokeWidth="2"
+        fill="none"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle cx="12" cy="12" r="3" stroke="oklch(0.4 0.01 250)" strokeWidth="2" fill="none" />
+    </svg>
+  );
+}
+
 export function TrashIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none">

@@ -6,9 +6,12 @@ import { can, firstAllowedRoute } from './lib/permissions';
 import AppLayout from './pages/AppLayout';
 import CandidatesPage from './pages/CandidatesPage';
 import CandidateFormPage from './pages/CandidateFormPage';
+import CandidateViewPage from './pages/CandidateViewPage';
 import DashboardPage from './pages/DashboardPage';
+import JobCategoriesPage from './pages/JobCategoriesPage';
 import LoginPage from './pages/LoginPage';
 import PermissionsPage from './pages/PermissionsPage';
+import ProgressCheckPage from './pages/ProgressCheckPage';
 import RolesPage from './pages/RolesPage';
 import SectionAssignmentPage from './pages/SectionAssignmentPage';
 import StaffPage from './pages/StaffPage';
@@ -60,6 +63,7 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<LoginRoute />} />
       <Route path="/no-access" element={<NoAccess />} />
+      <Route path="/progress" element={<ProgressCheckPage />} />
       <Route
         element={
           <ProtectedRoute>
@@ -92,6 +96,14 @@ export default function App() {
           }
         />
         <Route
+          path="/candidates/:id/view"
+          element={
+            <RequirePermission permission="candidates.view">
+              <CandidateViewPage />
+            </RequirePermission>
+          }
+        />
+        <Route
           path="/candidates/:id"
           element={
             <RequirePermission permission="candidates.view">
@@ -112,6 +124,14 @@ export default function App() {
           element={
             <RequirePermission permission="sections.view">
               <SectionAssignmentPage />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="/job-categories"
+          element={
+            <RequirePermission permission="staff.view">
+              <JobCategoriesPage />
             </RequirePermission>
           }
         />

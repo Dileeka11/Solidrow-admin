@@ -64,7 +64,7 @@ class CandidateDocumentController extends Controller
     {
         $urls = [];
         foreach (CandidateDocument::FILE_FIELDS as $field) {
-            $urls[$field . '_url'] = $d->{$field} ? asset('storage/' . $d->{$field}) : null;
+            $urls[$field . '_url'] = $d->{$field} ? url('media/' . $d->{$field}) : null;
         }
 
         return array_merge([

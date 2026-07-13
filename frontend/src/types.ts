@@ -174,6 +174,32 @@ export interface CandidateVisaDetails {
   piba_submission_status: PibaSubmissionStatus | null;
 }
 
+/** A job category (master data managed on its own page, used in Section 5). */
+export interface JobCategory {
+  id: number;
+  name: string;
+}
+
+/** Section 5 — Employee Details. */
+export interface CandidateEmployeeDetails {
+  id?: number;
+  candidate_id?: number;
+  /** Defaults to the candidate reg no on the server but editable locally. */
+  registration_number: string | null;
+  job_category_id: number | null;
+}
+
+/** Section 6 — Departure Details. */
+export interface CandidateDepartureDetails {
+  id?: number;
+  candidate_id?: number;
+  final_approval_date: string | null;
+  receipt_number: string | null;
+  flight_number: string | null;
+  airticket_number: string | null;
+  departure_date: string | null;
+}
+
 export interface Role {
   id: number;
   name: string;
