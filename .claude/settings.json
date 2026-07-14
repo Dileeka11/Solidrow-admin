@@ -27,7 +27,10 @@
       "Bash(cp -f frontend/dist/index.html backend/public/index.html)",
       "Bash(cp -f frontend/dist/assets/* backend/public/assets/)",
       "Bash(rm -f __TRACKED_VAR__/assets/*.js)",
-      "Bash(cp -f backend/public/index.html __TRACKED_VAR__/index.html)"
+      "Bash(cp -f backend/public/index.html __TRACKED_VAR__/index.html)",
+      "Bash(dart run *)",
+      "Bash(ls -d android ios web macos windows linux)",
+      "Bash(uname -s)"
     ],
     "additionalDirectories": [
       "\\tmp"

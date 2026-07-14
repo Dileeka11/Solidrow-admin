@@ -8,6 +8,8 @@ import 'core/auth_storage.dart';
 import 'screens/login_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/scanner_screen.dart';
+import 'screens/progress_screen.dart';
+import 'screens/home_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -66,16 +68,25 @@ Page<T> _buildPage<T>(BuildContext context, GoRouterState state, Widget child) {
   );
 }
 
+/// Routes that require a staff bearer token.
+const _protectedRoutes = {'/dashboard', '/scanner'};
+
 final _router = GoRouter(
-  initialLocation: '/login',
+  initialLocation: '/home',
   redirect: (context, state) async {
     final hasToken = await AuthStorage.hasToken();
-    final onLogin  = state.matchedLocation == '/login';
-    if (!hasToken && !onLogin) return '/login';
-    if (hasToken  &&  onLogin) return '/dashboard';
+    final loc      = state.matchedLocation;
+    // Gate staff-only routes behind a valid token.
+    if (!hasToken && _protectedRoutes.contains(loc)) return '/login';
+    // Already signed in? Skip the login screen.
+    if (hasToken && loc == '/login') return '/dashboard';
     return null;
   },
   routes: [
+    GoRoute(
+      path: '/home',
+      pageBuilder: (c, s) => _buildPage(c, s, const HomeScreen()),
+    ),
     GoRoute(
       path: '/login',
       pageBuilder: (c, s) => _buildPage(c, s, const LoginScreen()),
@@ -87,6 +98,10 @@ final _router = GoRouter(
     GoRoute(
       path: '/scanner',
       pageBuilder: (c, s) => _buildPage(c, s, const ScannerScreen()),
+    ),
+    GoRoute(
+      path: '/progress',
+      pageBuilder: (c, s) => _buildPage(c, s, const ProgressScreen()),
     ),
   ],
 );

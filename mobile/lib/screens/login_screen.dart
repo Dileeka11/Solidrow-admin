@@ -160,33 +160,22 @@ class _LoginScreenState extends State<LoginScreen>
     return Column(
       children: [
         Container(
-          width: 80, height: 80,
+          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 18),
           decoration: BoxDecoration(
+            color: Colors.white,
             borderRadius: BorderRadius.circular(22),
-            gradient: const LinearGradient(
-              colors: [AppColors.accent, Color(0xFF0088BB)],
-              begin: Alignment.topLeft,
-              end:   Alignment.bottomRight,
-            ),
             boxShadow: [BoxShadow(
               color: AppColors.accentGlow,
               blurRadius: 28, spreadRadius: 4,
             )],
           ),
-          child: const Icon(Icons.qr_code_scanner_rounded,
-              size: 40, color: AppColors.navy),
-        ),
-        const SizedBox(height: 20),
-        const Text(
-          'Solidrow',
-          style: TextStyle(
-            fontSize: 30,
-            fontWeight: FontWeight.w800,
-            color: AppColors.textPrimary,
-            letterSpacing: -0.5,
+          child: Image.asset(
+            'assets/images/solidrow-foreign-employment.png',
+            height: 76,
+            fit: BoxFit.contain,
           ),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 20),
         const Text(
           'Staff Attendance Portal',
           style: TextStyle(fontSize: 14, color: AppColors.textSecondary),

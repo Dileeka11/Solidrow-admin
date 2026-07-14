@@ -57,7 +57,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     // Fire-and-forget token revocation (best effort)
     try { await ApiClient.post('/logout', {}); } catch (_) {}
     await AuthStorage.clearSession();
-    if (mounted) context.go('/login');
+    if (mounted) context.go('/home');
   }
 
   void _openScanner() async {
@@ -66,6 +66,8 @@ class _DashboardScreenState extends State<DashboardScreen>
       setState(() => _scanCount++);
     }
   }
+
+  void _openProgress() => context.push('/progress');
 
   String get _greeting {
     final h = DateTime.now().hour;
@@ -122,6 +124,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                           _buildStatRow(),
                           const SizedBox(height: 32),
                           _buildScanButton(),
+                          const SizedBox(height: 16),
+                          _buildProgressButton(),
                           const SizedBox(height: 24),
                           _buildInfoCard(),
                         ],
@@ -250,6 +254,50 @@ class _DashboardScreenState extends State<DashboardScreen>
               'Tap to open camera',
               style: TextStyle(fontSize: 13, color: Color(0x99001F2E)),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProgressButton() {
+    return _PressableButton(
+      onTap: _openProgress,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+        decoration: BoxDecoration(
+          color: AppColors.navyCard,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44, height: 44,
+              decoration: BoxDecoration(
+                color: AppColors.accentGlow,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(Icons.manage_search_rounded,
+                  size: 24, color: AppColors.accent),
+            ),
+            const SizedBox(width: 14),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Check Progress',
+                      style: TextStyle(
+                          fontSize: 15, fontWeight: FontWeight.w700)),
+                  SizedBox(height: 2),
+                  Text('Search by passport, mobile or NIC',
+                      style: TextStyle(
+                          fontSize: 12, color: AppColors.textSecondary)),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded,
+                color: AppColors.textSecondary),
           ],
         ),
       ),
