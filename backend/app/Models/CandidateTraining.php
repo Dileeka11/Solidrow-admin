@@ -12,6 +12,8 @@ class CandidateTraining extends Model
         'candidate_id',
         'training_mode',
         'training_bond',
+        'pre_test_job_category_id',
+        'pre_test_number',
         'pre_test_cycles',
         'final_test_attendance_records',
         'final_test_date',

@@ -19,7 +19,9 @@ class JobCategoryController extends Controller
     {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255', Rule::unique('job_categories', 'name')],
+            'code' => ['nullable', 'string', 'max:8'],
         ]);
+        $data['code'] = isset($data['code']) ? strtoupper(trim($data['code'])) : null;
 
         $category = JobCategory::create($data);
 
@@ -31,7 +33,9 @@ class JobCategoryController extends Controller
     {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255', Rule::unique('job_categories', 'name')->ignore($jobCategory->id)],
+            'code' => ['nullable', 'string', 'max:8'],
         ]);
+        $data['code'] = isset($data['code']) ? strtoupper(trim($data['code'])) : null;
 
         $jobCategory->update($data);
 

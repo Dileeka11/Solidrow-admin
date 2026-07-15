@@ -21,11 +21,6 @@ const SKILL_LABEL: Record<string, string> = {
   training: 'Training',
 };
 
-const TRAINING_MODE_LABEL: Record<string, string> = {
-  pre_test: 'Pre Test',
-  final_test: 'Final Test',
-  both: 'Both',
-};
 
 const VISA_STATUS_LABEL: Record<string, string> = {
   visa_received: 'Visa Received',
@@ -100,6 +95,65 @@ function FileField({ label, url }: { label: string; url: string | null | undefin
         >
           View file
         </a>
+      ) : (
+        <div style={{ ...valueStyle, color: 'var(--muted)' }}>—</div>
+      )}
+    </div>
+  );
+}
+
+function MultiFileField({ label, files }: { label: string; files: { path: string; url: string }[] | undefined }) {
+  return (
+    <div>
+      <div style={labelStyle}>{label}</div>
+      {files && files.length > 0 ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {files.map((f) => (
+            <a
+              key={f.path}
+              href={f.url}
+              target="_blank"
+              rel="noreferrer"
+              style={{ fontSize: 14, fontWeight: 500, color: 'var(--accent, #6366f1)' }}
+            >
+              {f.path.split('/').pop()}
+            </a>
+          ))}
+        </div>
+      ) : (
+        <div style={{ ...valueStyle, color: 'var(--muted)' }}>—</div>
+      )}
+    </div>
+  );
+}
+
+/** Dated attachment history: each entry links to the file and shows its upload date. */
+function DatedFileField({
+  label,
+  files,
+}: {
+  label: string;
+  files: { path: string; url: string; uploaded_at: string | null }[] | undefined;
+}) {
+  return (
+    <div>
+      <div style={labelStyle}>{label}</div>
+      {files && files.length > 0 ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {files.map((f) => (
+            <div key={f.path} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 12, color: 'var(--muted)', minWidth: 92 }}>{f.uploaded_at ?? '—'}</span>
+              <a
+                href={f.url}
+                target="_blank"
+                rel="noreferrer"
+                style={{ fontSize: 14, fontWeight: 500, color: 'var(--accent, #6366f1)' }}
+              >
+                {f.path.split('/').pop()}
+              </a>
+            </div>
+          ))}
+        </div>
       ) : (
         <div style={{ ...valueStyle, color: 'var(--muted)' }}>—</div>
       )}
@@ -359,9 +413,9 @@ export default function CandidateViewPage() {
 
       {/* Section 2: Training Details */}
       <SectionCard title="02. Training Details" complete={isDone(2)}>
-        <div style={{ ...grid2, marginBottom: training?.training_mode ? 20 : 0 }}>
-          <Field label="Training Mode" value={training?.training_mode ? TRAINING_MODE_LABEL[training.training_mode] : null} />
+        <div style={{ ...grid2, marginBottom: 20 }}>
           <FileField label="Training Bond" url={training?.training_bond_url} />
+          <Field label="Pre-Test Number" value={training?.pre_test_number ?? null} />
         </div>
 
         {(training?.pre_test_cycles?.length ?? 0) > 0 &&
@@ -387,7 +441,7 @@ export default function CandidateViewPage() {
             </div>
           ))}
 
-        {training?.training_mode && training.training_mode !== 'pre_test' && (
+        {training && (
           <div style={{ border: '1px solid var(--border-soft)', borderRadius: 10, padding: '16px 20px', background: 'var(--row-bg,#fafafa)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
               <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--accent,#6366f1)' }}>Final Test</span>
@@ -404,7 +458,7 @@ export default function CandidateViewPage() {
           </div>
         )}
 
-        {!training?.training_mode && (
+        {!training && (
           <div style={{ fontSize: 13, color: 'var(--muted)' }}>No training details recorded yet.</div>
         )}
       </SectionCard>
@@ -416,13 +470,12 @@ export default function CandidateViewPage() {
           <FileField label="NIC Color Copy" url={documents?.nic_color_copy_url} />
           <FileField label="Passport Color Copy" url={documents?.passport_color_copy_url} />
           <FileField label="Professional Certificate" url={documents?.professional_certificate_url} />
-          <FileField label="Working Experience" url={documents?.working_experience_url} />
+          <MultiFileField label="Service Letter" files={documents?.working_experience_files} />
           <FileField label="CV Copy" url={documents?.cv_copy_url} />
-          <FileField label="Local PCC" url={documents?.local_pcc_url} />
-          <FileField label="2nd PCC Color Copy" url={documents?.second_pcc_color_copy_url} />
-          <Field label="Local PCC Attach Date" value={documents?.local_pcc_attach_date} />
-          <Field label="2nd PCC Submit Date" value={documents?.second_pcc_submit_date} />
-          <Field label="Document Submission Date" value={documents?.document_submission_date} />
+          <DatedFileField label="Police Certificate" files={documents?.police_certificate_files} />
+          <DatedFileField label="Certified Police Report" files={documents?.certified_police_report_files} />
+          <Field label="Document Submit Date" value={documents?.document_submission_date} />
+          <Field label="Document Re-submission Date" value={documents?.document_resubmission_date} />
         </div>
       </SectionCard>
 
@@ -455,8 +508,19 @@ export default function CandidateViewPage() {
         </div>
       </SectionCard>
 
-      {/* Section 5: Employee Details */}
-      <SectionCard title="05. Employee Details" complete={isDone(5)}>
+      {/* Section 5: Departure Details */}
+      <SectionCard title="05. Departure Details" complete={isDone(5)}>
+        <div style={grid3}>
+          <Field label="Final Approval Date" value={departure?.final_approval_date} />
+          <Field label="Receipt Number" value={departure?.receipt_number} />
+          <Field label="Flight Number" value={departure?.flight_number} />
+          <Field label="Air Ticket Number" value={departure?.airticket_number} />
+          <Field label="Departure Date" value={departure?.departure_date} />
+        </div>
+      </SectionCard>
+
+      {/* Section 6: Employee Details */}
+      <SectionCard title="06. Employee Details" complete={isDone(6)}>
         <div style={grid2}>
           <Field label="Registration Number" value={employee?.registration_number} />
           <Field
@@ -470,24 +534,13 @@ export default function CandidateViewPage() {
         </div>
       </SectionCard>
 
-      {/* Section 6: Departure Details */}
-      <SectionCard title="06. Departure Details" complete={isDone(6)}>
-        <div style={grid3}>
-          <Field label="Final Approval Date" value={departure?.final_approval_date} />
-          <Field label="Receipt Number" value={departure?.receipt_number} />
-          <Field label="Flight Number" value={departure?.flight_number} />
-          <Field label="Air Ticket Number" value={departure?.airticket_number} />
-          <Field label="Departure Date" value={departure?.departure_date} />
-        </div>
-      </SectionCard>
-
       {/* Sections progress overview */}
       {c.sections && c.sections.length > 0 && (
         <div style={cardStyle}>
           <div style={sectionTitleStyle}>Sections Progress</div>
           <hr style={hrStyle} />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {['Personal Details', 'Training Details', 'Document Attachment', 'Job & Visa Processing', 'Employee Details', 'Departure Details'].map((title, i) => {
+            {['Personal Details', 'Training Details', 'Document Attachment', 'Job & Visa Processing', 'Departure Details', 'Employee Details'].map((title, i) => {
               const n = i + 1;
               const sec = c.sections?.find((s) => s.section_no === n);
               const submitted = sec?.status === 'submitted';

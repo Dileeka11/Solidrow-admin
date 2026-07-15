@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Candidate;
+use App\Models\CandidateDepartureDetail;
+use App\Models\CandidateVisaDetail;
 use App\Models\Staff;
 
 class DashboardController extends Controller
@@ -26,6 +29,26 @@ class DashboardController extends Controller
             ->map(fn ($row) => ['label' => $row->label, 'value' => (int) $row->value])
             ->values();
 
+        // Candidate pipeline stage counts (derived from real candidate data).
+        $stageCounts = [
+            [
+                'label' => 'Registered',
+                'value' => Candidate::count(),
+            ],
+            [
+                'label' => 'Agreement Signed',
+                'value' => CandidateVisaDetail::whereNotNull('agreement_sign_date')->count(),
+            ],
+            [
+                'label' => 'Visa Received',
+                'value' => CandidateVisaDetail::whereNotNull('visa_received_date')->count(),
+            ],
+            [
+                'label' => 'Departed',
+                'value' => CandidateDepartureDetail::whereNotNull('departure_date')->count(),
+            ],
+        ];
+
         $kpis = [
             ['label' => 'Total Staff', 'value' => (string) $totalStaff, 'delta' => '+2 this month', 'tone' => 'up'],
             ['label' => 'Active Placements', 'value' => '1,240', 'delta' => '+86 this month', 'tone' => 'up'],
@@ -33,26 +56,35 @@ class DashboardController extends Controller
             ['label' => 'Monthly Revenue', 'value' => 'LKR 4.2M', 'delta' => '+8.4% vs last month', 'tone' => 'up'],
         ];
 
-        $monthlyTrend = [
-            ['month' => 'Jan', 'value' => 180],
-            ['month' => 'Feb', 'value' => 205],
-            ['month' => 'Mar', 'value' => 195],
-            ['month' => 'Apr', 'value' => 240],
-            ['month' => 'May', 'value' => 255],
-            ['month' => 'Jun', 'value' => 290],
-        ];
+        // Placements per month over the last 6 months — a candidate is
+        // "placed" when they have a departure date.
+        $monthlyTrend = collect(range(5, 0))->map(function ($i) {
+            $month = now()->subMonths($i);
 
-        $placementsByCountry = [
-            ['country' => 'Saudi Arabia', 'value' => 420],
-            ['country' => 'United Arab Emirates', 'value' => 310],
-            ['country' => 'Qatar', 'value' => 265],
-            ['country' => 'Kuwait', 'value' => 180],
-            ['country' => 'Oman', 'value' => 95],
-        ];
+            return [
+                'month' => $month->format('M'),
+                'value' => CandidateDepartureDetail::whereNotNull('departure_date')
+                    ->whereYear('departure_date', $month->year)
+                    ->whereMonth('departure_date', $month->month)
+                    ->count(),
+            ];
+        })->values();
+
+        // Candidate distribution by destination country (real candidate rows).
+        $placementsByCountry = Candidate::selectRaw('country, COUNT(*) as value')
+            ->whereNotNull('country')
+            ->where('country', '!=', '')
+            ->groupBy('country')
+            ->orderByDesc('value')
+            ->limit(8)
+            ->get()
+            ->map(fn ($row) => ['country' => $row->country, 'value' => (int) $row->value])
+            ->values();
 
         return response()->json([
             'totalStaff' => $totalStaff,
             'kpis' => $kpis,
+            'stageCounts' => $stageCounts,
             'monthlyTrend' => $monthlyTrend,
             'departmentBreakdown' => $departmentBreakdown,
             'placementsByCountry' => $placementsByCountry,

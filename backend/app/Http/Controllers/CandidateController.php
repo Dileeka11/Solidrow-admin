@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Candidate;
+use App\Models\CandidateEmployeeDetail;
 use App\Models\CandidateSection;
 use App\Models\SectionAssignment;
 use Illuminate\Http\Request;
@@ -18,8 +19,8 @@ class CandidateController extends Controller
         'Training Details',
         'Document Attachment',
         'Job & Visa Processing',
-        'Employee Details',
         'Departure Details',
+        'Employee Details',
     ];
 
     /**
@@ -59,9 +60,14 @@ class CandidateController extends Controller
             ->pluck('section_no')
             ->all();
 
+        // Prefer the manually-entered Employee Details (Section 6) registration number;
+        // fall back to the auto-generated registration number when not yet entered.
+        $employeeRegNo = CandidateEmployeeDetail::where('candidate_id', $candidate->id)
+            ->value('registration_number');
+
         return response()->json([
             'full_name' => $candidate->full_name,
-            'registration_no' => $candidate->registration_no,
+            'registration_no' => $employeeRegNo ?: $candidate->registration_no,
             'total_sections' => self::TOTAL_SECTIONS,
             'is_completed' => (bool) $candidate->is_completed,
             'sections' => array_map(fn ($n) => [

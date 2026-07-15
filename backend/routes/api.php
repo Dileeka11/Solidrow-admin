@@ -52,6 +52,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/candidates/{candidate}/training', [CandidateTrainingController::class, 'save']);
     Route::post('/candidates/{candidate}/training/attendance/add', [CandidateTrainingController::class, 'addAttendance']);
     Route::post('/candidates/{candidate}/training/attendance/remove', [CandidateTrainingController::class, 'removeAttendance']);
+    Route::post('/candidates/{candidate}/training/pre-test-number', [CandidateTrainingController::class, 'generatePreTestNumber']);
 
     // Section 3 — Personal Details (Attachment)
     Route::get('/candidates/{candidate}/documents', [CandidateDocumentController::class, 'show']);
@@ -61,15 +62,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/candidates/{candidate}/visa-details', [CandidateVisaDetailController::class, 'show']);
     Route::post('/candidates/{candidate}/visa-details', [CandidateVisaDetailController::class, 'save']);
 
-    // Section 5 — Employee Details
+    // Section 6 — Employee Details
     Route::get('/candidates/{candidate}/employee-details', [CandidateEmployeeDetailController::class, 'show']);
     Route::post('/candidates/{candidate}/employee-details', [CandidateEmployeeDetailController::class, 'save']);
 
-    // Section 6 — Departure Details
+    // Section 5 — Departure Details
     Route::get('/candidates/{candidate}/departure-details', [CandidateDepartureDetailController::class, 'show']);
     Route::post('/candidates/{candidate}/departure-details', [CandidateDepartureDetailController::class, 'save']);
 
-    // Job categories (master data for Section 5)
+    // Job categories (master data for Section 6)
     Route::get('/job-categories', [JobCategoryController::class, 'index']);
     Route::post('/job-categories', [JobCategoryController::class, 'store']);
     Route::put('/job-categories/{jobCategory}', [JobCategoryController::class, 'update']);

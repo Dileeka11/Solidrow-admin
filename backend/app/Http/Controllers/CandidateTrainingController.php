@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Candidate;
 use App\Models\CandidateTraining;
+use App\Models\JobCategory;
 use Illuminate\Http\Request;
 
 class CandidateTrainingController extends Controller
@@ -30,6 +31,7 @@ class CandidateTrainingController extends Controller
         $validated = $request->validate([
             'training_mode'    => ['nullable', 'in:pre_test,final_test,both'],
             'training_bond'    => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:20480'],
+            'pre_test_job_category_id' => ['nullable', 'exists:job_categories,id'],
             'pre_test_cycles'  => ['nullable', 'array'],
             'pre_test_cycles.*.cycle_no'                      => ['required', 'integer', 'min:1'],
             'pre_test_cycles.*.attendance_records'            => ['nullable', 'array'],
@@ -46,6 +48,7 @@ class CandidateTrainingController extends Controller
 
         $data = [
             'training_mode'                 => $validated['training_mode'] ?? null,
+            'pre_test_job_category_id'      => $validated['pre_test_job_category_id'] ?? null,
             'pre_test_cycles'               => $validated['pre_test_cycles'] ?? [],
             'final_test_attendance_records' => $validated['final_test_attendance_records'] ?? [],
             'final_test_date'               => $validated['final_test_date'] ?? null,
@@ -153,6 +156,51 @@ class CandidateTrainingController extends Controller
         return response()->json($this->normalize($training));
     }
 
+    /**
+     * Generate (or return the existing) pre-test number for a candidate.
+     * Format: <trade code><zero-padded sequence>, e.g. TI001. The sequence is
+     * per trade code, taken from the highest existing number with that prefix.
+     */
+    public function generatePreTestNumber(Request $request, Candidate $candidate)
+    {
+        $validated = $request->validate([
+            'pre_test_job_category_id' => ['required', 'exists:job_categories,id'],
+        ]);
+
+        $category = JobCategory::findOrFail($validated['pre_test_job_category_id']);
+        $code = strtoupper(trim($category->code ?? ''));
+        if ($code === '') {
+            return response()->json([
+                'message' => 'The selected trade has no code. Add a code on the Job Categories page first.',
+            ], 422);
+        }
+
+        $training = CandidateTraining::firstOrCreate(
+            ['candidate_id' => $candidate->id],
+            ['pre_test_cycles' => [], 'final_test_attendance_records' => []]
+        );
+
+        // Keep the existing number if this candidate already has one for the same trade.
+        if ($training->pre_test_number && $training->pre_test_job_category_id === $category->id) {
+            return response()->json($this->normalize($training));
+        }
+
+        // Next sequence for this trade code across all candidates.
+        $maxSeq = CandidateTraining::where('pre_test_number', 'like', $code . '%')
+            ->get()
+            ->map(fn ($t) => (int) preg_replace('/\D/', '', substr((string) $t->pre_test_number, strlen($code))))
+            ->max() ?? 0;
+
+        $number = $code . str_pad((string) ($maxSeq + 1), 3, '0', STR_PAD_LEFT);
+
+        $training->update([
+            'pre_test_job_category_id' => $category->id,
+            'pre_test_number'          => $number,
+        ]);
+
+        return response()->json($this->normalize($training));
+    }
+
     private function normalize(CandidateTraining $t): array
     {
         $cycles = array_map(fn ($c) => [
@@ -179,6 +227,8 @@ class CandidateTrainingController extends Controller
             'candidate_id'                  => $t->candidate_id,
             'training_mode'                 => $t->training_mode,
             'training_bond_url'             => $t->training_bond_url,
+            'pre_test_job_category_id'      => $t->pre_test_job_category_id,
+            'pre_test_number'               => $t->pre_test_number,
             'pre_test_cycles'               => $cycles,
             'final_test_attendance_records' => $t->final_test_attendance_records ?? [],
             'final_test_date'               => $t->final_test_date ? $t->final_test_date->format('Y-m-d') : null,

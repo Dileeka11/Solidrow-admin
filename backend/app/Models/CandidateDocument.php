@@ -8,16 +8,27 @@ class CandidateDocument extends Model
 {
     protected $table = 'candidate_documents';
 
-    /** Attachment fields that hold a stored file path. */
+    /** Attachment fields that hold a single stored file path. */
     public const FILE_FIELDS = [
         'passport_size_photo',
         'nic_color_copy',
         'passport_color_copy',
         'professional_certificate',
-        'working_experience',
         'cv_copy',
-        'local_pcc',
-        'second_pcc_color_copy',
+    ];
+
+    /** Attachment fields that hold a JSON array of stored file paths. */
+    public const MULTI_FILE_FIELDS = [
+        'working_experience',
+    ];
+
+    /**
+     * Attachment fields that hold a JSON array of { path, uploaded_at } entries.
+     * Re-uploads append to the history instead of overwriting the previous file.
+     */
+    public const DATED_MULTI_FILE_FIELDS = [
+        'police_certificate',
+        'certified_police_report',
     ];
 
     protected $fillable = [
@@ -28,17 +39,18 @@ class CandidateDocument extends Model
         'professional_certificate',
         'working_experience',
         'cv_copy',
-        'local_pcc',
-        'second_pcc_color_copy',
-        'local_pcc_attach_date',
-        'second_pcc_submit_date',
+        'police_certificate',
+        'certified_police_report',
         'document_submission_date',
+        'document_resubmission_date',
     ];
 
     protected $casts = [
-        'local_pcc_attach_date'    => 'date',
-        'second_pcc_submit_date'   => 'date',
-        'document_submission_date' => 'date',
+        'working_experience'         => 'array',
+        'police_certificate'         => 'array',
+        'certified_police_report'    => 'array',
+        'document_submission_date'   => 'date',
+        'document_resubmission_date' => 'date',
     ];
 
     public function candidate()

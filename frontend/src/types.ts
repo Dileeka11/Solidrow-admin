@@ -42,9 +42,15 @@ export interface CountryPlacement {
   value: number;
 }
 
+export interface StageCount {
+  label: string;
+  value: number;
+}
+
 export interface DashboardData {
   totalStaff: number;
   kpis: Kpi[];
+  stageCounts: StageCount[];
   monthlyTrend: TrendPoint[];
   departmentBreakdown: DepartmentSlice[];
   placementsByCountry: CountryPlacement[];
@@ -115,10 +121,25 @@ export interface CandidateTraining {
   candidate_id?: number;
   training_mode: TrainingMode | null;
   training_bond_url?: string | null;
+  pre_test_job_category_id: number | null;
+  pre_test_number: string | null;
   pre_test_cycles: PreTestCycle[];
   final_test_attendance_records: AttendanceRecord[];
   final_test_date: string | null;
   final_test_result: TestResult;
+}
+
+/** A stored multi-file attachment entry. */
+export interface CandidateDocumentFile {
+  path: string;
+  url: string;
+}
+
+/** A stored attachment entry that also records when it was uploaded. */
+export interface CandidateDatedDocumentFile {
+  path: string;
+  url: string;
+  uploaded_at: string | null;
 }
 
 /** Section 3 — Personal Details (Attachment). File fields expose a *_url from the API. */
@@ -129,25 +150,27 @@ export interface CandidateDocuments {
   nic_color_copy_url: string | null;
   passport_color_copy_url: string | null;
   professional_certificate_url: string | null;
-  working_experience_url: string | null;
+  /** Service Letter — supports multiple files. */
+  working_experience_files: CandidateDocumentFile[];
   cv_copy_url: string | null;
-  local_pcc_url: string | null;
-  second_pcc_color_copy_url: string | null;
-  local_pcc_attach_date: string | null;
-  second_pcc_submit_date: string | null;
+  /** Police Certificate — history of uploads with dates. */
+  police_certificate_files: CandidateDatedDocumentFile[];
+  /** Certified (Foreign Ministry) Police Report — history of uploads with dates. */
+  certified_police_report_files: CandidateDatedDocumentFile[];
   document_submission_date: string | null;
+  document_resubmission_date: string | null;
 }
 
-/** Attachment file field keys (used for uploads). */
+/** Attachment file field keys (used for single-file uploads). */
 export type CandidateDocumentFileField =
   | 'passport_size_photo'
   | 'nic_color_copy'
   | 'passport_color_copy'
   | 'professional_certificate'
-  | 'working_experience'
-  | 'cv_copy'
-  | 'local_pcc'
-  | 'second_pcc_color_copy';
+  | 'cv_copy';
+
+/** Dated multi-file attachment field keys (police reports). */
+export type CandidateDatedFileField = 'police_certificate' | 'certified_police_report';
 
 export type VisaStatus = 'visa_received' | 'visa_cancel';
 export type PibaSubmissionStatus = 'submitted' | 'not_yet_submitted';
@@ -178,6 +201,8 @@ export interface CandidateVisaDetails {
 export interface JobCategory {
   id: number;
   name: string;
+  /** Short trade code used as the Pre-Test number prefix (e.g. TI, SC, BB). */
+  code: string | null;
 }
 
 /** Section 5 — Employee Details. */

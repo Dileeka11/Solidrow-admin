@@ -9,6 +9,7 @@ const inputStyle: React.CSSProperties = { padding: '10px 12px', borderRadius: 7,
 export default function JobCategoriesPage() {
   const [categories, setCategories] = useState<JobCategory[]>([]);
   const [name, setName] = useState('');
+  const [code, setCode] = useState('');
   const [editing, setEditing] = useState<JobCategory | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -28,11 +29,13 @@ export default function JobCategoriesPage() {
   function startEdit(c: JobCategory) {
     setEditing(c);
     setName(c.name);
+    setCode(c.code ?? '');
   }
 
   function cancelEdit() {
     setEditing(null);
     setName('');
+    setCode('');
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -42,14 +45,15 @@ export default function JobCategoriesPage() {
       toastError('Category name is required.');
       return;
     }
+    const trimmedCode = code.trim().toUpperCase();
     setSaving(true);
     try {
       if (editing) {
-        const res = await api.put<JobCategory>(`/job-categories/${editing.id}`, { name: trimmed });
+        const res = await api.put<JobCategory>(`/job-categories/${editing.id}`, { name: trimmed, code: trimmedCode });
         setCategories((prev) => prev.map((c) => (c.id === editing.id ? res.data : c)));
         toastSuccess('Job category updated');
       } else {
-        const res = await api.post<JobCategory>('/job-categories', { name: trimmed });
+        const res = await api.post<JobCategory>('/job-categories', { name: trimmed, code: trimmedCode });
         setCategories((prev) => [...prev, res.data].sort((a, b) => a.name.localeCompare(b.name)));
         toastSuccess('Job category added');
       }
@@ -112,6 +116,19 @@ export default function JobCategoriesPage() {
             placeholder="e.g. Welder, Caregiver, Driver"
           />
         </div>
+        <div style={{ width: 130 }}>
+          <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 5, color: 'var(--label-2)' }}>
+            Trade code
+          </label>
+          <input
+            className="sr-input"
+            style={inputStyle}
+            value={code}
+            onChange={(e) => setCode(e.target.value.toUpperCase())}
+            maxLength={8}
+            placeholder="e.g. TI, SC"
+          />
+        </div>
         <button
           type="submit"
           className="sr-btn-primary"
@@ -144,7 +161,7 @@ export default function JobCategoriesPage() {
             key={c.id}
             style={{
               display: 'grid',
-              gridTemplateColumns: '1fr 90px',
+              gridTemplateColumns: '1fr 90px 90px',
               columnGap: 16,
               padding: '14px 20px',
               fontSize: 14,
@@ -153,6 +170,11 @@ export default function JobCategoriesPage() {
             }}
           >
             <div style={{ fontWeight: 500 }}>{c.name}</div>
+            <div>
+              {c.code
+                ? <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent,#6366f1)', background: 'oklch(0.95 0.03 260)', padding: '2px 8px', borderRadius: 6 }}>{c.code}</span>
+                : <span style={{ fontSize: 12, color: 'var(--muted)' }}>—</span>}
+            </div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button
                 onClick={() => startEdit(c)}

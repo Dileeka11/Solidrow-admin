@@ -5,18 +5,26 @@ import { api } from '../api/client';
 import { DatePicker } from '../components/DatePicker';
 import { confirmAction, toastError, toastSuccess } from '../lib/alerts';
 import { useAuth } from '../auth/AuthContext';
-import type { Candidate, CandidateDepartureDetails, CandidateDocumentFileField, CandidateDocuments, CandidateEmployeeDetails, CandidateSection, CandidateTraining, CandidateVisaDetails, JobCategory, PibaSubmissionStatus, PreTestCycle, Staff, TrainingMode, VisaStatus } from '../types';
+import type { Candidate, CandidateDatedFileField, CandidateDepartureDetails, CandidateDocumentFileField, CandidateDocuments, CandidateEmployeeDetails, CandidateSection, CandidateTraining, CandidateVisaDetails, JobCategory, PibaSubmissionStatus, PreTestCycle, Staff, VisaStatus } from '../types';
 
 const SECTION_TITLES = [
   'Personal Details',
   'Training Details',
   'Document Attachment',
   'Job & Visa Processing',
-  'Employee Details',
   'Departure Details',
+  'Employee Details',
 ];
 
 const COUNTRY_LETTER: Record<string, string> = { Romania: 'R', Israel: 'I' };
+
+/**
+ * For "training" candidates the Pre Test unlocks only after 80% attendance of the
+ * first 7 days (0.8 × 7 = 5.6 → at least 6 days). "skill"/"unskill" candidates are
+ * already qualified, so both Pre Test and Final Test stay open with no gate.
+ */
+const PRE_TEST_WINDOW_DAYS = 7;
+const PRE_TEST_MIN_ATTENDANCE = Math.ceil(PRE_TEST_WINDOW_DAYS * 0.8); // 6
 
 /** Default profile placeholder shown when no passport photo is uploaded yet. */
 const DEFAULT_PROFILE_IMAGE =
@@ -40,7 +48,7 @@ function nicToBirth(nicRaw: string): { birthDate: string; gender: 'Male' | 'Fema
   let year: number;
   let days: number;
 
-  if (/^\d{9}[VX]$/.test(nic)) {
+  if (/^\d{9}V$/.test(nic)) {
     year = 1900 + parseInt(nic.slice(0, 2), 10);
     days = parseInt(nic.slice(2, 5), 10);
   } else if (/^\d{12}$/.test(nic)) {
@@ -68,6 +76,81 @@ function nicToBirth(nicRaw: string): { birthDate: string; gender: 'Male' | 'Fema
 
   const pad = (n: number) => String(n).padStart(2, '0');
   return { birthDate: `${year}/${pad(month)}/${pad(day)}`, gender };
+}
+
+/**
+ * Validate a Sri Lankan NIC. Returns an error message (Sinhala) when invalid,
+ * or null when the field is empty or a valid NIC. Allowed formats:
+ *   - Old: 9 digits + V  (e.g. 123456789V)
+ *   - New: 12 digits     (e.g. 200012345678)
+ */
+function nicError(nicRaw: string): string | null {
+  const nic = nicRaw.trim().toUpperCase();
+  if (!nic) return null; // empty is allowed (optional field)
+
+  // Only digits and a trailing V are ever valid characters.
+  if (/[^0-9V]/.test(nic) || /V/.test(nic.slice(0, -1))) {
+    return 'NIC එකේ අංක සහ (පැරණි ආකෘතියේ) අවසාන V අකුර පමණක් තිබිය යුතුයි.';
+  }
+
+  const digits = nic.replace(/V/g, '');
+  const hasLetter = /V$/.test(nic);
+
+  if (hasLetter) {
+    if (digits.length !== 9) {
+      return `පැරණි ආකෘතියේ NIC එකේ ඉලක්කම් 9ක් තිබිය යුතුයි (දැන් ${digits.length}ක් ඇත).`;
+    }
+  } else if (digits.length !== 12) {
+    return `NIC එකේ ඉලක්කම් 12ක් හෝ ඉලක්කම් 9ක් + V තිබිය යුතුයි (දැන් ${digits.length}ක් ඇත).`;
+  }
+
+  // Structurally the right length but the encoded date is out of range.
+  if (!nicToBirth(nic)) {
+    return 'NIC අංකය වලංගු නොවේ. නැවත පරීක්ෂා කරන්න.';
+  }
+  return null;
+}
+
+/**
+ * Validate a Sri Lankan mobile number. Returns a Sinhala error message when
+ * invalid, or null when acceptable. When `required` is false an empty value is
+ * allowed; otherwise a blank value is reported as required.
+ */
+function phoneError(raw: string, required = false): string | null {
+  const value = raw.trim();
+
+  if (!value) {
+    return required ? 'දුරකථන අංකය ඇතුළත් කිරීම අනිවාර්ය වේ.' : null;
+  }
+  // Anything other than the digits 0-9 (letters, spaces, symbols, +, -).
+  if (/[^0-9]/.test(value)) {
+    return 'දුරකථන අංකය සඳහා භාවිතා කළ හැක්කේ ඉලක්කම් (0-9) පමණි.';
+  }
+  if (value.length !== 10) {
+    return 'කරුණාකර වලංගු දුරකථන අංකයක් ඇතුළත් කරන්න (අංක 10ක් තිබිය යුතුය).';
+  }
+  if (!value.startsWith('07')) {
+    return 'ඇතුළත් කළ දුරකථන අංකයේ ආකෘතිය (Format) වැරදියි. කරුණාකර නිවැරදි අංකයක් ඇතුළත් කරන්න.';
+  }
+  return null;
+}
+
+/**
+ * Validate a passport number. Must start with a single English letter (e.g. N)
+ * followed by 6-8 digits. Returns a Sinhala error message when invalid, or null
+ * when empty or valid. The value is expected to already be upper-cased.
+ */
+function passportError(raw: string): string | null {
+  const value = raw.trim().toUpperCase();
+  if (!value) return null; // empty allowed
+
+  if (!/^[A-Z]/.test(value)) {
+    return 'Passport අංකය ආරම්භ විය යුත්තේ ඉංග්‍රීසි අකුරකින් (උදා: N) ය.';
+  }
+  if (!/^[A-Z][0-9]{6,8}$/.test(value)) {
+    return 'Passport අංකයේ ආකෘතිය වැරදියි. ඉංග්‍රීසි අකුර 1ක් + ඉලක්කම් 7ක් තිබිය යුතුය (උදා: N1234567).';
+  }
+  return null;
 }
 
 interface Loc {
@@ -169,6 +252,8 @@ export default function CandidateFormPage() {
   // Section 2 — Training Details
   const EMPTY_TRAINING: CandidateTraining = {
     training_mode: null,
+    pre_test_job_category_id: null,
+    pre_test_number: null,
     pre_test_cycles: [],
     final_test_attendance_records: [],
     final_test_date: null,
@@ -176,6 +261,7 @@ export default function CandidateFormPage() {
   };
   const [training, setTraining] = useState<CandidateTraining>(EMPTY_TRAINING);
   const [trainingSaving, setTrainingSaving] = useState(false);
+  const [preTestNumSaving, setPreTestNumSaving] = useState(false);
   // "Add date" pickers for attendance (per pre-test cycle + the final test).
   const [preAttDate, setPreAttDate] = useState<Record<number, string>>({});
   const [finalAttDate, setFinalAttDate] = useState('');
@@ -186,16 +272,22 @@ export default function CandidateFormPage() {
     nic_color_copy_url: null,
     passport_color_copy_url: null,
     professional_certificate_url: null,
-    working_experience_url: null,
+    working_experience_files: [],
     cv_copy_url: null,
-    local_pcc_url: null,
-    second_pcc_color_copy_url: null,
-    local_pcc_attach_date: null,
-    second_pcc_submit_date: null,
+    police_certificate_files: [],
+    certified_police_report_files: [],
     document_submission_date: null,
+    document_resubmission_date: null,
   };
   const [documents, setDocuments] = useState<CandidateDocuments>(EMPTY_DOCUMENTS);
   const [documentFiles, setDocumentFiles] = useState<Partial<Record<CandidateDocumentFileField, File>>>({});
+  // Service Letter (working_experience) supports multiple files: newly picked ones awaiting upload.
+  const [serviceLetterFiles, setServiceLetterFiles] = useState<File[]>([]);
+  // Police report attachments (dated history): newly picked files awaiting upload, per field.
+  const [datedFiles, setDatedFiles] = useState<Record<CandidateDatedFileField, File[]>>({
+    police_certificate: [],
+    certified_police_report: [],
+  });
   const [documentsSaving, setDocumentsSaving] = useState(false);
 
   // Section 4 — Job & Visa Processing (country-scoped workflow)
@@ -356,8 +448,8 @@ export default function CandidateFormPage() {
   useEffect(() => {
     if (isEdit && id) {
       api.get<CandidateTraining>(`/candidates/${id}/training`)
-        .then((r) => setTraining(r.data))
-        .catch(() => setTraining(EMPTY_TRAINING));
+        .then((r) => setTraining(withDefaultCycle(r.data)))
+        .catch(() => setTraining(withDefaultCycle(EMPTY_TRAINING)));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
@@ -463,6 +555,28 @@ export default function CandidateFormPage() {
     if (!form.full_name.trim()) {
       toastError('Name (as in passport) is required.');
       return;
+    }
+    const nicErr = nicError(form.nic);
+    if (nicErr) {
+      toastError(nicErr);
+      return;
+    }
+    const phoneErr = phoneError(form.phone_number, true);
+    if (phoneErr) {
+      toastError(phoneErr);
+      return;
+    }
+    const whatsappErr = phoneError(form.whatsapp_number);
+    if (whatsappErr) {
+      toastError(whatsappErr);
+      return;
+    }
+    if (form.passport_retention === 'yes') {
+      const passportErr = passportError(form.passport_number);
+      if (passportErr) {
+        toastError(passportErr);
+        return;
+      }
     }
     const ok = await confirmAction(
       isEdit ? 'Save the changes to this candidate?' : 'Save this candidate?',
@@ -578,14 +692,16 @@ export default function CandidateFormPage() {
 
   const [trainingBondFile, setTrainingBondFile] = useState<File | null>(null);
 
-  function setTrainingMode(mode: TrainingMode) {
-    setTraining((prev) => {
-      const cycles =
-        (mode === 'pre_test' || mode === 'both') && prev.pre_test_cycles.length === 0
-          ? [{ cycle_no: 1, attendance_records: [], test_date: null, test_result: null }]
-          : prev.pre_test_cycles;
-      return { ...prev, training_mode: mode, pre_test_cycles: cycles };
-    });
+  /**
+   * Ensure the training record always has at least one pre-test cycle so both the
+   * Pre Test and Final Test sections render without a mode selection.
+   */
+  function withDefaultCycle(t: CandidateTraining): CandidateTraining {
+    if (t.pre_test_cycles && t.pre_test_cycles.length > 0) return t;
+    return {
+      ...t,
+      pre_test_cycles: [{ cycle_no: 1, attendance_records: [], test_date: null, test_result: null }],
+    };
   }
 
   function updateCycle(cycleNo: number, patch: Partial<PreTestCycle>) {
@@ -617,7 +733,7 @@ export default function CandidateFormPage() {
         ? { slot: 'final_test', date: dateStr }
         : { slot: 'pre_test', cycle_no: slot, date: dateStr };
       const r = await api.post<CandidateTraining>(`/candidates/${id}/training/attendance/add`, body);
-      setTraining(r.data);
+      setTraining(withDefaultCycle(r.data));
     } catch {
       toastError('Could not add attendance.');
     }
@@ -630,19 +746,11 @@ export default function CandidateFormPage() {
         ? { slot: 'final_test', date: dateStr }
         : { slot: 'pre_test', cycle_no: slot, date: dateStr };
       const r = await api.post<CandidateTraining>(`/candidates/${id}/training/attendance/remove`, body);
-      setTraining(r.data);
+      setTraining(withDefaultCycle(r.data));
     } catch {
       toastError('Could not remove attendance.');
     }
   }
-
-  /** True if any pre-test cycle has result = 'pass'. */
-  const preTestPassed = training.pre_test_cycles.some((c) => c.test_result === 'pass');
-
-  /** True when the final test section is unlocked. */
-  const finalTestUnlocked =
-    training.training_mode === 'final_test' ||
-    ((training.training_mode === 'pre_test' || training.training_mode === 'both') && preTestPassed);
 
   async function saveTraining() {
     const ok = await confirmAction('Save the training details?', 'Save training', 'Yes, save');
@@ -650,14 +758,15 @@ export default function CandidateFormPage() {
     setTrainingSaving(true);
     try {
       const fd = new FormData();
-      fd.append('training_mode', training.training_mode ?? '');
+      fd.append('training_mode', 'both');
+      fd.append('pre_test_job_category_id', training.pre_test_job_category_id ? String(training.pre_test_job_category_id) : '');
       fd.append('pre_test_cycles', JSON.stringify(training.pre_test_cycles));
       fd.append('final_test_attendance_records', JSON.stringify(training.final_test_attendance_records));
       fd.append('final_test_date', training.final_test_date ?? '');
       fd.append('final_test_result', training.final_test_result ?? '');
       if (trainingBondFile) fd.append('training_bond', trainingBondFile);
       const r = await api.post<CandidateTraining>(`/candidates/${id}/training`, fd);
-      setTraining(r.data);
+      setTraining(withDefaultCycle(r.data));
       setTrainingBondFile(null);
       await markSectionComplete(2); // completing Section 2 unlocks Section 3
       toastSuccess('Training details saved');
@@ -668,9 +777,157 @@ export default function CandidateFormPage() {
     }
   }
 
+  /** Generate (or fetch) the pre-test number for the selected trade. */
+  async function generatePreTestNumber() {
+    if (!id || !training.pre_test_job_category_id) {
+      toastError('Select a trade (job category) first.');
+      return;
+    }
+    setPreTestNumSaving(true);
+    try {
+      const r = await api.post<CandidateTraining>(`/candidates/${id}/training/pre-test-number`, {
+        pre_test_job_category_id: training.pre_test_job_category_id,
+      });
+      setTraining(withDefaultCycle(r.data));
+      toastSuccess('Pre-test number generated');
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+        ?? 'Could not generate the pre-test number.';
+      toastError(msg);
+    } finally {
+      setPreTestNumSaving(false);
+    }
+  }
+
+  const preTestTrade = jobCategories.find((c) => c.id === training.pre_test_job_category_id) ?? null;
+
+  /** Print the Pre-Test ID card twice on one A4 (cut in half → front & back). */
+  function printTestId() {
+    if (!training.pre_test_number) return;
+    const w = window.open('', '_blank', 'width=800,height=1000');
+    if (!w) return;
+    const card = `
+      <div class="card">
+        <div class="hd"><span>TEST ID</span><span class="org">CSTI Bureau</span></div>
+        <div class="bd">
+          <div class="nm">${(form.full_name || '').toUpperCase()}</div>
+          <div class="no">${training.pre_test_number}</div>
+          <div class="tr">${preTestTrade?.name ?? ''}</div>
+        </div>
+      </div>`;
+    w.document.write(`
+      <html><head><title>Test ID — ${training.pre_test_number}</title>
+      <style>
+        @page { size: A4 portrait; margin: 0; }
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: system-ui, Arial, sans-serif; }
+        .card { height: 148.5mm; padding: 18mm 16mm; page-break-inside: avoid; }
+        .card + .card { border-top: 2px dashed #999; }
+        .hd { display: flex; justify-content: space-between; align-items: center;
+              background: #5b8aa0; color: #fff; padding: 12px 18px; border-radius: 6px; }
+        .hd span { font-size: 30px; font-weight: 800; letter-spacing: 1px; }
+        .hd .org { font-size: 16px; font-weight: 700; }
+        .bd { text-align: center; padding-top: 30px; }
+        .nm { font-size: 34px; font-weight: 800; color: #222; }
+        .no { font-size: 40px; font-weight: 800; color: #16a34a; margin-top: 14px; letter-spacing: 2px; }
+        .tr { font-size: 24px; font-weight: 600; color: #5b8aa0; margin-top: 12px; }
+      </style></head>
+      <body onload="window.print(); setTimeout(()=>window.close(), 300);">
+        ${card}${card}
+      </body></html>`);
+    w.document.close();
+  }
+
+  /** Print the Skills Testing Evaluation (Result) Sheet with the recorded Pass/Fail. */
+  function printResultSheet(opts: { testLabel: string; result: 'pass' | 'fail' | null; testDate: string | null }) {
+    const w = window.open('', '_blank', 'width=900,height=1200');
+    if (!w) return;
+    const criteria: [string, number][] = [
+      ['Safety Awareness & PPE Usage', 10],
+      ['Tool Identification & Usage', 10],
+      ['Measurement & Marking Accuracy', 10],
+      ['Quality of Workmanship', 20],
+      ['Material Handling', 10],
+      ['Time Management', 10],
+      ['Problem Solving Ability', 10],
+      ['Compliance with Instructions', 10],
+      ['Housekeeping & Work Area Management', 10],
+      ['Overall Performance', 10],
+    ];
+    const photo = candidate?.passport_image_url ?? passportPreview ?? '';
+    const tick = (on: boolean) => (on ? '☑' : '☐');
+    const rows = criteria
+      .map(([label, max]) => `<tr><td class="crit">${label}</td><td class="mx">${max}</td><td class="ob"></td></tr>`)
+      .join('');
+    const info = (label: string, value: string) =>
+      `<tr><td class="il">${label}</td><td class="iv">${value || '—'}</td></tr>`;
+    w.document.write(`
+      <html><head><title>Result Sheet — ${form.full_name || ''}</title>
+      <style>
+        @page { size: A4 portrait; margin: 12mm; }
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: system-ui, Arial, sans-serif; color: #222; font-size: 12px; }
+        h1 { font-size: 16px; text-align: center; margin: 0 0 2px; color: #2b5566; }
+        .sub { text-align: center; color: #666; font-size: 11px; margin-bottom: 12px; }
+        .top { display: flex; gap: 14px; }
+        .photo { width: 110px; height: 130px; object-fit: cover; border: 1px solid #bbb; background: #eef2f5; flex: none; }
+        table { border-collapse: collapse; width: 100%; }
+        .info td { border: 1px solid #cbd5e1; padding: 5px 8px; }
+        .il { background: #eef4f7; font-weight: 600; width: 40%; }
+        .meta { display: flex; justify-content: space-between; margin: 12px 0 6px; font-weight: 600; }
+        .assess th { background: #5b8aa0; color: #fff; border: 1px solid #4a7686; padding: 6px 8px; font-size: 11px; text-align: left; }
+        .assess td { border: 1px solid #cbd5e1; padding: 6px 8px; }
+        .mx, .ob { width: 90px; text-align: center; }
+        .tot td { font-weight: 700; background: #f1f5f9; }
+        .foot { margin-top: 12px; display: flex; gap: 24px; font-weight: 600; }
+        .res { font-size: 14px; }
+        .sign { margin-top: 26px; display: flex; justify-content: space-between; color: #444; }
+      </style></head>
+      <body onload="window.print(); setTimeout(()=>window.close(), 400);">
+        <h1>SKILLS TESTING EVALUATION SHEET — CONSTRUCTION</h1>
+        <div class="sub">CSTI Bureau Training Academy · ${opts.testLabel}${opts.testDate ? ' · ' + opts.testDate : ''}</div>
+        <div class="top">
+          ${photo ? `<img class="photo" src="${photo}" />` : '<div class="photo"></div>'}
+          <table class="info"><tbody>
+            ${info('Name', (form.full_name || '').toUpperCase())}
+            ${info('NIC', form.nic || '')}
+            ${info('Passport No', form.passport_number || '')}
+            ${info('Address', form.address || '')}
+            ${info('Date of Birth', form.birth_date || '')}
+            ${info('Gender', form.gender || '')}
+            ${info('Phone', form.phone_number || '')}
+          </tbody></table>
+        </div>
+        <div class="meta">
+          <span>Trade Category : ${preTestTrade?.name ?? ''}</span>
+          <span>Pre-Test No : ${training.pre_test_number ?? '—'}</span>
+        </div>
+        <table class="assess"><thead>
+          <tr><th>Assessment Criteria</th><th class="mx">Maximum Marks</th><th class="ob">Marks Obtained</th></tr>
+        </thead><tbody>
+          ${rows}
+          <tr class="tot"><td>Total Marks</td><td class="mx">100</td><td class="ob"></td></tr>
+        </tbody></table>
+        <div class="foot">
+          <span>Percentage : __________ %</span>
+          <span class="res">Result : ${tick(opts.result === 'pass')} PASS &nbsp;&nbsp; ${tick(opts.result === 'fail')} FAIL</span>
+        </div>
+        <div class="foot" style="margin-top:8px; font-weight:500;">
+          <span>☐ Recommended for Employment</span>
+          <span>☐ Requires Further Training</span>
+        </div>
+        <div class="sign">
+          <span>Examiner Name : ____________________</span>
+          <span>Signature : ____________________</span>
+          <span>Date : ____________</span>
+        </div>
+      </body></html>`);
+    w.document.close();
+  }
+
   // ── Section 3: Documents helpers ──────────────────────────────────────────
 
-  const setDocDate = (key: 'local_pcc_attach_date' | 'second_pcc_submit_date' | 'document_submission_date', value: string) =>
+  const setDocDate = (key: 'document_submission_date' | 'document_resubmission_date', value: string) =>
     setDocuments((d) => ({ ...d, [key]: value || null }));
 
   const setDocFile = (field: CandidateDocumentFileField, file: File | null) =>
@@ -680,6 +937,38 @@ export default function CandidateFormPage() {
       else delete next[field];
       return next;
     });
+
+  // Add newly picked Service Letter files to the pending list (multiple allowed).
+  const addServiceLetterFiles = (files: File[]) => {
+    if (files.length === 0) return;
+    setServiceLetterFiles((prev) => [...prev, ...files]);
+  };
+
+  const removeServiceLetterFile = (index: number) =>
+    setServiceLetterFiles((prev) => prev.filter((_, i) => i !== index));
+
+  // Drop an already-stored Service Letter file so it won't be kept on save.
+  const removeStoredServiceLetterFile = (path: string) =>
+    setDocuments((prev) => ({
+      ...prev,
+      working_experience_files: prev.working_experience_files.filter((f) => f.path !== path),
+    }));
+
+  // ── Police report attachments (dated multi-file history) ──────────────────
+  const addDatedFiles = (field: CandidateDatedFileField, files: File[]) => {
+    if (files.length === 0) return;
+    setDatedFiles((prev) => ({ ...prev, [field]: [...prev[field], ...files] }));
+  };
+
+  const removeDatedFile = (field: CandidateDatedFileField, index: number) =>
+    setDatedFiles((prev) => ({ ...prev, [field]: prev[field].filter((_, i) => i !== index) }));
+
+  // Drop an already-stored dated file so it won't be kept on save.
+  const removeStoredDatedFile = (field: CandidateDatedFileField, path: string) =>
+    setDocuments((prev) => ({
+      ...prev,
+      [`${field}_files`]: prev[`${field}_files`].filter((f) => f.path !== path),
+    }));
 
   async function saveDocuments() {
     if (!id) return;
@@ -691,12 +980,21 @@ export default function CandidateFormPage() {
       (Object.entries(documentFiles) as [CandidateDocumentFileField, File][]).forEach(([field, file]) => {
         fd.append(field, file);
       });
-      fd.append('local_pcc_attach_date', documents.local_pcc_attach_date ?? '');
-      fd.append('second_pcc_submit_date', documents.second_pcc_submit_date ?? '');
+      // Service Letter (multi-file): keep the still-listed stored files + append new picks.
+      documents.working_experience_files.forEach((f) => fd.append('working_experience_keep[]', f.path));
+      serviceLetterFiles.forEach((file) => fd.append('working_experience[]', file));
+      // Police report attachments (dated history): keep still-listed stored files + append new picks.
+      (['police_certificate', 'certified_police_report'] as CandidateDatedFileField[]).forEach((field) => {
+        documents[`${field}_files`].forEach((f) => fd.append(`${field}_keep[]`, f.path));
+        datedFiles[field].forEach((file) => fd.append(`${field}[]`, file));
+      });
       fd.append('document_submission_date', documents.document_submission_date ?? '');
+      fd.append('document_resubmission_date', documents.document_resubmission_date ?? '');
       const r = await api.post<CandidateDocuments>(`/candidates/${id}/documents`, fd);
       setDocuments(r.data);
       setDocumentFiles({});
+      setServiceLetterFiles([]);
+      setDatedFiles({ police_certificate: [], certified_police_report: [] });
       await markSectionComplete(3); // completing Section 3 advances the workflow
       toastSuccess('Documents saved');
     } catch {
@@ -748,7 +1046,7 @@ export default function CandidateFormPage() {
         job_category_id: employee.job_category_id ?? '',
       });
       setEmployee(r.data);
-      await markSectionComplete(5); // completing Section 5 finalises the workflow
+      await markSectionComplete(6); // Employee Details is Section 6 — completing it finalises the workflow
       toastSuccess('Employee details saved');
     } catch {
       toastError('Could not save employee details.');
@@ -773,7 +1071,7 @@ export default function CandidateFormPage() {
         departure_date: departure.departure_date ?? '',
       });
       setDeparture(r.data);
-      await markSectionComplete(6); // completing Section 6 finalises the workflow
+      await markSectionComplete(5); // Departure Details is now Section 5, unlocking Section 6
       toastSuccess('Departure details saved');
     } catch {
       toastError('Could not save departure details.');
@@ -915,6 +1213,11 @@ export default function CandidateFormPage() {
               }}
               placeholder="Enter NIC Number"
             />
+            {nicError(form.nic) && (
+              <span style={{ display: 'block', marginTop: 4, fontSize: 12, color: '#dc2626' }}>
+                {nicError(form.nic)}
+              </span>
+            )}
           </div>
 
           <div>
@@ -934,7 +1237,18 @@ export default function CandidateFormPage() {
               </div>
               <div>
                 <label style={labelStyle}>Passport Number</label>
-                <input className="sr-input" style={inputStyle} value={form.passport_number} onChange={(e) => set('passport_number', e.target.value)} />
+                <input
+                  className="sr-input"
+                  style={inputStyle}
+                  value={form.passport_number}
+                  onChange={(e) => set('passport_number', e.target.value.toUpperCase())}
+                  placeholder="e.g. N1234567"
+                />
+                {passportError(form.passport_number) && (
+                  <span style={{ display: 'block', marginTop: 4, fontSize: 12, color: '#dc2626' }}>
+                    {passportError(form.passport_number)}
+                  </span>
+                )}
               </div>
             </>
           )}
@@ -967,12 +1281,22 @@ export default function CandidateFormPage() {
             <input className="sr-input" style={inputStyle} value={form.email} onChange={(e) => set('email', e.target.value)} />
           </div>
           <div>
-            <label style={labelStyle}>Phone Number</label>
+            <label style={labelStyle}>Phone Number <span style={{ color: '#dc2626' }}>*</span></label>
             <input className="sr-input" style={inputStyle} value={form.phone_number} onChange={(e) => set('phone_number', e.target.value)} maxLength={10} />
+            {phoneError(form.phone_number) && (
+              <span style={{ display: 'block', marginTop: 4, fontSize: 12, color: '#dc2626' }}>
+                {phoneError(form.phone_number)}
+              </span>
+            )}
           </div>
           <div>
             <label style={labelStyle}>WhatsApp Number</label>
             <input className="sr-input" style={inputStyle} value={form.whatsapp_number} onChange={(e) => set('whatsapp_number', e.target.value)} maxLength={10} />
+            {phoneError(form.whatsapp_number) && (
+              <span style={{ display: 'block', marginTop: 4, fontSize: 12, color: '#dc2626' }}>
+                {phoneError(form.whatsapp_number)}
+              </span>
+            )}
           </div>
 
           <div>
@@ -1083,23 +1407,9 @@ export default function CandidateFormPage() {
           </div>
           <hr style={{ border: 'none', borderTop: '1px solid var(--border-soft)', margin: '10px 0 18px' }} />
 
-          {/* 2.1 Training Bond + Mode row */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 24 }}>
-            <div>
-              <label style={labelStyle}>Training Mode</label>
-              <select
-                className="sr-input"
-                style={inputStyle}
-                value={training.training_mode ?? ''}
-                onChange={(e) => setTrainingMode(e.target.value as TrainingMode)}
-              >
-                <option value="">-- Select Training Mode --</option>
-                <option value="pre_test">Pre Test</option>
-                <option value="final_test">Final Test</option>
-                <option value="both">Both</option>
-              </select>
-            </div>
-            <div>
+          {/* 2.1 Training Bond */}
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ maxWidth: 480 }}>
               <label style={labelStyle}>Training Bond (Attach)</label>
               <input
                 className="sr-input"
@@ -1121,13 +1431,56 @@ export default function CandidateFormPage() {
             </div>
           </div>
 
-          {/* Pre-Test Cycles (shown for pre_test / both) */}
-          {/* 2.2 Pre-Test Cycles */}
-          {(training.training_mode === 'pre_test' || training.training_mode === 'both') && (
+          {/* 2.1b Pre-Test ID / Number */}
+          <div style={{ marginBottom: 24, border: '1px solid var(--border-soft)', borderRadius: 10, padding: '16px 20px', background: 'var(--row-bg,#fafafa)' }}>
+            <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--accent,#6366f1)', marginBottom: 12 }}>Pre-Test ID</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 14, alignItems: 'end' }}>
+              <div>
+                <label style={labelStyle}>Trade (Job Category)</label>
+                <select
+                  className="sr-input"
+                  style={inputStyle}
+                  value={training.pre_test_job_category_id ?? ''}
+                  onChange={(e) => setTraining((t) => ({ ...t, pre_test_job_category_id: e.target.value ? Number(e.target.value) : null }))}
+                >
+                  <option value="">-- Select Trade --</option>
+                  {jobCategories.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}{c.code ? ` (${c.code})` : ''}</option>
+                  ))}
+                </select>
+              </div>
+              <button
+                className="sr-btn-primary"
+                onClick={generatePreTestNumber}
+                disabled={preTestNumSaving || !training.pre_test_job_category_id}
+                style={{ padding: '10px 16px', borderRadius: 8, fontSize: 13 }}
+              >
+                {preTestNumSaving ? 'Generating…' : 'Generate Number'}
+              </button>
+            </div>
+            {preTestTrade && !preTestTrade.code && (
+              <div style={{ fontSize: 12, color: 'oklch(0.55 0.16 25)', marginTop: 8 }}>
+                This trade has no code — add one on the Job Categories page to generate a number.
+              </div>
+            )}
+            {training.pre_test_number && (
+              <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 22, fontWeight: 800, letterSpacing: 1, color: '#16a34a' }}>{training.pre_test_number}</span>
+                <button className="sr-btn-primary" onClick={printTestId} style={{ padding: '8px 14px', borderRadius: 7, fontSize: 12 }}>
+                  Print Test ID (A4 ×2)
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* 2.2 Pre-Test Cycles — always shown */}
+          {(
             <div style={{ marginBottom: 28 }}>
               {training.pre_test_cycles.map((cycle, idx) => {
                 const attendCount = cycle.attendance_records.length;
-                const canTest = attendCount >= 7;
+                // Only "training" candidates are gated; skill/unskill are already qualified.
+                const gatePreTest = form.candidate_skill === 'training';
+                const canTest = !gatePreTest || attendCount >= PRE_TEST_MIN_ATTENDANCE;
                 const isFail = cycle.test_result === 'fail';
                 const isPass = cycle.test_result === 'pass';
                 const isLast = idx === training.pre_test_cycles.length - 1;
@@ -1161,9 +1514,15 @@ export default function CandidateFormPage() {
                           background: canTest ? 'oklch(0.92 0.05 150)' : 'oklch(0.93 0.03 260)',
                           color: canTest ? 'oklch(0.40 0.14 150)' : 'oklch(0.45 0.06 260)',
                         }}>
-                          {attendCount} / 7 days
+                          {gatePreTest
+                            ? `${attendCount} / ${PRE_TEST_WINDOW_DAYS} days`
+                            : `${attendCount} ${attendCount === 1 ? 'day' : 'days'}`}
                         </span>
-                        {!canTest && <span style={{ fontSize: 11, color: 'var(--muted)' }}>Need at least 7 days to take Pre Test</span>}
+                        {gatePreTest && !canTest && (
+                          <span style={{ fontSize: 11, color: 'var(--muted)' }}>
+                            Need 80% of the first {PRE_TEST_WINDOW_DAYS} days to unlock Pre Test
+                          </span>
+                        )}
                       </div>
 
                       {/* Table */}
@@ -1246,7 +1605,7 @@ export default function CandidateFormPage() {
                           disabled={!canTest}
                           value={cycle.test_date ?? ''}
                           onChange={(iso) => updateCycle(cycle.cycle_no, { test_date: iso || null })}
-                          title={!canTest ? 'Need 7+ attendance days first' : ''}
+                          title={!canTest ? 'Pre Test unlocks at 80% attendance of the first 7 days' : ''}
                         />
                       </div>
                       <div>
@@ -1265,6 +1624,17 @@ export default function CandidateFormPage() {
                       </div>
                     </div>
 
+                    {/* Print result sheet for this cycle */}
+                    <div style={{ marginTop: 12 }}>
+                      <button
+                        type="button"
+                        onClick={() => printResultSheet({ testLabel: `Pre Test — Cycle ${cycle.cycle_no}`, result: cycle.test_result, testDate: cycle.test_date })}
+                        style={{ padding: '8px 14px', borderRadius: 7, fontSize: 12, background: 'var(--row-border,#f3f4f6)', border: '1px solid var(--border)', cursor: 'pointer', fontFamily: 'inherit' }}
+                      >
+                        🖨 Print Result Sheet
+                      </button>
+                    </div>
+
                     {/* Add next cycle */}
                     {isFail && isLast && (
                       <div style={{ marginTop: 14 }}>
@@ -1276,7 +1646,7 @@ export default function CandidateFormPage() {
                           + Add Cycle {cycle.cycle_no + 1}
                         </button>
                         <span style={{ marginLeft: 10, fontSize: 12, color: 'var(--muted)' }}>
-                          Candidate must attend another 7 days before the next pre test.
+                          Add another pre test cycle for the candidate.
                         </span>
                       </div>
                     )}
@@ -1286,26 +1656,19 @@ export default function CandidateFormPage() {
             </div>
           )}
 
-          {/* 2.3 Final Test */}
-          {training.training_mode && (
+          {/* 2.3 Final Test — always shown */}
+          {(
             <div
               style={{
-                border: `1.5px solid ${finalTestUnlocked ? 'oklch(0.78 0.14 260)' : 'var(--border-soft)'}`,
+                border: '1.5px solid oklch(0.78 0.14 260)',
                 borderRadius: 10,
                 padding: '16px 20px',
-                background: finalTestUnlocked ? 'oklch(0.985 0.008 260)' : 'oklch(0.97 0 0)',
+                background: 'oklch(0.985 0.008 260)',
                 marginBottom: 20,
-                opacity: finalTestUnlocked ? 1 : 0.65,
-                pointerEvents: finalTestUnlocked ? 'auto' : 'none',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
                 <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--accent,#6366f1)' }}>Final Test</span>
-                {!finalTestUnlocked && (training.training_mode === 'pre_test' || training.training_mode === 'both') && (
-                  <span style={{ fontSize: 11, color: 'var(--muted)', background: 'oklch(0.93 0.01 0)', padding: '2px 8px', borderRadius: 20 }}>
-                    Locked — Pre Test must be passed first
-                  </span>
-                )}
                 {training.final_test_result === 'pass' && <span style={{ fontSize: 11, fontWeight: 700, color: 'oklch(0.42 0.14 150)', background: 'oklch(0.92 0.05 150)', padding: '2px 8px', borderRadius: 20 }}>✓ PASS</span>}
                 {training.final_test_result === 'fail' && <span style={{ fontSize: 11, fontWeight: 700, color: 'oklch(0.42 0.16 25)', background: 'oklch(0.93 0.05 25)', padding: '2px 8px', borderRadius: 20 }}>✗ FAIL</span>}
               </div>
@@ -1396,22 +1759,31 @@ export default function CandidateFormPage() {
                   </select>
                 </div>
               </div>
+
+              {/* Print result sheet for the final test */}
+              <div style={{ marginTop: 12 }}>
+                <button
+                  type="button"
+                  onClick={() => printResultSheet({ testLabel: 'Final Test', result: training.final_test_result, testDate: training.final_test_date })}
+                  style={{ padding: '8px 14px', borderRadius: 7, fontSize: 12, background: 'var(--row-border,#f3f4f6)', border: '1px solid var(--border)', cursor: 'pointer', fontFamily: 'inherit' }}
+                >
+                  🖨 Print Result Sheet
+                </button>
+              </div>
             </div>
           )}
 
           {/* Save button */}
-          {training.training_mode && (
-            <div style={{ marginTop: 8 }}>
-              <button
-                className="sr-btn-primary"
-                onClick={saveTraining}
-                disabled={trainingSaving}
-                style={{ padding: '11px 22px', borderRadius: 8, fontSize: 14 }}
-              >
-                {trainingSaving ? 'Saving…' : 'Save Training Details'}
-              </button>
-            </div>
-          )}
+          <div style={{ marginTop: 8 }}>
+            <button
+              className="sr-btn-primary"
+              onClick={saveTraining}
+              disabled={trainingSaving}
+              style={{ padding: '11px 22px', borderRadius: 8, fontSize: 14 }}
+            >
+              {trainingSaving ? 'Saving…' : 'Save Training Details'}
+            </button>
+          </div>
         </div>
       )}
 
@@ -1432,10 +1804,7 @@ export default function CandidateFormPage() {
               { field: 'nic_color_copy', label: 'NIC Color Copy (Attach)' },
               { field: 'passport_color_copy', label: 'Passport Color Copy (Attach)' },
               { field: 'professional_certificate', label: 'Professional Certificate (Attach)' },
-              { field: 'working_experience', label: 'Attach Working Experience' },
               { field: 'cv_copy', label: 'CV Copy (Attach)' },
-              { field: 'local_pcc', label: 'Local PCC (Attach)' },
-              { field: 'second_pcc_color_copy', label: '2nd PCC Color Copy (Attach)' },
             ] as { field: CandidateDocumentFileField; label: string; hint?: string; accept?: string }[]).map(
               ({ field, label, hint, accept }) => {
                 const url = documents[`${field}_url` as keyof CandidateDocuments] as string | null;
@@ -1468,28 +1837,140 @@ export default function CandidateFormPage() {
               },
             )}
 
-            <div>
-              <label style={labelStyle}>Local PCC Attach Date</label>
-              <DatePicker
+            {/* Service Letter — supports multiple files. */}
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label style={labelStyle}>Service Letter (Attach — multiple allowed)</label>
+              <input
+                className="sr-input"
+                type="file"
+                multiple
+                accept=".pdf,.jpg,.jpeg,.png"
                 style={inputStyle}
-                value={documents.local_pcc_attach_date ?? ''}
-                onChange={(iso) => setDocDate('local_pcc_attach_date', iso)}
+                onChange={(e) => {
+                  // Materialise the FileList into an array *before* clearing the
+                  // input, otherwise resetting value empties it first.
+                  const picked = Array.from(e.target.files ?? []);
+                  e.target.value = '';
+                  addServiceLetterFiles(picked);
+                }}
               />
+              {(documents.working_experience_files.length > 0 || serviceLetterFiles.length > 0) && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+                  {documents.working_experience_files.map((f) => (
+                    <span
+                      key={f.path}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '2px 8px', borderRadius: 6, background: 'var(--border-soft, #eef)', }}
+                    >
+                      <a href={f.url} target="_blank" rel="noreferrer" style={{ color: 'var(--accent, #6366f1)' }}>
+                        {f.path.split('/').pop()}
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => removeStoredServiceLetterFile(f.path)}
+                        style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'oklch(0.62 0.19 25)', fontWeight: 700 }}
+                        title="Remove"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                  {serviceLetterFiles.map((file, i) => (
+                    <span
+                      key={`new-${i}`}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '2px 8px', borderRadius: 6, background: 'oklch(0.95 0.05 145)', }}
+                    >
+                      {file.name}
+                      <button
+                        type="button"
+                        onClick={() => removeServiceLetterFile(i)}
+                        style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'oklch(0.62 0.19 25)', fontWeight: 700 }}
+                        title="Remove"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
+
+            {/* Police report attachments — multiple files, upload history kept with dates. */}
+            {([
+              { field: 'police_certificate', label: 'Police Certificate Attachment' },
+              { field: 'certified_police_report', label: 'Certified Police Report Attachment' },
+            ] as { field: CandidateDatedFileField; label: string }[]).map(({ field, label }) => (
+              <div key={field} style={{ gridColumn: '1 / -1' }}>
+                <label style={labelStyle}>{label} (multiple allowed)</label>
+                <input
+                  className="sr-input"
+                  type="file"
+                  multiple
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  style={inputStyle}
+                  onChange={(e) => {
+                    // Materialise the FileList before clearing the input value.
+                    const picked = Array.from(e.target.files ?? []);
+                    e.target.value = '';
+                    addDatedFiles(field, picked);
+                  }}
+                />
+                {(documents[`${field}_files`].length > 0 || datedFiles[field].length > 0) && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
+                    {documents[`${field}_files`].map((f) => (
+                      <div
+                        key={f.path}
+                        style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}
+                      >
+                        <span style={{ color: 'var(--muted)', minWidth: 92 }}>{f.uploaded_at ?? '—'}</span>
+                        <a href={f.url} target="_blank" rel="noreferrer" style={{ color: 'var(--accent, #6366f1)', flex: 1 }}>
+                          {f.path.split('/').pop()}
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => removeStoredDatedFile(field, f.path)}
+                          style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'oklch(0.62 0.19 25)', fontWeight: 700 }}
+                          title="Remove"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                    {datedFiles[field].map((file, i) => (
+                      <div
+                        key={`new-${i}`}
+                        style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}
+                      >
+                        <span style={{ color: 'oklch(0.55 0.15 145)', minWidth: 92 }}>new</span>
+                        <span style={{ flex: 1 }}>{file.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => removeDatedFile(field, i)}
+                          style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'oklch(0.62 0.19 25)', fontWeight: 700 }}
+                          title="Remove"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+
             <div>
-              <label style={labelStyle}>2nd PCC Submit Date</label>
-              <DatePicker
-                style={inputStyle}
-                value={documents.second_pcc_submit_date ?? ''}
-                onChange={(iso) => setDocDate('second_pcc_submit_date', iso)}
-              />
-            </div>
-            <div>
-              <label style={labelStyle}>Document Submission Date</label>
+              <label style={labelStyle}>Document Submit Date</label>
               <DatePicker
                 style={inputStyle}
                 value={documents.document_submission_date ?? ''}
                 onChange={(iso) => setDocDate('document_submission_date', iso)}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Document Re-submission Date</label>
+              <DatePicker
+                style={inputStyle}
+                value={documents.document_resubmission_date ?? ''}
+                onChange={(iso) => setDocDate('document_resubmission_date', iso)}
               />
             </div>
           </div>
@@ -1597,76 +2078,14 @@ export default function CandidateFormPage() {
         </div>
       )}
 
-      {/* ── Section 5: Employee Details ───────────────────────────────────── */}
+      {/* ── Section 5: Departure Details ──────────────────────────────────── */}
       {isEdit && candidate && !section4Done && (
-        <LockedSectionCard no="05" title="Employee Details" needNo={4} />
+        <LockedSectionCard no="05" title="Departure Details" needNo={4} />
       )}
       {isEdit && candidate && section4Done && (
         <div style={cardStyle}>
           <div style={{ color: 'var(--accent, #6366f1)', fontWeight: 700, marginBottom: 4 }}>
-            05. Employee Details
-          </div>
-          <hr style={{ border: 'none', borderTop: '1px solid var(--border-soft)', margin: '10px 0 18px' }} />
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
-            <div>
-              <label style={labelStyle}>Registration Number</label>
-              <input
-                className="sr-input"
-                style={inputStyle}
-                value={employee.registration_number || ''}
-                onChange={(e) =>
-                  setEmployee((s) => ({ ...s, registration_number: e.target.value }))
-                }
-                placeholder="Enter registration number"
-              />
-              <span style={{ display: 'block', fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
-                Type the registration number manually.
-              </span>
-            </div>
-
-            <div>
-              <label style={labelStyle}>Job Category</label>
-              <select
-                className="sr-input"
-                style={inputStyle}
-                value={employee.job_category_id ?? ''}
-                onChange={(e) =>
-                  setEmployee((s) => ({ ...s, job_category_id: e.target.value ? Number(e.target.value) : null }))
-                }
-              >
-                <option value="">-- Select Job Category --</option>
-                {jobCategories.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-              <span style={{ display: 'block', fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
-                Manage the list on the <strong>Job Categories</strong> page.
-              </span>
-            </div>
-          </div>
-
-          <div style={{ marginTop: 24 }}>
-            <button
-              className="sr-btn-primary"
-              onClick={saveEmployee}
-              disabled={employeeSaving}
-              style={{ padding: '11px 22px', borderRadius: 8, fontSize: 14 }}
-            >
-              {employeeSaving ? 'Saving…' : 'Save Section 5'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ── Section 6: Departure Details ──────────────────────────────────── */}
-      {isEdit && candidate && !section5Done && (
-        <LockedSectionCard no="06" title="Departure Details" needNo={5} />
-      )}
-      {isEdit && candidate && section5Done && (
-        <div style={cardStyle}>
-          <div style={{ color: 'var(--accent, #6366f1)', fontWeight: 700, marginBottom: 4 }}>
-            06. Departure Details
+            05. Departure Details
           </div>
           <hr style={{ border: 'none', borderTop: '1px solid var(--border-soft)', margin: '10px 0 18px' }} />
 
@@ -1730,7 +2149,69 @@ export default function CandidateFormPage() {
               disabled={departureSaving}
               style={{ padding: '11px 22px', borderRadius: 8, fontSize: 14 }}
             >
-              {departureSaving ? 'Saving…' : 'Save Section 6'}
+              {departureSaving ? 'Saving…' : 'Save Section 5'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Section 6: Employee Details ───────────────────────────────────── */}
+      {isEdit && candidate && !section5Done && (
+        <LockedSectionCard no="06" title="Employee Details" needNo={5} />
+      )}
+      {isEdit && candidate && section5Done && (
+        <div style={cardStyle}>
+          <div style={{ color: 'var(--accent, #6366f1)', fontWeight: 700, marginBottom: 4 }}>
+            06. Employee Details
+          </div>
+          <hr style={{ border: 'none', borderTop: '1px solid var(--border-soft)', margin: '10px 0 18px' }} />
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
+            <div>
+              <label style={labelStyle}>Registration Number</label>
+              <input
+                className="sr-input"
+                style={inputStyle}
+                value={employee.registration_number || ''}
+                onChange={(e) =>
+                  setEmployee((s) => ({ ...s, registration_number: e.target.value }))
+                }
+                placeholder="Enter registration number"
+              />
+              <span style={{ display: 'block', fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
+                Type the registration number manually.
+              </span>
+            </div>
+
+            <div>
+              <label style={labelStyle}>Job Category</label>
+              <select
+                className="sr-input"
+                style={inputStyle}
+                value={employee.job_category_id ?? ''}
+                onChange={(e) =>
+                  setEmployee((s) => ({ ...s, job_category_id: e.target.value ? Number(e.target.value) : null }))
+                }
+              >
+                <option value="">-- Select Job Category --</option>
+                {jobCategories.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+              <span style={{ display: 'block', fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
+                Manage the list on the <strong>Job Categories</strong> page.
+              </span>
+            </div>
+          </div>
+
+          <div style={{ marginTop: 24 }}>
+            <button
+              className="sr-btn-primary"
+              onClick={saveEmployee}
+              disabled={employeeSaving}
+              style={{ padding: '11px 22px', borderRadius: 8, fontSize: 14 }}
+            >
+              {employeeSaving ? 'Saving…' : 'Save Section 6'}
             </button>
           </div>
         </div>

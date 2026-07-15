@@ -23,22 +23,30 @@ class CandidateDocumentController extends Controller
         $fileRules = ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:20480'];
 
         $validated = $request->validate([
-            'passport_size_photo'      => ['nullable', 'file', 'mimes:jpg,jpeg,png', 'max:20480'],
-            'nic_color_copy'           => $fileRules,
-            'passport_color_copy'      => $fileRules,
-            'professional_certificate' => $fileRules,
-            'working_experience'       => $fileRules,
-            'cv_copy'                  => $fileRules,
-            'local_pcc'                => $fileRules,
-            'second_pcc_color_copy'    => $fileRules,
-            'local_pcc_attach_date'    => ['nullable', 'date'],
-            'second_pcc_submit_date'   => ['nullable', 'date'],
-            'document_submission_date' => ['nullable', 'date'],
+            'passport_size_photo'          => ['nullable', 'file', 'mimes:jpg,jpeg,png', 'max:20480'],
+            'nic_color_copy'               => $fileRules,
+            'passport_color_copy'          => $fileRules,
+            'professional_certificate'     => $fileRules,
+            'working_experience'           => ['nullable', 'array'],
+            'working_experience.*'         => $fileRules,
+            'working_experience_keep'      => ['nullable', 'array'],
+            'working_experience_keep.*'    => ['string'],
+            'cv_copy'                      => $fileRules,
+            'police_certificate'           => ['nullable', 'array'],
+            'police_certificate.*'         => $fileRules,
+            'police_certificate_keep'      => ['nullable', 'array'],
+            'police_certificate_keep.*'    => ['string'],
+            'certified_police_report'      => ['nullable', 'array'],
+            'certified_police_report.*'    => $fileRules,
+            'certified_police_report_keep'   => ['nullable', 'array'],
+            'certified_police_report_keep.*' => ['string'],
+            'document_submission_date'     => ['nullable', 'date'],
+            'document_resubmission_date'   => ['nullable', 'date'],
         ]);
 
         $documents = CandidateDocument::firstOrNew(['candidate_id' => $candidate->id]);
 
-        // Store any newly uploaded files, keeping existing ones untouched.
+        // Store any newly uploaded single-file attachments, keeping existing ones untouched.
         foreach (CandidateDocument::FILE_FIELDS as $field) {
             if ($request->hasFile($field)) {
                 if ($documents->{$field}) {
@@ -48,10 +56,56 @@ class CandidateDocumentController extends Controller
             }
         }
 
+        // Multi-file attachments: retain the paths the client kept, delete the
+        // rest, then append any newly uploaded files.
+        foreach (CandidateDocument::MULTI_FILE_FIELDS as $field) {
+            $existing = (array) ($documents->{$field} ?? []);
+            $keep = (array) $request->input($field . '_keep', $existing);
+
+            foreach ($existing as $path) {
+                if (! in_array($path, $keep, true)) {
+                    Storage::disk('public')->delete($path);
+                }
+            }
+
+            $paths = array_values(array_intersect($existing, $keep));
+
+            foreach ((array) $request->file($field, []) as $file) {
+                $paths[] = $file->store('candidate-documents', 'public');
+            }
+
+            $documents->{$field} = $paths;
+        }
+
+        // Dated multi-file attachments (police reports): keep the paths the
+        // client kept, delete the rest, then append newly uploaded files stamped
+        // with today's date so the upload history is preserved.
+        foreach (CandidateDocument::DATED_MULTI_FILE_FIELDS as $field) {
+            $existing = (array) ($documents->{$field} ?? []);
+            $keep = (array) $request->input($field . '_keep', array_column($existing, 'path'));
+
+            $entries = [];
+            foreach ($existing as $entry) {
+                if (in_array($entry['path'] ?? null, $keep, true)) {
+                    $entries[] = $entry;
+                } elseif (! empty($entry['path'])) {
+                    Storage::disk('public')->delete($entry['path']);
+                }
+            }
+
+            foreach ((array) $request->file($field, []) as $file) {
+                $entries[] = [
+                    'path'        => $file->store('candidate-documents', 'public'),
+                    'uploaded_at' => now()->toDateString(),
+                ];
+            }
+
+            $documents->{$field} = $entries;
+        }
+
         $documents->fill([
-            'local_pcc_attach_date'    => $validated['local_pcc_attach_date'] ?? null,
-            'second_pcc_submit_date'   => $validated['second_pcc_submit_date'] ?? null,
-            'document_submission_date' => $validated['document_submission_date'] ?? null,
+            'document_submission_date'   => $validated['document_submission_date'] ?? null,
+            'document_resubmission_date' => $validated['document_resubmission_date'] ?? null,
         ]);
 
         $documents->candidate_id = $candidate->id;
@@ -67,12 +121,32 @@ class CandidateDocumentController extends Controller
             $urls[$field . '_url'] = $d->{$field} ? url('media/' . $d->{$field}) : null;
         }
 
+        // Multi-file fields expose a list of { path, url } entries.
+        foreach (CandidateDocument::MULTI_FILE_FIELDS as $field) {
+            $urls[$field . '_files'] = array_map(
+                fn ($path) => ['path' => $path, 'url' => url('media/' . $path)],
+                (array) ($d->{$field} ?? [])
+            );
+        }
+
+        // Dated multi-file fields expose { path, url, uploaded_at }, newest first.
+        foreach (CandidateDocument::DATED_MULTI_FILE_FIELDS as $field) {
+            $entries = array_map(
+                fn ($entry) => [
+                    'path'        => $entry['path'] ?? null,
+                    'url'         => isset($entry['path']) ? url('media/' . $entry['path']) : null,
+                    'uploaded_at' => $entry['uploaded_at'] ?? null,
+                ],
+                (array) ($d->{$field} ?? [])
+            );
+            $urls[$field . '_files'] = array_reverse($entries);
+        }
+
         return array_merge([
-            'id'                       => $d->id,
-            'candidate_id'             => $d->candidate_id,
-            'local_pcc_attach_date'    => $d->local_pcc_attach_date ? $d->local_pcc_attach_date->format('Y-m-d') : null,
-            'second_pcc_submit_date'   => $d->second_pcc_submit_date ? $d->second_pcc_submit_date->format('Y-m-d') : null,
-            'document_submission_date' => $d->document_submission_date ? $d->document_submission_date->format('Y-m-d') : null,
+            'id'                         => $d->id,
+            'candidate_id'               => $d->candidate_id,
+            'document_submission_date'   => $d->document_submission_date ? $d->document_submission_date->format('Y-m-d') : null,
+            'document_resubmission_date' => $d->document_resubmission_date ? $d->document_resubmission_date->format('Y-m-d') : null,
         ], $urls);
     }
 }

@@ -10,8 +10,8 @@ const SECTION_TITLES = [
   'Training Details',
   'Document Attachment',
   'Job & Visa Processing',
-  'Employee Details',
   'Departure Details',
+  'Employee Details',
 ];
 
 interface SectionAssignment {
