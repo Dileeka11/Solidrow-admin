@@ -45,7 +45,9 @@ class SendPoliceReportReminders extends Command
 
             $daysLeft = $today->diffInDays(Carbon::parse($doc->police_report_expire_date), false);
             $name = $candidate->full_name ?: 'Candidate';
-            $message = "ආයුබෝවන් {$name}, ඔයාගේ Police Report එක තව දවස් {$daysLeft}කින් Expire වෙනවා. කරුණාකර අලුත් කරගන්න. - Solidrow";
+            $expireOn = Carbon::parse($doc->police_report_expire_date)->format('d M Y');
+            $message = "Dear {$name}, your Police Report will expire on {$expireOn} ({$daysLeft} days remaining). "
+                . "Please renew it before the expiry date to avoid any delays in your process. - Solidrow";
 
             if (SmsService::send($candidate->phone_number, $message)) {
                 $doc->police_report_expiry_sms_sent_at = now();
