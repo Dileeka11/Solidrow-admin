@@ -114,6 +114,7 @@ export interface PreTestCycle {
   attendance_records: AttendanceRecord[];
   test_date: string | null;
   test_result: TestResult;
+  test_agent: string | null;
 }
 
 export interface CandidateTraining {
@@ -127,6 +128,7 @@ export interface CandidateTraining {
   final_test_attendance_records: AttendanceRecord[];
   final_test_date: string | null;
   final_test_result: TestResult;
+  final_test_agent: string | null;
 }
 
 /** A stored multi-file attachment entry. */

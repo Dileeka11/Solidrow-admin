@@ -39,11 +39,13 @@ class CandidateTrainingController extends Controller
             'pre_test_cycles.*.attendance_records.*.time'     => ['nullable', 'string'],
             'pre_test_cycles.*.test_date'                     => ['nullable', 'date'],
             'pre_test_cycles.*.test_result'                   => ['nullable', 'in:pass,fail'],
+            'pre_test_cycles.*.test_agent'                    => ['nullable', 'string', 'max:191'],
             'final_test_attendance_records'                   => ['nullable', 'array'],
             'final_test_attendance_records.*.date'            => ['nullable', 'date'],
             'final_test_attendance_records.*.time'            => ['nullable', 'string'],
             'final_test_date'                                 => ['nullable', 'date'],
             'final_test_result'                               => ['nullable', 'in:pass,fail'],
+            'final_test_agent'                                => ['nullable', 'string', 'max:191'],
         ]);
 
         $data = [
@@ -53,6 +55,7 @@ class CandidateTrainingController extends Controller
             'final_test_attendance_records' => $validated['final_test_attendance_records'] ?? [],
             'final_test_date'               => $validated['final_test_date'] ?? null,
             'final_test_result'             => $validated['final_test_result'] ?? null,
+            'final_test_agent'              => $validated['final_test_agent'] ?? null,
         ];
 
         if ($request->hasFile('training_bond')) {
@@ -108,6 +111,7 @@ class CandidateTrainingController extends Controller
                     'attendance_records' => [$record],
                     'test_date'          => null,
                     'test_result'        => null,
+                    'test_agent'         => null,
                 ];
             } else {
                 $existing = $cycles[$idx]['attendance_records'] ?? [];
@@ -208,6 +212,7 @@ class CandidateTrainingController extends Controller
             'attendance_records' => $c['attendance_records'] ?? [],
             'test_date'          => $c['test_date'] ?? null,
             'test_result'        => $c['test_result'] ?? null,
+            'test_agent'         => $c['test_agent'] ?? null,
         ], $t->pre_test_cycles ?? []);
 
         if (
@@ -219,6 +224,7 @@ class CandidateTrainingController extends Controller
                 'attendance_records' => [],
                 'test_date'          => null,
                 'test_result'        => null,
+                'test_agent'         => null,
             ]];
         }
 
@@ -233,6 +239,7 @@ class CandidateTrainingController extends Controller
             'final_test_attendance_records' => $t->final_test_attendance_records ?? [],
             'final_test_date'               => $t->final_test_date ? $t->final_test_date->format('Y-m-d') : null,
             'final_test_result'             => $t->final_test_result,
+            'final_test_agent'              => $t->final_test_agent,
         ];
     }
 }

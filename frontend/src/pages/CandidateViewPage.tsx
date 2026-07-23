@@ -439,6 +439,7 @@ export default function CandidateViewPage() {
                 <Field label="Pre Test Date" value={cycle.test_date} />
                 <Field label="Result" value={cycle.test_result ? (cycle.test_result === 'pass' ? 'Pass' : 'Fail') : null} />
               </div>
+              <Field label="Agent" value={cycle.test_agent} />
             </div>
           ))}
 
@@ -456,6 +457,7 @@ export default function CandidateViewPage() {
               <Field label="Final Test Date" value={training.final_test_date} />
               <Field label="Result" value={training.final_test_result ? (training.final_test_result === 'pass' ? 'Pass' : 'Fail') : null} />
             </div>
+            <Field label="Agent" value={training.final_test_agent} />
           </div>
         )}
 

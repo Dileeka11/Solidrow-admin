@@ -261,6 +261,7 @@ export default function CandidateFormPage() {
     final_test_attendance_records: [],
     final_test_date: null,
     final_test_result: null,
+    final_test_agent: null,
   };
   const [training, setTraining] = useState<CandidateTraining>(EMPTY_TRAINING);
   const [trainingSaving, setTrainingSaving] = useState(false);
@@ -740,7 +741,7 @@ export default function CandidateFormPage() {
     if (t.pre_test_cycles && t.pre_test_cycles.length > 0) return t;
     return {
       ...t,
-      pre_test_cycles: [{ cycle_no: 1, attendance_records: [], test_date: null, test_result: null }],
+      pre_test_cycles: [{ cycle_no: 1, attendance_records: [], test_date: null, test_result: null, test_agent: null }],
     };
   }
 
@@ -760,7 +761,7 @@ export default function CandidateFormPage() {
         ...prev,
         pre_test_cycles: [
           ...prev.pre_test_cycles,
-          { cycle_no: nextNo, attendance_records: [], test_date: null, test_result: null },
+          { cycle_no: nextNo, attendance_records: [], test_date: null, test_result: null, test_agent: null },
         ],
       };
     });
@@ -804,6 +805,7 @@ export default function CandidateFormPage() {
       fd.append('final_test_attendance_records', JSON.stringify(training.final_test_attendance_records));
       fd.append('final_test_date', training.final_test_date ?? '');
       fd.append('final_test_result', training.final_test_result ?? '');
+      fd.append('final_test_agent', training.final_test_agent ?? '');
       if (trainingBondFile) fd.append('training_bond', trainingBondFile);
       const r = await api.post<CandidateTraining>(`/candidates/${id}/training`, fd);
       setTraining(withDefaultCycle(r.data));
@@ -1714,6 +1716,18 @@ export default function CandidateFormPage() {
                       </div>
                     </div>
 
+                    {/* Agent — manually entered, per cycle */}
+                    <div style={{ marginTop: 14 }}>
+                      <label style={labelStyle}>Agent</label>
+                      <input
+                        className="sr-input"
+                        style={inputStyle}
+                        value={cycle.test_agent ?? ''}
+                        onChange={(e) => updateCycle(cycle.cycle_no, { test_agent: e.target.value || null })}
+                        placeholder="Who conducted the pre test"
+                      />
+                    </div>
+
                     {/* Print result sheet for this cycle */}
                     <div style={{ marginTop: 12 }}>
                       <button
@@ -1848,6 +1862,18 @@ export default function CandidateFormPage() {
                     <option value="fail">Fail</option>
                   </select>
                 </div>
+              </div>
+
+              {/* Agent — manually entered */}
+              <div style={{ marginTop: 14 }}>
+                <label style={labelStyle}>Agent</label>
+                <input
+                  className="sr-input"
+                  style={inputStyle}
+                  value={training.final_test_agent ?? ''}
+                  onChange={(e) => setTraining((t) => ({ ...t, final_test_agent: e.target.value || null }))}
+                  placeholder="Who conducted the final test"
+                />
               </div>
 
               {/* Print result sheet for the final test */}
