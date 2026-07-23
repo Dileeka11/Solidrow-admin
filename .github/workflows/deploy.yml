@@ -26,7 +26,7 @@ jobs:
 
       - name: Build front-end
         run: |
-          npm ci --prefix frontend
+          npm install --prefix frontend
           npm run build --prefix frontend
           # Drop the fresh build into Laravel's public folder
           rm -rf backend/public/assets
