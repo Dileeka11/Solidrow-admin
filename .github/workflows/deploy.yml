@@ -72,10 +72,13 @@ jobs:
           run_lftp() { printf '%s\n%s\nbye\n' "$LFTP_OPTS" "$1" | lftp -u "$FTP_USERNAME","$FTP_PASSWORD" "$FTP_SERVER"; }
 
           # 1) Laravel app (WITHOUT vendor) -> registration_app/
-          run_lftp "mirror -R --ignore-time --parallel=3 --exclude '\.git' --exclude 'node_modules/' --exclude '^vendor/' --exclude '^\.env' --exclude '^public/' --exclude '^storage' --exclude '^tests/' ./backend/ registration_app/"
+          # NOTE: no --ignore-time here. A fresh CI checkout gives new mtimes, so
+          # mirror re-uploads every changed file. (--ignore-time compares size only,
+          # which silently skips same-size edits like index.html's hashed asset refs.)
+          run_lftp "mirror -R --parallel=3 --exclude '\.git' --exclude 'node_modules/' --exclude '^vendor/' --exclude '^\.env' --exclude '^public/' --exclude '^storage' --exclude '^tests/' ./backend/ registration_app/"
 
           # 2) Built public assets -> doc root (skip custom index.php + storage symlink)
-          run_lftp "mirror -R --ignore-time --parallel=3 --exclude '\.git' --exclude '^index\.php\$' --exclude '^storage' ./backend/public/ sites/registration.solidrow.lk/"
+          run_lftp "mirror -R --parallel=3 --exclude '\.git' --exclude '^index\.php\$' --exclude '^storage' ./backend/public/ sites/registration.solidrow.lk/"
 
           # 3) vendor/ only when composer deps changed
           if [ "$SYNC_VENDOR" = 1 ]; then
