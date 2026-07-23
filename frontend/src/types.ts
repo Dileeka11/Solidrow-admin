@@ -157,6 +157,8 @@ export interface CandidateDocuments {
   police_certificate_files: CandidateDatedDocumentFile[];
   /** Certified (Foreign Ministry) Police Report — history of uploads with dates. */
   certified_police_report_files: CandidateDatedDocumentFile[];
+  /** Manually-entered Police Report expiry date. */
+  police_report_expire_date: string | null;
   document_submission_date: string | null;
   document_resubmission_date: string | null;
 }

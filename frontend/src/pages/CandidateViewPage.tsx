@@ -475,6 +475,7 @@ export default function CandidateViewPage() {
           <FileField label="CV Copy" url={documents?.cv_copy_url} />
           <DatedFileField label="Police Certificate" files={documents?.police_certificate_files} />
           <DatedFileField label="Certified Police Report" files={documents?.certified_police_report_files} />
+          <Field label="Police Report Expire Date" value={documents?.police_report_expire_date} />
           <Field label="Document Submit Date" value={documents?.document_submission_date} />
           <Field label="Document Re-submission Date" value={documents?.document_resubmission_date} />
         </div>

@@ -41,16 +41,20 @@ class CandidateDocument extends Model
         'cv_copy',
         'police_certificate',
         'certified_police_report',
+        'police_report_expire_date',
+        'police_report_expiry_sms_sent_at',
         'document_submission_date',
         'document_resubmission_date',
     ];
 
     protected $casts = [
-        'working_experience'         => 'array',
-        'police_certificate'         => 'array',
-        'certified_police_report'    => 'array',
-        'document_submission_date'   => 'date',
-        'document_resubmission_date' => 'date',
+        'working_experience'               => 'array',
+        'police_certificate'               => 'array',
+        'certified_police_report'          => 'array',
+        'police_report_expire_date'        => 'date',
+        'police_report_expiry_sms_sent_at' => 'datetime',
+        'document_submission_date'         => 'date',
+        'document_resubmission_date'       => 'date',
     ];
 
     public function candidate()

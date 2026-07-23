@@ -3,10 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\Candidate;
+use App\Models\CandidateDocument;
 use App\Models\CandidateEmployeeDetail;
 use App\Models\CandidateSection;
 use App\Models\SectionAssignment;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
@@ -75,7 +77,33 @@ class CandidateController extends Controller
                 'title' => self::SECTION_TITLES[$n - 1],
                 'submitted' => in_array($n, $submitted, true),
             ], range(1, self::TOTAL_SECTIONS)),
+            'police_report' => $this->policeReportStatus($candidate),
         ]);
+    }
+
+    /**
+     * Police Report expiry status for the public lookup: the expiry date and a
+     * live day-countdown so the candidate can see how long the report stays
+     * valid. Returns null when no expiry date has been entered.
+     */
+    private function policeReportStatus(Candidate $candidate): ?array
+    {
+        $expire = CandidateDocument::where('candidate_id', $candidate->id)
+            ->value('police_report_expire_date');
+
+        if (! $expire) {
+            return null;
+        }
+
+        $expireDate = Carbon::parse($expire)->startOfDay();
+        $daysLeft = Carbon::today()->diffInDays($expireDate, false);
+
+        return [
+            'expire_date' => $expireDate->format('Y-m-d'),
+            'days_left'   => (int) $daysLeft,
+            'expired'     => $daysLeft < 0,
+            'expiring_soon' => $daysLeft >= 0 && $daysLeft <= 45,
+        ];
     }
 
     /**

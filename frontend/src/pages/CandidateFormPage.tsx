@@ -278,6 +278,7 @@ export default function CandidateFormPage() {
     cv_copy_url: null,
     police_certificate_files: [],
     certified_police_report_files: [],
+    police_report_expire_date: null,
     document_submission_date: null,
     document_resubmission_date: null,
   };
@@ -965,8 +966,10 @@ export default function CandidateFormPage() {
 
   // ── Section 3: Documents helpers ──────────────────────────────────────────
 
-  const setDocDate = (key: 'document_submission_date' | 'document_resubmission_date', value: string) =>
-    setDocuments((d) => ({ ...d, [key]: value || null }));
+  const setDocDate = (
+    key: 'document_submission_date' | 'document_resubmission_date' | 'police_report_expire_date',
+    value: string,
+  ) => setDocuments((d) => ({ ...d, [key]: value || null }));
 
   const setDocFile = (field: CandidateDocumentFileField, file: File | null) =>
     setDocumentFiles((prev) => {
@@ -1026,6 +1029,7 @@ export default function CandidateFormPage() {
         documents[`${field}_files`].forEach((f) => fd.append(`${field}_keep[]`, f.path));
         datedFiles[field].forEach((file) => fd.append(`${field}[]`, file));
       });
+      fd.append('police_report_expire_date', documents.police_report_expire_date ?? '');
       fd.append('document_submission_date', documents.document_submission_date ?? '');
       fd.append('document_resubmission_date', documents.document_resubmission_date ?? '');
       const r = await api.post<CandidateDocuments>(`/candidates/${id}/documents`, fd);
@@ -1995,6 +1999,14 @@ export default function CandidateFormPage() {
               </div>
             ))}
 
+            <div>
+              <label style={labelStyle}>Police Report Expire Date</label>
+              <DatePicker
+                style={inputStyle}
+                value={documents.police_report_expire_date ?? ''}
+                onChange={(iso) => setDocDate('police_report_expire_date', iso)}
+              />
+            </div>
             <div>
               <label style={labelStyle}>Document Submit Date</label>
               <DatePicker

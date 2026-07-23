@@ -35,4 +35,17 @@ return [
         ],
     ],
 
+    /*
+    | Ozone Sender SMS gateway.
+    | driver: "log" writes messages to the log only (safe for testing);
+    |         "ozone" performs a real API call to the endpoint below.
+    */
+    'ozone' => [
+        'driver'    => env('SMS_DRIVER', 'ozone'),
+        'endpoint'  => env('OZONE_SMS_ENDPOINT', 'https://api.ozonesender.com/v1/send/'),
+        'user_id'   => env('OZONE_SMS_USER_ID', '110560'),
+        'api_key'   => env('OZONE_SMS_API_KEY', 'h93Veu1OQ155vWp'),
+        'sender_id' => env('OZONE_SMS_SENDER_ID', 'Solidrow'),
+    ],
+
 ];

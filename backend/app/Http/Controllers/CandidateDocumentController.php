@@ -40,6 +40,7 @@ class CandidateDocumentController extends Controller
             'certified_police_report.*'    => $fileRules,
             'certified_police_report_keep'   => ['nullable', 'array'],
             'certified_police_report_keep.*' => ['string'],
+            'police_report_expire_date'    => ['nullable', 'date'],
             'document_submission_date'     => ['nullable', 'date'],
             'document_resubmission_date'   => ['nullable', 'date'],
         ]);
@@ -103,7 +104,15 @@ class CandidateDocumentController extends Controller
             $documents->{$field} = $entries;
         }
 
+        // Reset the reminder marker when the expiry date changes so a fresh
+        // 45-days-before SMS can go out for the new date.
+        $newExpiry = $validated['police_report_expire_date'] ?? null;
+        if ((string) $documents->police_report_expire_date?->format('Y-m-d') !== (string) $newExpiry) {
+            $documents->police_report_expiry_sms_sent_at = null;
+        }
+
         $documents->fill([
+            'police_report_expire_date'  => $newExpiry,
             'document_submission_date'   => $validated['document_submission_date'] ?? null,
             'document_resubmission_date' => $validated['document_resubmission_date'] ?? null,
         ]);
@@ -145,6 +154,7 @@ class CandidateDocumentController extends Controller
         return array_merge([
             'id'                         => $d->id,
             'candidate_id'               => $d->candidate_id,
+            'police_report_expire_date'  => $d->police_report_expire_date ? $d->police_report_expire_date->format('Y-m-d') : null,
             'document_submission_date'   => $d->document_submission_date ? $d->document_submission_date->format('Y-m-d') : null,
             'document_resubmission_date' => $d->document_resubmission_date ? $d->document_resubmission_date->format('Y-m-d') : null,
         ], $urls);

@@ -7,12 +7,20 @@ interface ProgressSection {
   submitted: boolean;
 }
 
+interface PoliceReportStatus {
+  expire_date: string;
+  days_left: number;
+  expired: boolean;
+  expiring_soon: boolean;
+}
+
 interface ProgressResult {
   full_name: string;
   registration_no: string;
   total_sections: number;
   is_completed: boolean;
   sections: ProgressSection[];
+  police_report: PoliceReportStatus | null;
 }
 
 const BRAND = 'oklch(0.55 0.2 265)';
@@ -245,6 +253,54 @@ export default function ProgressCheckPage() {
                 );
               })}
             </div>
+
+            {/* Police Report expiry status */}
+            {result.police_report && (
+              <div
+                style={{
+                  marginTop: 24,
+                  padding: '16px 18px',
+                  borderRadius: 12,
+                  border: `1px solid ${
+                    result.police_report.expired
+                      ? 'oklch(0.85 0.09 25)'
+                      : result.police_report.expiring_soon
+                        ? 'oklch(0.85 0.11 75)'
+                        : 'oklch(0.88 0.05 150)'
+                  }`,
+                  background: result.police_report.expired
+                    ? 'oklch(0.97 0.03 25)'
+                    : result.police_report.expiring_soon
+                      ? 'oklch(0.98 0.04 85)'
+                      : 'oklch(0.98 0.02 150)',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 8 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: 'oklch(0.3 0.03 265)' }}>
+                    Police Report
+                  </span>
+                  <span style={{ fontSize: 12, color: 'oklch(0.5 0.02 265)' }}>
+                    Expires on {result.police_report.expire_date}
+                  </span>
+                </div>
+                <div
+                  style={{
+                    marginTop: 8,
+                    fontSize: 15,
+                    fontWeight: 700,
+                    color: result.police_report.expired
+                      ? 'oklch(0.5 0.17 25)'
+                      : result.police_report.expiring_soon
+                        ? 'oklch(0.5 0.14 60)'
+                        : DONE,
+                  }}
+                >
+                  {result.police_report.expired
+                    ? 'ඔයාගේ Police Report එක Expire වෙලා. කරුණාකර අලුත් කරගන්න.'
+                    : `ඔයාගේ Police Report එක තව දවස් ${result.police_report.days_left}කින් Expire වෙනවා.`}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
