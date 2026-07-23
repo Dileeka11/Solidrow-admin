@@ -51,7 +51,7 @@ jobs:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
-          protocol: ftps
+          protocol: ftp
           port: 21
           local-dir: ./backend/
           server-dir: registration_app/
@@ -63,6 +63,7 @@ jobs:
             .env
             .env.*
             public/**
+            storage
             storage/**
             tests/**
             .ftp-deploy-app.json
@@ -74,7 +75,7 @@ jobs:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
-          protocol: ftps
+          protocol: ftp
           port: 21
           local-dir: ./backend/public/
           server-dir: sites/registration.solidrow.lk/
@@ -82,5 +83,6 @@ jobs:
           exclude: |
             **/.git*
             index.php
+            storage
             storage/**
             .ftp-deploy-public.json
