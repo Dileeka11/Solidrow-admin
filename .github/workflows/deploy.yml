@@ -1,0 +1,86 @@
+name: Deploy to cPanel (registration.solidrow.lk)
+
+# Runs on every push to main. Builds the React SPA, installs PHP deps,
+# then FTP-syncs the app to the server. Only changed files are uploaded.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {} # lets you trigger a deploy by hand from the Actions tab
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ---------- Build the React front-end ----------
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Build front-end
+        run: |
+          npm ci --prefix frontend
+          npm run build --prefix frontend
+          # Drop the fresh build into Laravel's public folder
+          rm -rf backend/public/assets
+          cp -r frontend/dist/* backend/public/
+
+      # ---------- Install PHP / Composer deps ----------
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          extensions: mbstring, bcmath, ctype, fileinfo, openssl, pdo, tokenizer, xml, curl, gd, pdo_mysql
+
+      - name: Install Composer deps
+        run: |
+          cp backend/.env.example backend/.env || true
+          composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction --working-dir=backend
+
+      # ---------- Deploy the Laravel app (above web root) ----------
+      - name: Upload app to registration_app/
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftps
+          port: 21
+          local-dir: ./backend/
+          server-dir: registration_app/
+          state-name: .ftp-deploy-app.json
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/node_modules/**
+            .env
+            .env.*
+            public/**
+            storage/**
+            tests/**
+            .ftp-deploy-app.json
+
+      # ---------- Deploy the public assets (into the doc root) ----------
+      - name: Upload public assets to doc root
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftps
+          port: 21
+          local-dir: ./backend/public/
+          server-dir: sites/registration.solidrow.lk/
+          state-name: .ftp-deploy-public.json
+          exclude: |
+            **/.git*
+            index.php
+            storage/**
+            .ftp-deploy-public.json
