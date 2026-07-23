@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { QRCodeCanvas } from 'qrcode.react';
+import solidrowLogo from '../assets/solidrow-foreign-employment.png';
 import { api } from '../api/client';
 import { DatePicker } from '../components/DatePicker';
 import { confirmAction, toastError, toastSuccess } from '../lib/alerts';
@@ -894,72 +895,119 @@ export default function CandidateFormPage() {
       ['Overall Performance', 10],
     ];
     const photo = candidate?.passport_image_url ?? passportPreview ?? '';
+    const esc = (s: string) =>
+      s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const tick = (on: boolean) => (on ? '☑' : '☐');
+    const fmtDate = (s: string) => {
+      if (!s) return '';
+      const d = new Date(s);
+      if (isNaN(d.getTime())) return s;
+      return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    };
     const rows = criteria
       .map(([label, max]) => `<tr><td class="crit">${label}</td><td class="mx">${max}</td><td class="ob"></td></tr>`)
       .join('');
-    const info = (label: string, value: string) =>
-      `<tr><td class="il">${label}</td><td class="iv">${value || '—'}</td></tr>`;
+    const field = (label: string, value: string) =>
+      `<div class="frow"><div class="fl">${label}</div><div class="fv">${esc(value) || '&nbsp;'}</div></div>`;
+    const logoSrc = `${window.location.origin}${solidrowLogo}`;
     w.document.write(`
       <html><head><title>Result Sheet — ${form.full_name || ''}</title>
       <style>
-        @page { size: A4 portrait; margin: 12mm; }
+        @page { size: A4 portrait; margin: 10mm; }
         * { box-sizing: border-box; }
-        body { margin: 0; font-family: system-ui, Arial, sans-serif; color: #222; font-size: 12px; }
-        h1 { font-size: 16px; text-align: center; margin: 0 0 2px; color: #2b5566; }
-        .sub { text-align: center; color: #666; font-size: 11px; margin-bottom: 12px; }
-        .top { display: flex; gap: 14px; }
-        .photo { width: 110px; height: 130px; object-fit: cover; border: 1px solid #bbb; background: #eef2f5; flex: none; }
-        table { border-collapse: collapse; width: 100%; }
-        .info td { border: 1px solid #cbd5e1; padding: 5px 8px; }
-        .il { background: #eef4f7; font-weight: 600; width: 40%; }
-        .meta { display: flex; justify-content: space-between; margin: 12px 0 6px; font-weight: 600; }
-        .assess th { background: #5b8aa0; color: #fff; border: 1px solid #4a7686; padding: 6px 8px; font-size: 11px; text-align: left; }
-        .assess td { border: 1px solid #cbd5e1; padding: 6px 8px; }
-        .mx, .ob { width: 90px; text-align: center; }
+        body { margin: 0; font-family: system-ui, Arial, sans-serif; color: #1f2937; font-size: 11px; }
+        .hdr { display: flex; align-items: center; gap: 14px; border-bottom: 3px solid #2b6fa8; padding-bottom: 8px; }
+        .hdr .logo { height: 74px; width: auto; flex: none; }
+        .hd-mid { flex: 1; text-align: center; }
+        .inst { font-size: 15px; font-weight: 800; color: #14486f; letter-spacing: .3px; }
+        .inst-sub { font-size: 10px; color: #555; margin-top: 1px; }
+        .tag { margin-top: 5px; font-style: italic; font-weight: 600; color: #b45309; font-size: 10.5px; }
+        h1 { font-size: 15px; text-align: center; margin: 10px 0 0; color: #14486f; letter-spacing: .5px; }
+        .h1sub { text-align: center; font-size: 12px; font-weight: 700; color: #374151; margin-bottom: 8px; }
+        .trade { display: flex; justify-content: space-between; border: 1px solid #cbd5e1; background: #f1f5f9; padding: 5px 10px; font-weight: 600; }
+        .body { display: flex; gap: 0; border: 1px solid #cbd5e1; border-top: none; }
+        .side { width: 195px; flex: none; background: #dbeafe; border-right: 1px solid #cbd5e1; padding: 10px; }
+        .ph-wrap { text-align: center; margin-bottom: 10px; }
+        .photo { width: 110px; height: 132px; object-fit: cover; border: 2px solid #2b6fa8; background: #eef2f5; }
+        .stu { margin: 6px auto 0; background: #d9534f; color: #fff; font-weight: 700; font-size: 11px; padding: 3px 0; width: 110px; }
+        .frow { margin-bottom: 8px; }
+        .fl { font-size: 9.5px; color: #475569; font-weight: 600; }
+        .fv { border-bottom: 1px solid #94a3b8; min-height: 15px; padding: 1px 2px; font-weight: 600; font-size: 11px; word-break: break-word; }
+        .main { flex: 1; padding: 10px; }
+        .tr-hd { background: #2b6fa8; color: #fff; text-align: center; font-weight: 700; padding: 5px; font-size: 11px; }
+        table.assess { border-collapse: collapse; width: 100%; }
+        .assess th { background: #eef4f9; border: 1px solid #cbd5e1; padding: 5px 7px; font-size: 10px; text-align: left; color: #14486f; }
+        .assess td { border: 1px solid #cbd5e1; padding: 5px 7px; }
+        .mx, .ob { width: 70px; text-align: center; }
         .tot td { font-weight: 700; background: #f1f5f9; }
-        .foot { margin-top: 12px; display: flex; gap: 24px; font-weight: 600; }
-        .res { font-size: 14px; }
-        .sign { margin-top: 26px; display: flex; justify-content: space-between; color: #444; }
+        .result { margin-top: 10px; font-size: 10.5px; }
+        .result .line { display: flex; gap: 26px; margin-bottom: 6px; }
+        .result b { font-weight: 700; }
+        .rem { margin-top: 6px; }
+        .rem .rl { border-bottom: 1px dotted #94a3b8; height: 14px; margin-top: 4px; }
+        .exd { margin-top: 12px; border-top: 1px solid #cbd5e1; padding-top: 8px; }
+        .exd .et { font-weight: 700; text-align: center; color: #14486f; margin-bottom: 6px; }
+        .exd .line { display: flex; justify-content: space-between; margin-bottom: 10px; }
+        .ftr { margin-top: 8px; background: #e07b23; color: #fff; text-align: center; font-size: 9px; padding: 5px; border-radius: 2px; }
       </style></head>
       <body onload="window.print(); setTimeout(()=>window.close(), 400);">
-        <h1>SKILLS TESTING EVALUATION SHEET — CONSTRUCTION</h1>
-        <div class="sub">CSTI Bureau Training Academy · ${opts.testLabel}${opts.testDate ? ' · ' + opts.testDate : ''}</div>
-        <div class="top">
-          ${photo ? `<img class="photo" src="${photo}" />` : '<div class="photo"></div>'}
-          <table class="info"><tbody>
-            ${info('Name', (form.full_name || '').toUpperCase())}
-            ${info('NIC', form.nic || '')}
-            ${info('Passport No', form.passport_number || '')}
-            ${info('Address', form.address || '')}
-            ${info('Date of Birth', form.birth_date || '')}
-            ${info('Gender', form.gender || '')}
-            ${info('Phone', form.phone_number || '')}
-          </tbody></table>
+        <div class="hdr">
+          <img class="logo" src="${logoSrc}" alt="Solidrow" />
+          <div class="hd-mid">
+            <div class="inst">SOLIDROW FESTI (PVT) LTD</div>
+            <div class="inst-sub">Foreign Employment Agency · License No 3583</div>
+            <div class="tag">"An Internationally Awarded Institute Dedicated to Your Success"</div>
+          </div>
         </div>
-        <div class="meta">
-          <span>Trade Category : ${preTestTrade?.name ?? ''}</span>
-          <span>Pre-Test No : ${training.pre_test_number ?? '—'}</span>
+        <h1>SKILLS TESTING EVALUATION SHEET</h1>
+        <div class="h1sub">CONSTRUCTION</div>
+        <div class="trade">
+          <span>Trade Category : <b>${preTestTrade?.name ?? ''}</b></span>
+          <span>Experience (Years) : ______</span>
         </div>
-        <table class="assess"><thead>
-          <tr><th>Assessment Criteria</th><th class="mx">Maximum Marks</th><th class="ob">Marks Obtained</th></tr>
-        </thead><tbody>
-          ${rows}
-          <tr class="tot"><td>Total Marks</td><td class="mx">100</td><td class="ob"></td></tr>
-        </tbody></table>
-        <div class="foot">
-          <span>Percentage : __________ %</span>
-          <span class="res">Result : ${tick(opts.result === 'pass')} PASS &nbsp;&nbsp; ${tick(opts.result === 'fail')} FAIL</span>
+        <div class="body">
+          <aside class="side">
+            <div class="ph-wrap">
+              ${photo ? `<img class="photo" src="${photo}" />` : '<div class="photo"></div>'}
+              <div class="stu">STUDENT ${training.pre_test_number ?? ''}</div>
+            </div>
+            ${field('Name', (form.full_name || '').toUpperCase())}
+            ${field('NIC', form.nic || '')}
+            ${field('Passport No', form.passport_number || '')}
+            ${field('Address', form.address || '')}
+            ${field('Date of Birth', fmtDate(form.birth_date))}
+            ${field('Gender', form.gender || '')}
+            ${field('Phone', form.phone_number || '')}
+            ${field('Married', '')}
+          </aside>
+          <section class="main">
+            <div class="tr-hd">TEST REPORT · PRACTICAL ASSESSMENT</div>
+            <table class="assess"><thead>
+              <tr><th>Assessment Criteria</th><th class="mx">Maximum Marks</th><th class="ob">Marks Obtained</th></tr>
+            </thead><tbody>
+              ${rows}
+              <tr class="tot"><td>Total Marks</td><td class="mx">100</td><td class="ob"></td></tr>
+            </tbody></table>
+            <div class="result">
+              <div class="line"><span>Maximum Marks : <b>100</b></span><span>Marks Obtained : __________</span></div>
+              <div class="line"><span>Percentage : __________ %</span></div>
+              <div class="line"><span>Result : ${tick(opts.result === 'pass')} PASS &nbsp;&nbsp; ${tick(opts.result === 'fail')} FAIL</span></div>
+              <div class="line"><b>Recommendation :</b></div>
+              <div class="line"><span>☐ Recommended for Employment</span><span>☐ Requires Further Training</span></div>
+              <div class="rem">
+                <span>Examiner's Remarks :</span>
+                <div class="rl"></div>
+                <div class="rl"></div>
+              </div>
+            </div>
+            <div class="exd">
+              <div class="et">Examiner Details</div>
+              <div class="line"><span>Examiner Name : ______________</span><span>Designation : ______________</span></div>
+              <div class="line"><span>Signature : ______________</span><span>Date : ______________</span></div>
+            </div>
+          </section>
         </div>
-        <div class="foot" style="margin-top:8px; font-weight:500;">
-          <span>☐ Recommended for Employment</span>
-          <span>☐ Requires Further Training</span>
-        </div>
-        <div class="sign">
-          <span>Examiner Name : ____________________</span>
-          <span>Signature : ____________________</span>
-          <span>Date : ____________</span>
-        </div>
+        <div class="ftr">SOLIDROW FESTI (PVT) LTD · Foreign Employment Agency · License No 3583 · ${opts.testLabel}${opts.testDate ? ' · ' + opts.testDate : ''}</div>
       </body></html>`);
     w.document.close();
   }
