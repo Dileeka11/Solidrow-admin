@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api/client';
 import { ACCENT_HUES } from '../lib/staff';
+import { useIsMobile } from '../lib/useMediaQuery';
 import type { DashboardData } from '../types';
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     api.get<DashboardData>('/dashboard').then((res) => setData(res.data));
@@ -72,8 +74,8 @@ export default function DashboardPage() {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(4, 1fr)',
-          gap: 18,
+          gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
+          gap: isMobile ? 12 : 18,
           marginBottom: 24,
         }}
       >
@@ -102,7 +104,7 @@ export default function DashboardPage() {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: '1.3fr 1fr',
+          gridTemplateColumns: isMobile ? '1fr' : '1.3fr 1fr',
           gap: 18,
           marginBottom: 18,
         }}

@@ -156,6 +156,8 @@ export default function CandidatesPage() {
           overflow: 'hidden',
         }}
       >
+        <div className="sr-table-scroll">
+        <div style={{ minWidth: 780 }}>
         <div
           style={{
             display: 'grid',
@@ -284,6 +286,8 @@ export default function CandidatesPage() {
             </div>
           </div>
         ))}
+        </div>
+        </div>
       </div>
     </div>
   );

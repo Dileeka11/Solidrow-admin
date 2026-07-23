@@ -161,8 +161,9 @@ function DatedFileField({
   );
 }
 
-const grid3: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 };
-const grid2: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 };
+// Extra style (beyond the responsive grid class) some grids need.
+const gridMb16: React.CSSProperties = { marginBottom: 16 };
+const gridMb20: React.CSSProperties = { marginBottom: 20 };
 
 /** Read-only attendance list. */
 function AttendanceList({ records }: { records: AttendanceRecord[] }) {
@@ -375,7 +376,7 @@ export default function CandidateViewPage() {
             alt="passport"
             style={{ width: 96, height: 120, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)', flexShrink: 0, background: 'var(--row-border, #f3f4f6)' }}
           />
-          <div style={{ ...grid3, flex: 1 }}>
+          <div className="sr-grid-3" style={{ flex: 1 }}>
             <Field label="Registration No" value={c.registration_no} />
             <Field label="Candidate Reg. No" value={c.candidate_reg_no} />
             <Field label="Registration Date" value={c.registration_date ? c.registration_date.slice(0, 10) : null} />
@@ -385,7 +386,7 @@ export default function CandidateViewPage() {
           </div>
         </div>
 
-        <div style={grid3}>
+        <div className="sr-grid-3">
           <Field label="Address" value={c.address} />
           <Field label="NIC Number" value={c.nic} />
           <Field label="Birth Date" value={c.birth_date} />
@@ -413,7 +414,7 @@ export default function CandidateViewPage() {
 
       {/* Section 2: Training Details */}
       <SectionCard title="02. Training Details" complete={isDone(2)}>
-        <div style={{ ...grid2, marginBottom: 20 }}>
+        <div className="sr-grid-2" style={gridMb20}>
           <FileField label="Training Bond" url={training?.training_bond_url} />
           <Field label="Pre-Test Number" value={training?.pre_test_number ?? null} />
         </div>
@@ -434,7 +435,7 @@ export default function CandidateViewPage() {
                 <div style={labelStyle}>Attendance ({cycle.attendance_records.length} days)</div>
                 <AttendanceList records={cycle.attendance_records} />
               </div>
-              <div style={grid2}>
+              <div className="sr-grid-2">
                 <Field label="Pre Test Date" value={cycle.test_date} />
                 <Field label="Result" value={cycle.test_result ? (cycle.test_result === 'pass' ? 'Pass' : 'Fail') : null} />
               </div>
@@ -451,7 +452,7 @@ export default function CandidateViewPage() {
               <div style={labelStyle}>Attendance ({training.final_test_attendance_records.length} days)</div>
               <AttendanceList records={training.final_test_attendance_records} />
             </div>
-            <div style={grid2}>
+            <div className="sr-grid-2">
               <Field label="Final Test Date" value={training.final_test_date} />
               <Field label="Result" value={training.final_test_result ? (training.final_test_result === 'pass' ? 'Pass' : 'Fail') : null} />
             </div>
@@ -465,7 +466,7 @@ export default function CandidateViewPage() {
 
       {/* Section 3: Document Attachment */}
       <SectionCard title="03. Document Attachment" complete={isDone(3)}>
-        <div style={grid2}>
+        <div className="sr-grid-2">
           <FileField label="Passport Size Photo" url={documents?.passport_size_photo_url} />
           <FileField label="NIC Color Copy" url={documents?.nic_color_copy_url} />
           <FileField label="Passport Color Copy" url={documents?.passport_color_copy_url} />
@@ -482,7 +483,7 @@ export default function CandidateViewPage() {
       {/* Section 4: Job & Visa Processing */}
       <SectionCard title="04. Job & Visa Processing" complete={isDone(4)}>
         {c.country === 'Romania' && (
-          <div style={{ ...grid3, marginBottom: 16 }}>
+          <div className="sr-grid-3" style={gridMb16}>
             <Field label="Offer Letter Date" value={visa?.offer_letter_date} />
             <Field label="Confirmation Letter Date" value={visa?.confirmation_letter_date} />
             <Field label="Document Submission Date" value={visa?.document_submission_date} />
@@ -495,13 +496,13 @@ export default function CandidateViewPage() {
         )}
 
         {c.country === 'Israel' && (
-          <div style={{ ...grid3, marginBottom: 16 }}>
+          <div className="sr-grid-3" style={gridMb16}>
             <Field label="Agreement Sign Date" value={visa?.agreement_sign_date} />
             <Field label="Police Report Date" value={visa?.police_report_date} />
           </div>
         )}
 
-        <div style={grid3}>
+        <div className="sr-grid-3">
           <Field label="Visa Status" value={visa?.visa_status ? VISA_STATUS_LABEL[visa.visa_status] : null} />
           <Field label="Visa Status Date" value={visa?.visa_status_date} />
           <Field label="PIBA Submission Status" value={visa?.piba_submission_status ? PIBA_STATUS_LABEL[visa.piba_submission_status] : null} />
@@ -510,7 +511,7 @@ export default function CandidateViewPage() {
 
       {/* Section 5: Departure Details */}
       <SectionCard title="05. Departure Details" complete={isDone(5)}>
-        <div style={grid3}>
+        <div className="sr-grid-3">
           <Field label="Final Approval Date" value={departure?.final_approval_date} />
           <Field label="Receipt Number" value={departure?.receipt_number} />
           <Field label="Flight Number" value={departure?.flight_number} />
@@ -521,7 +522,7 @@ export default function CandidateViewPage() {
 
       {/* Section 6: Employee Details */}
       <SectionCard title="06. Employee Details" complete={isDone(6)}>
-        <div style={grid2}>
+        <div className="sr-grid-2">
           <Field label="Registration Number" value={employee?.registration_number} />
           <Field
             label="Job Category"

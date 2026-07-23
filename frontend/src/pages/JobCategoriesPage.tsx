@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { EditIcon, PlusIcon, TrashIcon } from '../components/icons';
 import { confirmDelete, toastError, toastSuccess } from '../lib/alerts';
+import { useIsMobile } from '../lib/useMediaQuery';
 import type { JobCategory } from '../types';
 
 const inputStyle: React.CSSProperties = { padding: '10px 12px', borderRadius: 7, fontSize: 14, width: '100%' };
 
 export default function JobCategoriesPage() {
+  const isMobile = useIsMobile();
   const [categories, setCategories] = useState<JobCategory[]>([]);
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
@@ -100,7 +102,8 @@ export default function JobCategoriesPage() {
           padding: 20,
           marginBottom: 20,
           display: 'flex',
-          alignItems: 'flex-end',
+          flexDirection: isMobile ? 'column' : 'row',
+          alignItems: isMobile ? 'stretch' : 'flex-end',
           gap: 12,
         }}
       >
@@ -116,7 +119,7 @@ export default function JobCategoriesPage() {
             placeholder="e.g. Welder, Caregiver, Driver"
           />
         </div>
-        <div style={{ width: 130 }}>
+        <div style={{ width: isMobile ? '100%' : 130 }}>
           <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 5, color: 'var(--label-2)' }}>
             Trade code
           </label>

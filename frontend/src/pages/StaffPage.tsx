@@ -112,6 +112,8 @@ export default function StaffPage() {
           overflow: 'hidden',
         }}
       >
+        <div className="sr-table-scroll">
+        <div style={{ minWidth: 680 }}>
         <div
           style={{
             display: 'grid',
@@ -208,6 +210,8 @@ export default function StaffPage() {
             </div>
           );
         })}
+        </div>
+        </div>
       </div>
 
       <StaffModal

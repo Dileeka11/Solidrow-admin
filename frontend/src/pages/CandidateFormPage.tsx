@@ -5,6 +5,7 @@ import { api } from '../api/client';
 import { DatePicker } from '../components/DatePicker';
 import { confirmAction, toastError, toastSuccess } from '../lib/alerts';
 import { useAuth } from '../auth/AuthContext';
+import { useIsMobile } from '../lib/useMediaQuery';
 import type { Candidate, CandidateDatedFileField, CandidateDepartureDetails, CandidateDocumentFileField, CandidateDocuments, CandidateEmployeeDetails, CandidateSection, CandidateTraining, CandidateVisaDetails, JobCategory, PibaSubmissionStatus, PreTestCycle, Staff, VisaStatus } from '../types';
 
 const SECTION_TITLES = [
@@ -236,6 +237,7 @@ export default function CandidateFormPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const isMobile = useIsMobile();
   const isEdit = !!id;
   const isAdmin = user?.role === 'Admin';
 
@@ -641,21 +643,57 @@ export default function CandidateFormPage() {
     const canvas = qrRef.current?.querySelector('canvas');
     if (!canvas) return;
     const dataUrl = canvas.toDataURL('image/png');
-    const w = window.open('', '_blank', 'width=800,height=1000');
+    const collectedDate = form.passport_collected_date
+      ? new Date(form.passport_collected_date).toLocaleDateString('en-GB')
+      : '';
+    const esc = (s: string) =>
+      s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const w = window.open('', '_blank', 'width=800,height=600');
     if (!w) return;
     w.document.write(`
-      <html><head><title>Attendance QR</title>
+      <html><head><title>Passport Collection Card</title>
       <style>
-        @page { size: A5; margin: 12mm; }
-        body { font-family: system-ui, sans-serif; text-align: center; }
-        h2 { margin: 0 0 4px; } p { margin: 2px 0; color: #444; }
-        img { width: 320px; height: 320px; margin-top: 24px; }
+        @page { size: A6 landscape; margin: 8mm; }
+        * { box-sizing: border-box; }
+        body { font-family: system-ui, sans-serif; margin: 0; color: #1a1a2e; }
+        .card {
+          width: 340px; border: 1.5px solid #1a2b6b; border-radius: 10px;
+          padding: 14px 16px; margin: 0 auto;
+        }
+        .head { text-align: center; border-bottom: 1px solid #cbd2e6; padding-bottom: 8px; }
+        .company { font-size: 15px; font-weight: 800; color: #1a2b6b; letter-spacing: .3px; }
+        .agency { font-size: 9px; font-weight: 700; color: #1a2b6b; letter-spacing: 1.5px; }
+        .license { font-size: 9px; color: #444; margin-top: 2px; }
+        .contact { font-size: 8px; color: #666; margin-top: 2px; }
+        .body { display: flex; gap: 12px; margin-top: 10px; }
+        .fields { flex: 1; }
+        .row { display: flex; font-size: 11px; margin-bottom: 8px; align-items: baseline; }
+        .label { width: 84px; color: #444; font-weight: 600; }
+        .value { flex: 1; border-bottom: 1px dotted #98a2c0; padding: 0 4px 2px; font-weight: 600; }
+        .qr { text-align: center; }
+        .qr img { width: 96px; height: 96px; }
+        .note { text-align: center; font-size: 9px; color: #555; font-style: italic;
+                margin-top: 10px; border-top: 1px solid #cbd2e6; padding-top: 6px; }
       </style></head>
       <body onload="window.print(); setTimeout(()=>window.close(), 300);">
-        <h2>Attendance QR</h2>
-        <p>${form.full_name || ''}</p>
-        <p>${candidateRegNo}</p>
-        <img src="${dataUrl}" />
+        <div class="card">
+          <div class="head">
+            <div class="company">SOLIDROW FESTI (PVT) LTD</div>
+            <div class="agency">FOREIGN EMPLOYMENT AGENCY</div>
+            <div class="license">License No - 3583</div>
+            <div class="contact">manager@solidrow.lk &nbsp;|&nbsp; +94 11 250 0000</div>
+          </div>
+          <div class="body">
+            <div class="fields">
+              <div class="row"><div class="label">Reg No.</div><div class="value">${esc(candidateRegNo)}</div></div>
+              <div class="row"><div class="label">Name</div><div class="value">${esc(form.full_name || '')}</div></div>
+              <div class="row"><div class="label">Passport No.</div><div class="value">${esc(form.passport_number || '')}</div></div>
+              <div class="row"><div class="label">Date</div><div class="value">${esc(collectedDate)}</div></div>
+            </div>
+            <div class="qr"><img src="${dataUrl}" /></div>
+          </div>
+          <div class="note">Passport collected with the permission of the owner</div>
+        </div>
       </body></html>`);
     w.document.close();
   }
@@ -1115,7 +1153,7 @@ export default function CandidateFormPage() {
         </div>
         <hr style={{ border: 'none', borderTop: '1px solid var(--border-soft)', margin: '10px 0 18px' }} />
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+        <div className="sr-grid-3">
           <div>
             <label style={labelStyle}>Registration No *</label>
             <input className="sr-input" style={{ ...inputStyle, background: 'var(--row-border, #f3f4f6)' }} value={registrationNo} readOnly />
@@ -1350,15 +1388,15 @@ export default function CandidateFormPage() {
             <input className="sr-input" style={inputStyle} value={form.agent} onChange={(e) => set('agent', e.target.value)} />
           </div>
 
-          <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: 20 }}>
+          <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
               <input type="checkbox" checked={form.other_coordinator} onChange={(e) => set('other_coordinator', e.target.checked)} />
               Other Coordinator
             </label>
             {form.other_coordinator && (
               <>
-                <input className="sr-input" style={{ ...inputStyle, width: 240 }} placeholder="Other Coordinator Name" value={form.other_coordinator_name} onChange={(e) => set('other_coordinator_name', e.target.value)} />
-                <input className="sr-input" style={{ ...inputStyle, width: 220 }} placeholder="Coordinator Mobile" maxLength={10} value={form.other_coordinator_mobile} onChange={(e) => set('other_coordinator_mobile', e.target.value)} />
+                <input className="sr-input" style={{ ...inputStyle, width: isMobile ? '100%' : 240 }} placeholder="Other Coordinator Name" value={form.other_coordinator_name} onChange={(e) => set('other_coordinator_name', e.target.value)} />
+                <input className="sr-input" style={{ ...inputStyle, width: isMobile ? '100%' : 220 }} placeholder="Coordinator Mobile" maxLength={10} value={form.other_coordinator_mobile} onChange={(e) => set('other_coordinator_mobile', e.target.value)} />
               </>
             )}
           </div>
@@ -1389,7 +1427,7 @@ export default function CandidateFormPage() {
               <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 4 }}>Encodes Candidate Reg. No</div>
               <div style={{ fontWeight: 600, marginBottom: 14 }}>{candidateRegNo}</div>
               <button className="sr-btn-primary" onClick={printQr} style={{ padding: '10px 18px', borderRadius: 8, fontSize: 14 }}>
-                Generate / Print (A5)
+                Print Passport Card
               </button>
             </div>
           </div>
@@ -1434,7 +1472,7 @@ export default function CandidateFormPage() {
           {/* 2.1b Pre-Test ID / Number */}
           <div style={{ marginBottom: 24, border: '1px solid var(--border-soft)', borderRadius: 10, padding: '16px 20px', background: 'var(--row-bg,#fafafa)' }}>
             <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--accent,#6366f1)', marginBottom: 12 }}>Pre-Test ID</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 14, alignItems: 'end' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr auto', gap: 14, alignItems: 'end' }}>
               <div>
                 <label style={labelStyle}>Trade (Job Category)</label>
                 <select
@@ -1597,7 +1635,7 @@ export default function CandidateFormPage() {
                     </div>
 
                     {/* Pre-Test date + result */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                    <div className="sr-grid-2" style={{ gap: 14 }}>
                       <div>
                         <label style={labelStyle}>Pre Test Date</label>
                         <DatePicker
@@ -1736,7 +1774,7 @@ export default function CandidateFormPage() {
               </div>
 
               {/* Final test date + result */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div className="sr-grid-2" style={{ gap: 14 }}>
                 <div>
                   <label style={labelStyle}>Final Test Date</label>
                   <DatePicker
@@ -1798,7 +1836,7 @@ export default function CandidateFormPage() {
           </div>
           <hr style={{ border: 'none', borderTop: '1px solid var(--border-soft)', margin: '10px 0 18px' }} />
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
+          <div className="sr-grid-2">
             {([
               { field: 'passport_size_photo', label: 'Passport Size Photo', hint: '826px x 1062px', accept: 'image/*' },
               { field: 'nic_color_copy', label: 'NIC Color Copy (Attach)' },
@@ -2007,7 +2045,7 @@ export default function CandidateFormPage() {
 
           {/* Romania workflow */}
           {form.country === 'Romania' && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 20 }}>
+            <div className="sr-grid-3" style={{ marginBottom: 20 }}>
               <VisaDate label="Offer Letter Date" field="offer_letter_date" />
               <VisaDate label="Confirmation Letter Date" field="confirmation_letter_date" />
               <VisaDate label="Document Submission Date" field="document_submission_date" />
@@ -2021,7 +2059,7 @@ export default function CandidateFormPage() {
 
           {/* Israel workflow */}
           {form.country === 'Israel' && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 20 }}>
+            <div className="sr-grid-3" style={{ marginBottom: 20 }}>
               <VisaDate label="Agreement Sign Date" field="agreement_sign_date" />
               <VisaDate label="Police Report Date" field="police_report_date" />
             </div>
@@ -2029,7 +2067,7 @@ export default function CandidateFormPage() {
 
           {/* Common — Visa status (+ date) & PIBA submission (both countries) */}
           {form.country && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+            <div className="sr-grid-3">
               <div>
                 <label style={labelStyle}>Visa Status</label>
                 <select
@@ -2089,7 +2127,7 @@ export default function CandidateFormPage() {
           </div>
           <hr style={{ border: 'none', borderTop: '1px solid var(--border-soft)', margin: '10px 0 18px' }} />
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
+          <div className="sr-grid-2">
             <div>
               <label style={labelStyle}>Final Approval Date</label>
               <DatePicker
@@ -2166,7 +2204,7 @@ export default function CandidateFormPage() {
           </div>
           <hr style={{ border: 'none', borderTop: '1px solid var(--border-soft)', margin: '10px 0 18px' }} />
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
+          <div className="sr-grid-2">
             <div>
               <label style={labelStyle}>Registration Number</label>
               <input
@@ -2239,7 +2277,7 @@ export default function CandidateFormPage() {
                   key={n}
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: '30px 1.6fr 1.4fr 150px',
+                    gridTemplateColumns: isMobile ? '30px 1fr' : '30px 1.6fr 1.4fr 150px',
                     gap: 12,
                     alignItems: 'center',
                     padding: '10px 12px',

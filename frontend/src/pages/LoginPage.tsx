@@ -2,10 +2,12 @@ import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { LogoMark } from '../components/icons';
+import { useIsMobile } from '../lib/useMediaQuery';
 
 export default function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -32,13 +34,19 @@ export default function LoginPage() {
   }
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', minHeight: '100vh' }}>
-      {/* Left — brand / art panel */}
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
+        minHeight: '100vh',
+      }}
+    >
+      {/* Left — brand / art panel (hidden on mobile) */}
       <div
         style={{
+          display: isMobile ? 'none' : 'flex',
           background: 'var(--panel)',
           color: 'white',
-          display: 'flex',
           flexDirection: 'column',
           justifyContent: 'center',
           padding: 80,
@@ -113,7 +121,7 @@ export default function LoginPage() {
       </div>
 
       {/* Right — login form */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: isMobile ? '32px 20px' : 40 }}>
         <form
           className="fade-in"
           style={{ width: '100%', maxWidth: 380 }}

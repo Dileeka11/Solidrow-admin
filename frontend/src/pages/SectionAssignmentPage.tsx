@@ -3,6 +3,7 @@ import { api } from '../api/client';
 import { confirmAction, toastError, toastSuccess } from '../lib/alerts';
 import { useAuth } from '../auth/AuthContext';
 import { can } from '../lib/permissions';
+import { useIsMobile } from '../lib/useMediaQuery';
 import type { Staff } from '../types';
 
 const SECTION_TITLES = [
@@ -140,6 +141,7 @@ function StaffMultiSelect({
 export default function SectionAssignmentPage() {
   const { user } = useAuth();
   const canEdit = can(user, 'sections.edit');
+  const isMobile = useIsMobile();
 
   const [staff, setStaff] = useState<Staff[]>([]);
   const [assignments, setAssignments] = useState<Record<number, number[]>>({});
@@ -196,7 +198,7 @@ export default function SectionAssignmentPage() {
                 key={n}
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: '30px 1.6fr 1.4fr',
+                  gridTemplateColumns: isMobile ? '30px 1fr' : '30px 1.6fr 1.4fr',
                   gap: 12,
                   alignItems: 'center',
                   padding: '10px 12px',
@@ -209,12 +211,14 @@ export default function SectionAssignmentPage() {
                 <div>
                   <label style={labelStyle}>{title}</label>
                 </div>
-                <StaffMultiSelect
-                  staff={staff}
-                  value={assignments[n] ?? []}
-                  disabled={!canEdit}
-                  onChange={(ids) => setAssignments((a) => ({ ...a, [n]: ids }))}
-                />
+                <div style={{ gridColumn: isMobile ? '1 / -1' : 'auto' }}>
+                  <StaffMultiSelect
+                    staff={staff}
+                    value={assignments[n] ?? []}
+                    disabled={!canEdit}
+                    onChange={(ids) => setAssignments((a) => ({ ...a, [n]: ids }))}
+                  />
+                </div>
               </div>
             );
           })}

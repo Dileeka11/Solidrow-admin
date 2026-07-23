@@ -106,3 +106,53 @@ body {
   justify-content: center;
 }
 .sr-icon-btn:hover { background: oklch(0.97 0.004 250); }
+
+/* ── Responsive helpers ───────────────────────────────────────────────── */
+
+/* Horizontal-scroll wrapper for wide grid "tables" on small screens. The
+   inner grid keeps a min-width so columns stay aligned and the whole thing
+   scrolls sideways instead of squashing. */
+.sr-table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Mobile drawer overlay for the sidebar. */
+.sr-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  background: oklch(0 0 0 / 0.45);
+  z-index: 40;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.sr-hamburger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  cursor: pointer;
+  color: var(--text);
+  flex-shrink: 0;
+}
+.sr-hamburger:hover { background: var(--page-bg); }
+
+/* Reusable form/field grids that collapse to a single column on mobile. */
+.sr-grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+.sr-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+
+@media (max-width: 768px) {
+  /* Prevent iOS zoom on focus by keeping inputs at 16px. */
+  .sr-input { font-size: 16px; }
+
+  /* Stack multi-column field grids on small screens. */
+  .sr-grid-2,
+  .sr-grid-3 { grid-template-columns: 1fr; }
+}

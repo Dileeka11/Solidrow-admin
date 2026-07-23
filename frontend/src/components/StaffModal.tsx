@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useIsMobile } from '../lib/useMediaQuery';
 import type { Staff, StaffInput, StaffStatus } from '../types';
 
 interface Props {
@@ -27,6 +28,7 @@ const fieldLabel: React.CSSProperties = {
 };
 
 export default function StaffModal({ open, editing, roles, onClose, onSave }: Props) {
+  const isMobile = useIsMobile();
   const [form, setForm] = useState<StaffInput>(EMPTY);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -115,7 +117,7 @@ export default function StaffModal({ open, editing, roles, onClose, onSave }: Pr
           {editing ? 'Edit Staff Member' : 'Add Staff Member'}
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14, marginBottom: 14 }}>
           <div>
             <label style={fieldLabel}>Full Name</label>
             <input
@@ -150,7 +152,7 @@ export default function StaffModal({ open, editing, roles, onClose, onSave }: Pr
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14, marginBottom: 14 }}>
           <div>
             <label style={fieldLabel}>Department</label>
             <input
