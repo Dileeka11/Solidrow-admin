@@ -69,7 +69,7 @@ jobs:
           echo "SYNC_VENDOR=$SYNC_VENDOR"
 
           LFTP_OPTS="set cmd:fail-exit true; set ftp:ssl-force true; set ftp:ssl-protect-data true; set ssl:verify-certificate no; set ftp:passive-mode true; set net:max-retries 3; set net:timeout 30;"
-          run_lftp() { lftp -u "$FTP_USERNAME","$FTP_PASSWORD" "$FTP_SERVER" -c "$LFTP_OPTS $1; bye"; }
+          run_lftp() { printf '%s\n%s\nbye\n' "$LFTP_OPTS" "$1" | lftp -u "$FTP_USERNAME","$FTP_PASSWORD" "$FTP_SERVER"; }
 
           # 1) Laravel app (WITHOUT vendor) -> registration_app/
           run_lftp "mirror -R --ignore-time --parallel=3 --exclude '\.git' --exclude 'node_modules/' --exclude '^vendor/' --exclude '^\.env' --exclude '^public/' --exclude '^storage' --exclude '^tests/' ./backend/ registration_app/"
