@@ -44,45 +44,41 @@ jobs:
           cp backend/.env.example backend/.env || true
           composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction --working-dir=backend
 
-      # ---------- Deploy the Laravel app (above web root) ----------
-      - name: Upload app to registration_app/
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-        with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          protocol: ftp
-          port: 21
-          local-dir: ./backend/
-          server-dir: registration_app/
-          state-name: .ftp-deploy-app.json
-          exclude: |
-            **/.git*
-            **/.git*/**
-            **/node_modules/**
-            .env
-            .env.*
-            public/**
-            storage
-            storage/**
-            tests/**
-            .ftp-deploy-app.json
+      # ---------- Deploy via lftp (explicit FTPS, robust for large files) ----------
+      - name: Install lftp
+        run: sudo apt-get update && sudo apt-get install -y lftp
 
-      # ---------- Deploy the public assets (into the doc root) ----------
-      - name: Upload public assets to doc root
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-        with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          protocol: ftp
-          port: 21
-          local-dir: ./backend/public/
-          server-dir: sites/registration.solidrow.lk/
-          state-name: .ftp-deploy-public.json
-          exclude: |
-            **/.git*
-            index.php
-            storage
-            storage/**
-            .ftp-deploy-public.json
+      - name: Deploy over FTPS
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          lftp -u "$FTP_USERNAME","$FTP_PASSWORD" "$FTP_SERVER" <<'LFTP'
+          set cmd:fail-exit true
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate no
+          set ftp:passive-mode true
+          set net:max-retries 3
+          set net:timeout 30
+
+          # 1) Laravel app -> registration_app/ (above web root)
+          mirror -R --ignore-time --parallel=1 \
+            --exclude '\.git' \
+            --exclude 'node_modules/' \
+            --exclude '^\.env' \
+            --exclude '^public/' \
+            --exclude '^storage' \
+            --exclude '^tests/' \
+            ./backend/ registration_app/
+
+          # 2) Built public assets -> doc root (skip custom index.php + storage symlink)
+          mirror -R --ignore-time --parallel=1 \
+            --exclude '\.git' \
+            --exclude '^index\.php$' \
+            --exclude '^storage' \
+            ./backend/public/ sites/registration.solidrow.lk/
+
+          bye
+          LFTP
