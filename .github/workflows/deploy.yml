@@ -17,6 +17,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2 # lets us diff HEAD~1 to detect composer.lock changes
 
       # ---------- Build the React front-end ----------
       - name: Setup Node
@@ -54,31 +56,31 @@ jobs:
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
         run: |
-          lftp -u "$FTP_USERNAME","$FTP_PASSWORD" "$FTP_SERVER" <<'LFTP'
-          set cmd:fail-exit true
-          set ftp:ssl-force true
-          set ftp:ssl-protect-data true
-          set ssl:verify-certificate no
-          set ftp:passive-mode true
-          set net:max-retries 3
-          set net:timeout 30
+          set -e
 
-          # 1) Laravel app -> registration_app/ (above web root)
-          mirror -R --ignore-time --parallel=1 \
-            --exclude '\.git' \
-            --exclude 'node_modules/' \
-            --exclude '^\.env' \
-            --exclude '^public/' \
-            --exclude '^storage' \
-            --exclude '^tests/' \
-            ./backend/ registration_app/
+          # Only re-sync the huge vendor/ tree when composer deps actually change.
+          # (Listing vendor/ over FTPS is what makes a deploy slow.)
+          CHANGED=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo ALL)
+          SYNC_VENDOR=0
+          if [ "$CHANGED" = ALL ] || [ "${{ github.event_name }}" = workflow_dispatch ] \
+             || echo "$CHANGED" | grep -qE '^backend/composer\.(json|lock)$'; then
+            SYNC_VENDOR=1
+          fi
+          echo "SYNC_VENDOR=$SYNC_VENDOR"
+
+          LFTP_OPTS="set cmd:fail-exit true; set ftp:ssl-force true; set ftp:ssl-protect-data true; set ssl:verify-certificate no; set ftp:passive-mode true; set net:max-retries 3; set net:timeout 30;"
+          run_lftp() { lftp -u "$FTP_USERNAME","$FTP_PASSWORD" "$FTP_SERVER" -c "$LFTP_OPTS $1; bye"; }
+
+          # 1) Laravel app (WITHOUT vendor) -> registration_app/
+          run_lftp "mirror -R --ignore-time --parallel=3 --exclude '\.git' --exclude 'node_modules/' --exclude '^vendor/' --exclude '^\.env' --exclude '^public/' --exclude '^storage' --exclude '^tests/' ./backend/ registration_app/"
 
           # 2) Built public assets -> doc root (skip custom index.php + storage symlink)
-          mirror -R --ignore-time --parallel=1 \
-            --exclude '\.git' \
-            --exclude '^index\.php$' \
-            --exclude '^storage' \
-            ./backend/public/ sites/registration.solidrow.lk/
+          run_lftp "mirror -R --ignore-time --parallel=3 --exclude '\.git' --exclude '^index\.php\$' --exclude '^storage' ./backend/public/ sites/registration.solidrow.lk/"
 
-          bye
-          LFTP
+          # 3) vendor/ only when composer deps changed
+          if [ "$SYNC_VENDOR" = 1 ]; then
+            echo "Syncing vendor/ ..."
+            run_lftp "mirror -R --ignore-time --parallel=4 ./backend/vendor/ registration_app/vendor/"
+          else
+            echo "Skipping vendor/ (composer deps unchanged)"
+          fi
