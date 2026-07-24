@@ -276,7 +276,14 @@ class CandidateController extends Controller
             'candidate_reg_no' => ['nullable', 'string', 'max:255'],
             'full_name' => ['required', 'string', 'max:255'],
             'address' => ['nullable', 'string', 'max:255'],
-            'nic' => ['nullable', 'string', 'max:20'],
+            'nic' => [
+                'nullable',
+                'string',
+                'max:20',
+                Rule::unique('candidates', 'nic')
+                    ->ignore($candidate?->id)
+                    ->whereNotNull('nic'),
+            ],
             'birth_date' => ['nullable', 'string', 'max:20'],
             'gender' => ['nullable', 'string', 'max:20'],
             'passport_retention' => ['nullable', Rule::in(['yes', 'no'])],
@@ -298,6 +305,8 @@ class CandidateController extends Controller
             'candidate_skill' => ['nullable', Rule::in(['skill', 'unskill', 'training'])],
             'registration_date' => ['nullable', 'date'],
             'passport_image' => ['nullable', 'image', 'max:20480'], // up to 20MB
+        ], [
+            'nic.unique' => 'This NIC number is already registered for another candidate.',
         ]);
     }
 }
