@@ -45,6 +45,7 @@ function formatDisplay(iso: string): string {
 
 export function DatePicker({ value, onChange, disabled, placeholder = 'Select date', title, style, id }: Props) {
   const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<'days' | 'years'>('days');
   const rootRef = useRef<HTMLDivElement>(null);
 
   // Calendar view: default to selected value, else today.
@@ -57,7 +58,7 @@ export function DatePicker({ value, onChange, disabled, placeholder = 'Select da
 
   // Sync view to the selected value whenever it (or the popup) opens.
   useEffect(() => {
-    if (open) setView(selected ?? { y: today.y, m: today.m });
+    if (open) { setView(selected ?? { y: today.y, m: today.m }); setMode('days'); }
   }, [open, selected, today.y, today.m]);
 
   // Close on outside click / Escape.
@@ -89,6 +90,11 @@ export function DatePicker({ value, onChange, disabled, placeholder = 'Select da
       return { y, m: ((m % 12) + 12) % 12 };
     });
   };
+
+  // Year picker: show a 12-year grid; nav arrows page by a decade.
+  const decadeStart = Math.floor(view.y / 10) * 10 - 1; // e.g. 2019 for 2026
+  const years = Array.from({ length: 12 }, (_, i) => decadeStart + i);
+  const shiftYears = (delta: number) => setView((v) => ({ ...v, y: v.y + delta }));
 
   const pick = (d: number) => {
     onChange(toISO(view.y, view.m, d));
@@ -142,11 +148,62 @@ export function DatePicker({ value, onChange, disabled, placeholder = 'Select da
         >
           {/* Header: month/year + nav */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-            <button type="button" onClick={() => shiftMonth(-1)} style={navBtn} aria-label="Previous month">‹</button>
-            <div style={{ fontWeight: 600, fontSize: 14 }}>{MONTHS[view.m]} {view.y}</div>
-            <button type="button" onClick={() => shiftMonth(1)} style={navBtn} aria-label="Next month">›</button>
+            <button
+              type="button"
+              onClick={() => (mode === 'days' ? shiftMonth(-1) : shiftYears(-10))}
+              style={navBtn}
+              aria-label={mode === 'days' ? 'Previous month' : 'Previous years'}
+            >‹</button>
+            <button
+              type="button"
+              onClick={() => setMode((m) => (m === 'days' ? 'years' : 'days'))}
+              style={{ ...footBtn, fontSize: 14, color: 'var(--text)' }}
+              title="Change year"
+            >
+              {mode === 'days' ? `${MONTHS[view.m]} ${view.y}` : `${decadeStart + 1} – ${decadeStart + 10}`}
+            </button>
+            <button
+              type="button"
+              onClick={() => (mode === 'days' ? shiftMonth(1) : shiftYears(10))}
+              style={navBtn}
+              aria-label={mode === 'days' ? 'Next month' : 'Next years'}
+            >›</button>
           </div>
 
+          {mode === 'years' ? (
+            /* Year grid */
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4 }}>
+              {years.map((y) => {
+                const isCurrentDecade = y > decadeStart && y <= decadeStart + 10;
+                const isSelectedYear = !!selected && selected.y === y;
+                const isThisYear = today.y === y;
+                return (
+                  <button
+                    key={y}
+                    type="button"
+                    onClick={() => { setView((v) => ({ ...v, y })); setMode('days'); }}
+                    style={{
+                      border: 'none',
+                      borderRadius: 7,
+                      padding: '10px 0',
+                      fontSize: 13,
+                      fontFamily: 'inherit',
+                      cursor: 'pointer',
+                      background: isSelectedYear ? 'var(--accent)' : 'transparent',
+                      color: isSelectedYear ? '#fff' : isCurrentDecade ? 'var(--text)' : 'var(--muted)',
+                      fontWeight: isSelectedYear || isThisYear ? 600 : 400,
+                      boxShadow: !isSelectedYear && isThisYear ? 'inset 0 0 0 1px var(--accent)' : 'none',
+                    }}
+                    onMouseEnter={(e) => { if (!isSelectedYear) e.currentTarget.style.background = 'var(--row-border)'; }}
+                    onMouseLeave={(e) => { if (!isSelectedYear) e.currentTarget.style.background = 'transparent'; }}
+                  >
+                    {y}
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+          <>
           {/* Weekday header */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2, marginBottom: 4 }}>
             {WEEKDAYS.map((w) => (
@@ -185,6 +242,8 @@ export function DatePicker({ value, onChange, disabled, placeholder = 'Select da
               );
             })}
           </div>
+          </>
+          )}
 
           {/* Footer: Today / Clear */}
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border-soft)' }}>
