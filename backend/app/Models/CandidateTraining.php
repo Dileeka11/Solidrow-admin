@@ -18,6 +18,7 @@ class CandidateTraining extends Model
         'final_test_attendance_records',
         'final_test_date',
         'final_test_result',
+        'final_test_number',
         'final_test_agent',
     ];
 

@@ -2,6 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { QRCodeCanvas } from 'qrcode.react';
 import solidrowLogo from '../assets/solidrow-foreign-employment.png';
+import passportCardFront from '../assets/passport-card-front.png';
+import passportCardBack from '../assets/passport-card-back.png';
+import passportSticker from '../assets/passport-sticker.png';
 import { api } from '../api/client';
 import { DatePicker } from '../components/DatePicker';
 import { confirmAction, toastError, toastSuccess } from '../lib/alerts';
@@ -261,11 +264,13 @@ export default function CandidateFormPage() {
     final_test_attendance_records: [],
     final_test_date: null,
     final_test_result: null,
+    final_test_number: null,
     final_test_agent: null,
   };
   const [training, setTraining] = useState<CandidateTraining>(EMPTY_TRAINING);
   const [trainingSaving, setTrainingSaving] = useState(false);
-  const [preTestNumSaving, setPreTestNumSaving] = useState(false);
+  // Which test-number slot is currently generating (key: `cycle-<no>` or `final`).
+  const [testNumSaving, setTestNumSaving] = useState<string | null>(null);
   // "Add date" pickers for attendance (per pre-test cycle + the final test).
   const [preAttDate, setPreAttDate] = useState<Record<number, string>>({});
   const [finalAttDate, setFinalAttDate] = useState('');
@@ -701,6 +706,122 @@ export default function CandidateFormPage() {
     w.document.close();
   }
 
+  /**
+   * Generate the passport-retention print set from the official artwork:
+   * Collection Card front (filled) + back (terms) + Passport Sticker (filled).
+   *
+   * The three PNGs are the exact designer artwork (one card each, cropped from the
+   * A4 print sheets). Candidate data is stamped onto them via canvas at the measured
+   * dotted-line coordinates, so the output matches the artwork pixel-for-pixel.
+   * Physical print size is driven by CARD_WIDTH_MM below — tune once the printer is chosen.
+   */
+  async function printPassportDocs() {
+    const CARD_WIDTH_MM = 90; // wallet size; adjust with the chosen printer
+
+    const collectedDate = form.passport_collected_date
+      ? new Date(form.passport_collected_date).toLocaleDateString('en-GB')
+      : '';
+    // Dotted-line baselines measured on the 1218×844 artwork crop.
+    const fields = [
+      { y: 435, text: candidateRegNo },
+      { y: 518, text: form.full_name || '' },
+      { y: 601, text: form.passport_number || '' },
+      { y: 685, text: collectedDate },
+    ];
+
+    const loadImg = (src: string) =>
+      new Promise<HTMLImageElement>((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = src;
+      });
+
+    // The reg-no QR already rendered on screen (attendance card) — reused here.
+    const qrCanvas = qrRef.current?.querySelector('canvas') as HTMLCanvasElement | null;
+    const qrImg = qrCanvas ? await loadImg(qrCanvas.toDataURL('image/png')) : null;
+
+    // Draw the artwork and (optionally) stamp the candidate fields + QR onto it.
+    const compose = (img: HTMLImageElement, withFields: boolean): string => {
+      const c = document.createElement('canvas');
+      c.width = img.naturalWidth;
+      c.height = img.naturalHeight;
+      const ctx = c.getContext('2d')!;
+      ctx.drawImage(img, 0, 0);
+      if (withFields) {
+        // QR on the right, centred over the four field rows (blank dotted space).
+        let maxRight = 0.965 * c.width;
+        if (qrImg) {
+          const qrSize = Math.round(0.222 * c.width); // ~20mm on a 90mm card
+          const qrX = c.width - qrSize - Math.round(0.025 * c.width);
+          const qrY = Math.round((435 + 685) / 2 - qrSize / 2);
+          const pad = Math.round(0.01 * c.width);
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(qrX - pad, qrY - pad, qrSize + pad * 2, qrSize + pad * 2);
+          ctx.imageSmoothingEnabled = false; // keep QR modules crisp when scaled
+          ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
+          ctx.imageSmoothingEnabled = true;
+          maxRight = qrX - pad * 2; // keep field text clear of the QR
+        }
+        ctx.fillStyle = '#14142a';
+        ctx.textBaseline = 'alphabetic';
+        ctx.textAlign = 'left';
+        const x = Math.round(0.362 * c.width); // just after the ":" on every row
+        for (const f of fields) {
+          let size = 40;
+          ctx.font = `700 ${size}px Arial, sans-serif`;
+          while (size > 22 && x + ctx.measureText(f.text).width > maxRight) {
+            size -= 2;
+            ctx.font = `700 ${size}px Arial, sans-serif`;
+          }
+          ctx.fillText(f.text, x, f.y - 6);
+        }
+      }
+      return c.toDataURL('image/png');
+    };
+
+    try {
+      const [fImg, bImg, sImg] = await Promise.all([
+        loadImg(passportCardFront),
+        loadImg(passportCardBack),
+        loadImg(passportSticker),
+      ]);
+      const frontUrl = compose(fImg, true);
+      const backUrl = compose(bImg, false);
+      const stickerUrl = compose(sImg, true);
+
+      const w = window.open('', '_blank', 'width=900,height=700');
+      if (!w) return;
+      const page = (label: string, url: string) => `
+        <div class="page">
+          <div class="cap">${label}</div>
+          <img src="${url}" />
+        </div>`;
+      w.document.write(`
+        <html><head><title>Passport Documents — ${candidateRegNo.replace(/[<>&]/g, '')}</title>
+        <style>
+          @page { size: A4 portrait; margin: 12mm; }
+          * { box-sizing: border-box; }
+          body { margin: 0; font-family: system-ui, sans-serif; }
+          .page { text-align: center; page-break-after: always; }
+          .page:last-child { page-break-after: auto; }
+          .cap { font-size: 10px; letter-spacing: 1px; color: #888; text-transform: uppercase; margin: 4mm 0 2mm; }
+          img { width: ${CARD_WIDTH_MM}mm; height: auto; display: inline-block; }
+        </style></head>
+        <body>
+          ${page('Passport Collection Card — Front', frontUrl)}
+          ${page('Passport Collection Card — Back', backUrl)}
+          ${page('Passport Sticker', stickerUrl)}
+          <script>
+            window.onload = function () { window.print(); setTimeout(function(){ window.close(); }, 400); };
+          </script>
+        </body></html>`);
+      w.document.close();
+    } catch {
+      toastError('Could not generate passport documents.');
+    }
+  }
+
   const staffName = (sid: string) => staff.find((s) => String(s.id) === sid)?.name ?? '—';
   const sectionByNo = (n: number): CandidateSection | undefined =>
     candidate?.sections?.find((s) => s.section_no === n);
@@ -741,7 +862,7 @@ export default function CandidateFormPage() {
     if (t.pre_test_cycles && t.pre_test_cycles.length > 0) return t;
     return {
       ...t,
-      pre_test_cycles: [{ cycle_no: 1, attendance_records: [], test_date: null, test_result: null, test_agent: null }],
+      pre_test_cycles: [{ cycle_no: 1, attendance_records: [], test_date: null, test_result: null, test_agent: null, test_number: null }],
     };
   }
 
@@ -761,7 +882,7 @@ export default function CandidateFormPage() {
         ...prev,
         pre_test_cycles: [
           ...prev.pre_test_cycles,
-          { cycle_no: nextNo, attendance_records: [], test_date: null, test_result: null, test_agent: null },
+          { cycle_no: nextNo, attendance_records: [], test_date: null, test_result: null, test_agent: null, test_number: null },
         ],
       };
     });
@@ -805,6 +926,7 @@ export default function CandidateFormPage() {
       fd.append('final_test_attendance_records', JSON.stringify(training.final_test_attendance_records));
       fd.append('final_test_date', training.final_test_date ?? '');
       fd.append('final_test_result', training.final_test_result ?? '');
+      fd.append('final_test_number', training.final_test_number ?? '');
       fd.append('final_test_agent', training.final_test_agent ?? '');
       if (trainingBondFile) fd.append('training_bond', trainingBondFile);
       const r = await api.post<CandidateTraining>(`/candidates/${id}/training`, fd);
@@ -819,33 +941,40 @@ export default function CandidateFormPage() {
     }
   }
 
-  /** Generate (or fetch) the pre-test number for the selected trade. */
-  async function generatePreTestNumber() {
+  /**
+   * Generate (or fetch) a unique test number for one slot — a specific pre-test
+   * cycle, or the final test. Each cycle/final gets its own new number; an
+   * already-issued number is kept as-is.
+   */
+  async function generateTestNumber(slot: 'pre_test' | 'final_test', cycleNo?: number) {
     if (!id || !training.pre_test_job_category_id) {
       toastError('Select a trade (job category) first.');
       return;
     }
-    setPreTestNumSaving(true);
+    const key = slot === 'final_test' ? 'final' : `cycle-${cycleNo}`;
+    setTestNumSaving(key);
     try {
-      const r = await api.post<CandidateTraining>(`/candidates/${id}/training/pre-test-number`, {
+      const r = await api.post<CandidateTraining>(`/candidates/${id}/training/test-number`, {
         pre_test_job_category_id: training.pre_test_job_category_id,
+        slot,
+        cycle_no: cycleNo ?? null,
       });
       setTraining(withDefaultCycle(r.data));
-      toastSuccess('Pre-test number generated');
+      toastSuccess('Test number generated');
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-        ?? 'Could not generate the pre-test number.';
+        ?? 'Could not generate the test number.';
       toastError(msg);
     } finally {
-      setPreTestNumSaving(false);
+      setTestNumSaving(null);
     }
   }
 
   const preTestTrade = jobCategories.find((c) => c.id === training.pre_test_job_category_id) ?? null;
 
-  /** Print the Pre-Test ID card twice on one A4 (cut in half → front & back). */
-  function printTestId() {
-    if (!training.pre_test_number) return;
+  /** Print a Test ID card twice on one A4 (cut in half → front & back). */
+  function printTestId(testNo: string) {
+    if (!testNo) return;
     const w = window.open('', '_blank', 'width=800,height=1000');
     if (!w) return;
     const card = `
@@ -853,12 +982,12 @@ export default function CandidateFormPage() {
         <div class="hd"><span>TEST ID</span><span class="org">CSTI Bureau</span></div>
         <div class="bd">
           <div class="nm">${(form.full_name || '').toUpperCase()}</div>
-          <div class="no">${training.pre_test_number}</div>
+          <div class="no">${testNo}</div>
           <div class="tr">${preTestTrade?.name ?? ''}</div>
         </div>
       </div>`;
     w.document.write(`
-      <html><head><title>Test ID — ${training.pre_test_number}</title>
+      <html><head><title>Test ID — ${testNo}</title>
       <style>
         @page { size: A4 portrait; margin: 0; }
         * { box-sizing: border-box; }
@@ -881,7 +1010,7 @@ export default function CandidateFormPage() {
   }
 
   /** Print the Skills Testing Evaluation (Result) Sheet with the recorded Pass/Fail. */
-  function printResultSheet(opts: { testLabel: string; result: 'pass' | 'fail' | null; testDate: string | null }) {
+  function printResultSheet(opts: { testLabel: string; result: 'pass' | 'fail' | null; testDate: string | null; testNo?: string | null }) {
     const w = window.open('', '_blank', 'width=900,height=1200');
     if (!w) return;
     const criteria: [string, number][] = [
@@ -971,7 +1100,7 @@ export default function CandidateFormPage() {
           <aside class="side">
             <div class="ph-wrap">
               ${photo ? `<img class="photo" src="${photo}" />` : '<div class="photo"></div>'}
-              <div class="stu">STUDENT ${training.pre_test_number ?? ''}</div>
+              <div class="stu">STUDENT ${opts.testNo ?? ''}</div>
             </div>
             ${field('Name', (form.full_name || '').toUpperCase())}
             ${field('NIC', form.nic || '')}
@@ -1480,9 +1609,16 @@ export default function CandidateFormPage() {
             <div>
               <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 4 }}>Encodes Candidate Reg. No</div>
               <div style={{ fontWeight: 600, marginBottom: 14 }}>{candidateRegNo}</div>
-              <button className="sr-btn-primary" onClick={printQr} style={{ padding: '10px 18px', borderRadius: 8, fontSize: 14 }}>
-                Print Passport Card
-              </button>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <button className="sr-btn-primary" onClick={printQr} style={{ padding: '10px 18px', borderRadius: 8, fontSize: 14 }}>
+                  Print QR Card
+                </button>
+                {form.passport_retention === 'yes' && (
+                  <button className="sr-btn-primary" onClick={printPassportDocs} style={{ padding: '10px 18px', borderRadius: 8, fontSize: 14 }}>
+                    Print Passport Card + Sticker
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -1523,44 +1659,29 @@ export default function CandidateFormPage() {
             </div>
           </div>
 
-          {/* 2.1b Pre-Test ID / Number */}
+          {/* 2.1b Pre-Test Trade — the code drives every test number below. */}
           <div style={{ marginBottom: 24, border: '1px solid var(--border-soft)', borderRadius: 10, padding: '16px 20px', background: 'var(--row-bg,#fafafa)' }}>
-            <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--accent,#6366f1)', marginBottom: 12 }}>Pre-Test ID</div>
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr auto', gap: 14, alignItems: 'end' }}>
-              <div>
-                <label style={labelStyle}>Trade (Job Category)</label>
-                <select
-                  className="sr-input"
-                  style={inputStyle}
-                  value={training.pre_test_job_category_id ?? ''}
-                  onChange={(e) => setTraining((t) => ({ ...t, pre_test_job_category_id: e.target.value ? Number(e.target.value) : null }))}
-                >
-                  <option value="">-- Select Trade --</option>
-                  {jobCategories.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}{c.code ? ` (${c.code})` : ''}</option>
-                  ))}
-                </select>
-              </div>
-              <button
-                className="sr-btn-primary"
-                onClick={generatePreTestNumber}
-                disabled={preTestNumSaving || !training.pre_test_job_category_id}
-                style={{ padding: '10px 16px', borderRadius: 8, fontSize: 13 }}
+            <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--accent,#6366f1)', marginBottom: 12 }}>Trade</div>
+            <div style={{ maxWidth: 480 }}>
+              <label style={labelStyle}>Trade (Job Category)</label>
+              <select
+                className="sr-input"
+                style={inputStyle}
+                value={training.pre_test_job_category_id ?? ''}
+                onChange={(e) => setTraining((t) => ({ ...t, pre_test_job_category_id: e.target.value ? Number(e.target.value) : null }))}
               >
-                {preTestNumSaving ? 'Generating…' : 'Generate Number'}
-              </button>
+                <option value="">-- Select Trade --</option>
+                {jobCategories.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}{c.code ? ` (${c.code})` : ''}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 8 }}>
+              Each pre-test cycle and the final test get their own unique test number, generated below.
             </div>
             {preTestTrade && !preTestTrade.code && (
               <div style={{ fontSize: 12, color: 'oklch(0.55 0.16 25)', marginTop: 8 }}>
-                This trade has no code — add one on the Job Categories page to generate a number.
-              </div>
-            )}
-            {training.pre_test_number && (
-              <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 22, fontWeight: 800, letterSpacing: 1, color: '#16a34a' }}>{training.pre_test_number}</span>
-                <button className="sr-btn-primary" onClick={printTestId} style={{ padding: '8px 14px', borderRadius: 7, fontSize: 12 }}>
-                  Print Test ID (A4 ×2)
-                </button>
+                This trade has no code — add one on the Job Categories page to generate test numbers.
               </div>
             )}
           </div>
@@ -1595,6 +1716,34 @@ export default function CandidateFormPage() {
                       </span>
                       {isPass && <span style={{ fontSize: 11, fontWeight: 700, color: 'oklch(0.42 0.14 150)', background: 'oklch(0.92 0.05 150)', padding: '2px 8px', borderRadius: 20 }}>✓ PASS</span>}
                       {isFail && <span style={{ fontSize: 11, fontWeight: 700, color: 'oklch(0.42 0.16 25)', background: 'oklch(0.93 0.05 25)', padding: '2px 8px', borderRadius: 20 }}>✗ FAIL</span>}
+                    </div>
+
+                    {/* Test Number — one unique number per cycle, generated before the test */}
+                    <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+                      <label style={{ ...labelStyle, marginBottom: 0 }}>Test Number</label>
+                      {cycle.test_number ? (
+                        <>
+                          <span style={{ fontSize: 20, fontWeight: 800, letterSpacing: 1, color: '#16a34a' }}>{cycle.test_number}</span>
+                          <button
+                            type="button"
+                            className="sr-btn-primary"
+                            onClick={() => printTestId(cycle.test_number!)}
+                            style={{ padding: '7px 13px', borderRadius: 7, fontSize: 12 }}
+                          >
+                            Print Test ID (A4 ×2)
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          className="sr-btn-primary"
+                          onClick={() => generateTestNumber('pre_test', cycle.cycle_no)}
+                          disabled={testNumSaving === `cycle-${cycle.cycle_no}` || !training.pre_test_job_category_id}
+                          style={{ padding: '8px 14px', borderRadius: 7, fontSize: 12 }}
+                        >
+                          {testNumSaving === `cycle-${cycle.cycle_no}` ? 'Generating…' : 'Generate Number'}
+                        </button>
+                      )}
                     </div>
 
                     {/* Attendance Sheet */}
@@ -1732,7 +1881,7 @@ export default function CandidateFormPage() {
                     <div style={{ marginTop: 12 }}>
                       <button
                         type="button"
-                        onClick={() => printResultSheet({ testLabel: `Pre Test — Cycle ${cycle.cycle_no}`, result: cycle.test_result, testDate: cycle.test_date })}
+                        onClick={() => printResultSheet({ testLabel: `Pre Test — Cycle ${cycle.cycle_no}`, result: cycle.test_result, testDate: cycle.test_date, testNo: cycle.test_number })}
                         style={{ padding: '8px 14px', borderRadius: 7, fontSize: 12, background: 'var(--row-border,#f3f4f6)', border: '1px solid var(--border)', cursor: 'pointer', fontFamily: 'inherit' }}
                       >
                         🖨 Print Result Sheet
@@ -1775,6 +1924,34 @@ export default function CandidateFormPage() {
                 <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--accent,#6366f1)' }}>Final Test</span>
                 {training.final_test_result === 'pass' && <span style={{ fontSize: 11, fontWeight: 700, color: 'oklch(0.42 0.14 150)', background: 'oklch(0.92 0.05 150)', padding: '2px 8px', borderRadius: 20 }}>✓ PASS</span>}
                 {training.final_test_result === 'fail' && <span style={{ fontSize: 11, fontWeight: 700, color: 'oklch(0.42 0.16 25)', background: 'oklch(0.93 0.05 25)', padding: '2px 8px', borderRadius: 20 }}>✗ FAIL</span>}
+              </div>
+
+              {/* Test Number — unique number for the final test */}
+              <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+                <label style={{ ...labelStyle, marginBottom: 0 }}>Test Number</label>
+                {training.final_test_number ? (
+                  <>
+                    <span style={{ fontSize: 20, fontWeight: 800, letterSpacing: 1, color: '#16a34a' }}>{training.final_test_number}</span>
+                    <button
+                      type="button"
+                      className="sr-btn-primary"
+                      onClick={() => printTestId(training.final_test_number!)}
+                      style={{ padding: '7px 13px', borderRadius: 7, fontSize: 12 }}
+                    >
+                      Print Test ID (A4 ×2)
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className="sr-btn-primary"
+                    onClick={() => generateTestNumber('final_test')}
+                    disabled={testNumSaving === 'final' || !training.pre_test_job_category_id}
+                    style={{ padding: '8px 14px', borderRadius: 7, fontSize: 12 }}
+                  >
+                    {testNumSaving === 'final' ? 'Generating…' : 'Generate Number'}
+                  </button>
+                )}
               </div>
 
               {/* Attendance table */}
@@ -1880,7 +2057,7 @@ export default function CandidateFormPage() {
               <div style={{ marginTop: 12 }}>
                 <button
                   type="button"
-                  onClick={() => printResultSheet({ testLabel: 'Final Test', result: training.final_test_result, testDate: training.final_test_date })}
+                  onClick={() => printResultSheet({ testLabel: 'Final Test', result: training.final_test_result, testDate: training.final_test_date, testNo: training.final_test_number })}
                   style={{ padding: '8px 14px', borderRadius: 7, fontSize: 12, background: 'var(--row-border,#f3f4f6)', border: '1px solid var(--border)', cursor: 'pointer', fontFamily: 'inherit' }}
                 >
                   🖨 Print Result Sheet

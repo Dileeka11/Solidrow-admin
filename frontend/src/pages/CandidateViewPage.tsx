@@ -416,7 +416,6 @@ export default function CandidateViewPage() {
       <SectionCard title="02. Training Details" complete={isDone(2)}>
         <div className="sr-grid-2" style={gridMb20}>
           <FileField label="Training Bond" url={training?.training_bond_url} />
-          <Field label="Pre-Test Number" value={training?.pre_test_number ?? null} />
         </div>
 
         {(training?.pre_test_cycles?.length ?? 0) > 0 &&
@@ -436,10 +435,11 @@ export default function CandidateViewPage() {
                 <AttendanceList records={cycle.attendance_records} />
               </div>
               <div className="sr-grid-2">
+                <Field label="Test Number" value={cycle.test_number} />
                 <Field label="Pre Test Date" value={cycle.test_date} />
                 <Field label="Result" value={cycle.test_result ? (cycle.test_result === 'pass' ? 'Pass' : 'Fail') : null} />
+                <Field label="Agent" value={cycle.test_agent} />
               </div>
-              <Field label="Agent" value={cycle.test_agent} />
             </div>
           ))}
 
@@ -454,10 +454,11 @@ export default function CandidateViewPage() {
               <AttendanceList records={training.final_test_attendance_records} />
             </div>
             <div className="sr-grid-2">
+              <Field label="Test Number" value={training.final_test_number} />
               <Field label="Final Test Date" value={training.final_test_date} />
               <Field label="Result" value={training.final_test_result ? (training.final_test_result === 'pass' ? 'Pass' : 'Fail') : null} />
+              <Field label="Agent" value={training.final_test_agent} />
             </div>
-            <Field label="Agent" value={training.final_test_agent} />
           </div>
         )}
 

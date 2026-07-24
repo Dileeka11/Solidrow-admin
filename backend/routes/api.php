@@ -52,7 +52,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/candidates/{candidate}/training', [CandidateTrainingController::class, 'save']);
     Route::post('/candidates/{candidate}/training/attendance/add', [CandidateTrainingController::class, 'addAttendance']);
     Route::post('/candidates/{candidate}/training/attendance/remove', [CandidateTrainingController::class, 'removeAttendance']);
-    Route::post('/candidates/{candidate}/training/pre-test-number', [CandidateTrainingController::class, 'generatePreTestNumber']);
+    Route::post('/candidates/{candidate}/training/test-number', [CandidateTrainingController::class, 'generateTestNumber']);
 
     // Section 3 — Personal Details (Attachment)
     Route::get('/candidates/{candidate}/documents', [CandidateDocumentController::class, 'show']);

@@ -115,6 +115,8 @@ export interface PreTestCycle {
   test_date: string | null;
   test_result: TestResult;
   test_agent: string | null;
+  /** Unique test number issued for this cycle (e.g. TI001). */
+  test_number: string | null;
 }
 
 export interface CandidateTraining {
@@ -123,11 +125,14 @@ export interface CandidateTraining {
   training_mode: TrainingMode | null;
   training_bond_url?: string | null;
   pre_test_job_category_id: number | null;
+  /** @deprecated Legacy single number — pre-test numbers are now per-cycle. */
   pre_test_number: string | null;
   pre_test_cycles: PreTestCycle[];
   final_test_attendance_records: AttendanceRecord[];
   final_test_date: string | null;
   final_test_result: TestResult;
+  /** Unique test number issued for the final test (e.g. TI004). */
+  final_test_number: string | null;
   final_test_agent: string | null;
 }
 

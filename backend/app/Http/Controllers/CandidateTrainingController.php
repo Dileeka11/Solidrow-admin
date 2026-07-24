@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\Candidate;
 use App\Models\CandidateTraining;
 use App\Models\JobCategory;
+use App\Models\TestNumberCounter;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class CandidateTrainingController extends Controller
 {
@@ -40,6 +42,7 @@ class CandidateTrainingController extends Controller
             'pre_test_cycles.*.test_date'                     => ['nullable', 'date'],
             'pre_test_cycles.*.test_result'                   => ['nullable', 'in:pass,fail'],
             'pre_test_cycles.*.test_agent'                    => ['nullable', 'string', 'max:191'],
+            'pre_test_cycles.*.test_number'                   => ['nullable', 'string', 'max:30'],
             'final_test_attendance_records'                   => ['nullable', 'array'],
             'final_test_attendance_records.*.date'            => ['nullable', 'date'],
             'final_test_attendance_records.*.time'            => ['nullable', 'string'],
@@ -112,6 +115,7 @@ class CandidateTrainingController extends Controller
                     'test_date'          => null,
                     'test_result'        => null,
                     'test_agent'         => null,
+                    'test_number'        => null,
                 ];
             } else {
                 $existing = $cycles[$idx]['attendance_records'] ?? [];
@@ -161,14 +165,19 @@ class CandidateTrainingController extends Controller
     }
 
     /**
-     * Generate (or return the existing) pre-test number for a candidate.
-     * Format: <trade code><zero-padded sequence>, e.g. TI001. The sequence is
-     * per trade code, taken from the highest existing number with that prefix.
+     * Generate (or return the existing) test number for one test slot.
+     * Slots: a specific pre-test cycle, or the final test. Format is
+     * <trade code><zero-padded sequence>, e.g. TI001. A single running sequence
+     * per trade code is shared across all pre-test cycles and final tests, and
+     * every issued number is unique — a number is never reused, even after a
+     * cycle or candidate is deleted (the counter only ever increments).
      */
-    public function generatePreTestNumber(Request $request, Candidate $candidate)
+    public function generateTestNumber(Request $request, Candidate $candidate)
     {
         $validated = $request->validate([
             'pre_test_job_category_id' => ['required', 'exists:job_categories,id'],
+            'slot'                     => ['required', 'in:pre_test,final_test'],
+            'cycle_no'                 => ['nullable', 'integer', 'min:1'],
         ]);
 
         $category = JobCategory::findOrFail($validated['pre_test_job_category_id']);
@@ -184,25 +193,93 @@ class CandidateTrainingController extends Controller
             ['pre_test_cycles' => [], 'final_test_attendance_records' => []]
         );
 
-        // Keep the existing number if this candidate already has one for the same trade.
-        if ($training->pre_test_number && $training->pre_test_job_category_id === $category->id) {
-            return response()->json($this->normalize($training));
+        // Always keep the trade linked to this candidate's pre-test.
+        if ($training->pre_test_job_category_id !== $category->id) {
+            $training->pre_test_job_category_id = $category->id;
+            $training->save();
         }
 
-        // Next sequence for this trade code across all candidates.
-        $maxSeq = CandidateTraining::where('pre_test_number', 'like', $code . '%')
-            ->get()
-            ->map(fn ($t) => (int) preg_replace('/\D/', '', substr((string) $t->pre_test_number, strlen($code))))
-            ->max() ?? 0;
+        // Don't reissue if this slot already holds a number.
+        if ($validated['slot'] === 'final_test') {
+            if ($training->final_test_number) {
+                return response()->json($this->normalize($training));
+            }
+        } else {
+            $cycleNo = (int) ($validated['cycle_no'] ?? 1);
+            $cycles  = $training->pre_test_cycles ?? [];
+            $idx     = collect($cycles)->search(fn ($c) => (int) ($c['cycle_no'] ?? 0) === $cycleNo);
+            if ($idx !== false && ! empty($cycles[$idx]['test_number'])) {
+                return response()->json($this->normalize($training));
+            }
+        }
 
-        $number = $code . str_pad((string) ($maxSeq + 1), 3, '0', STR_PAD_LEFT);
+        $number = $this->nextTestNumber($code);
 
-        $training->update([
-            'pre_test_job_category_id' => $category->id,
-            'pre_test_number'          => $number,
-        ]);
+        if ($validated['slot'] === 'final_test') {
+            $training->update(['final_test_number' => $number]);
+        } else {
+            $cycleNo = (int) ($validated['cycle_no'] ?? 1);
+            $cycles  = $training->pre_test_cycles ?? [];
+            $idx     = collect($cycles)->search(fn ($c) => (int) ($c['cycle_no'] ?? 0) === $cycleNo);
+
+            if ($idx === false) {
+                $cycles[] = [
+                    'cycle_no'           => $cycleNo,
+                    'attendance_records' => [],
+                    'test_date'          => null,
+                    'test_result'        => null,
+                    'test_agent'         => null,
+                    'test_number'        => $number,
+                ];
+            } else {
+                $cycles[$idx]['test_number'] = $number;
+            }
+            $training->update(['pre_test_cycles' => $cycles]);
+        }
 
         return response()->json($this->normalize($training));
+    }
+
+    /**
+     * Atomically reserve the next number for a trade code and return it formatted.
+     * The counter is seeded from any legacy numbers already stored under the code
+     * so we never collide with a previously issued value.
+     */
+    private function nextTestNumber(string $code): string
+    {
+        return DB::transaction(function () use ($code) {
+            $counter = TestNumberCounter::where('code', $code)->lockForUpdate()->first();
+
+            if (! $counter) {
+                $counter = new TestNumberCounter([
+                    'code'        => $code,
+                    'last_number' => $this->existingMaxSequence($code),
+                ]);
+            }
+
+            $counter->last_number += 1;
+            $counter->save();
+
+            return $code . str_pad((string) $counter->last_number, 3, '0', STR_PAD_LEFT);
+        });
+    }
+
+    /** Highest sequence already stored for a code across every test-number source. */
+    private function existingMaxSequence(string $code): int
+    {
+        $seq = fn ($value) => $value && str_starts_with((string) $value, $code)
+            ? (int) preg_replace('/\D/', '', substr((string) $value, strlen($code)))
+            : 0;
+
+        $max = 0;
+        foreach (CandidateTraining::all() as $t) {
+            $max = max($max, $seq($t->pre_test_number), $seq($t->final_test_number));
+            foreach ($t->pre_test_cycles ?? [] as $cycle) {
+                $max = max($max, $seq($cycle['test_number'] ?? null));
+            }
+        }
+
+        return $max;
     }
 
     private function normalize(CandidateTraining $t): array
@@ -213,6 +290,7 @@ class CandidateTrainingController extends Controller
             'test_date'          => $c['test_date'] ?? null,
             'test_result'        => $c['test_result'] ?? null,
             'test_agent'         => $c['test_agent'] ?? null,
+            'test_number'        => $c['test_number'] ?? null,
         ], $t->pre_test_cycles ?? []);
 
         if (
@@ -225,6 +303,7 @@ class CandidateTrainingController extends Controller
                 'test_date'          => null,
                 'test_result'        => null,
                 'test_agent'         => null,
+                'test_number'        => null,
             ]];
         }
 
@@ -239,6 +318,7 @@ class CandidateTrainingController extends Controller
             'final_test_attendance_records' => $t->final_test_attendance_records ?? [],
             'final_test_date'               => $t->final_test_date ? $t->final_test_date->format('Y-m-d') : null,
             'final_test_result'             => $t->final_test_result,
+            'final_test_number'             => $t->final_test_number,
             'final_test_agent'              => $t->final_test_agent,
         ];
     }
