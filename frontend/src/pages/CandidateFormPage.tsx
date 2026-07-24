@@ -647,65 +647,6 @@ export default function CandidateFormPage() {
     }
   }
 
-  function printQr() {
-    const canvas = qrRef.current?.querySelector('canvas');
-    if (!canvas) return;
-    const dataUrl = canvas.toDataURL('image/png');
-    const collectedDate = form.passport_collected_date
-      ? new Date(form.passport_collected_date).toLocaleDateString('en-GB')
-      : '';
-    const esc = (s: string) =>
-      s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    const w = window.open('', '_blank', 'width=800,height=600');
-    if (!w) return;
-    w.document.write(`
-      <html><head><title>Passport Collection Card</title>
-      <style>
-        @page { size: A6 landscape; margin: 8mm; }
-        * { box-sizing: border-box; }
-        body { font-family: system-ui, sans-serif; margin: 0; color: #1a1a2e; }
-        .card {
-          width: 340px; border: 1.5px solid #1a2b6b; border-radius: 10px;
-          padding: 14px 16px; margin: 0 auto;
-        }
-        .head { text-align: center; border-bottom: 1px solid #cbd2e6; padding-bottom: 8px; }
-        .company { font-size: 15px; font-weight: 800; color: #1a2b6b; letter-spacing: .3px; }
-        .agency { font-size: 9px; font-weight: 700; color: #1a2b6b; letter-spacing: 1.5px; }
-        .license { font-size: 9px; color: #444; margin-top: 2px; }
-        .contact { font-size: 8px; color: #666; margin-top: 2px; }
-        .body { display: flex; gap: 12px; margin-top: 10px; }
-        .fields { flex: 1; }
-        .row { display: flex; font-size: 11px; margin-bottom: 8px; align-items: baseline; }
-        .label { width: 84px; color: #444; font-weight: 600; }
-        .value { flex: 1; border-bottom: 1px dotted #98a2c0; padding: 0 4px 2px; font-weight: 600; }
-        .qr { text-align: center; }
-        .qr img { width: 96px; height: 96px; }
-        .note { text-align: center; font-size: 9px; color: #555; font-style: italic;
-                margin-top: 10px; border-top: 1px solid #cbd2e6; padding-top: 6px; }
-      </style></head>
-      <body onload="window.print(); setTimeout(()=>window.close(), 300);">
-        <div class="card">
-          <div class="head">
-            <div class="company">SOLIDROW FESTI (PVT) LTD</div>
-            <div class="agency">FOREIGN EMPLOYMENT AGENCY</div>
-            <div class="license">License No - 3583</div>
-            <div class="contact">manager@solidrow.lk &nbsp;|&nbsp; +94 11 250 0000</div>
-          </div>
-          <div class="body">
-            <div class="fields">
-              <div class="row"><div class="label">Reg No.</div><div class="value">${esc(candidateRegNo)}</div></div>
-              <div class="row"><div class="label">Name</div><div class="value">${esc(form.full_name || '')}</div></div>
-              <div class="row"><div class="label">Passport No.</div><div class="value">${esc(form.passport_number || '')}</div></div>
-              <div class="row"><div class="label">Date</div><div class="value">${esc(collectedDate)}</div></div>
-            </div>
-            <div class="qr"><img src="${dataUrl}" /></div>
-          </div>
-          <div class="note">Passport collected with the permission of the owner</div>
-        </div>
-      </body></html>`);
-    w.document.close();
-  }
-
   /**
    * Generate the passport-retention print set from the official artwork:
    * Collection Card front (filled) + back (terms) + Passport Sticker (filled).
@@ -749,32 +690,40 @@ export default function CandidateFormPage() {
       const ctx = c.getContext('2d')!;
       ctx.drawImage(img, 0, 0);
       if (withFields) {
-        // QR on the right, centred over the four field rows (blank dotted space).
-        let maxRight = 0.965 * c.width;
+        const fullRight = 0.965 * c.width;
+        // QR sits low on the right so it only overlaps the short Passport/Date rows;
+        // Reg No and Name stay full-width and never shrink.
+        const qrSize = Math.round(0.19 * c.width); // ~17mm on a 90mm card
+        const qrX = c.width - qrSize - Math.round(0.018 * c.width);
+        const qrY = 548; // below the Name row (baseline 518)
+        const pad = Math.round(0.01 * c.width);
         if (qrImg) {
-          const qrSize = Math.round(0.222 * c.width); // ~20mm on a 90mm card
-          const qrX = c.width - qrSize - Math.round(0.025 * c.width);
-          const qrY = Math.round((435 + 685) / 2 - qrSize / 2);
-          const pad = Math.round(0.01 * c.width);
           ctx.fillStyle = '#ffffff';
           ctx.fillRect(qrX - pad, qrY - pad, qrSize + pad * 2, qrSize + pad * 2);
           ctx.imageSmoothingEnabled = false; // keep QR modules crisp when scaled
           ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
           ctx.imageSmoothingEnabled = true;
-          maxRight = qrX - pad * 2; // keep field text clear of the QR
         }
         ctx.fillStyle = '#14142a';
         ctx.textBaseline = 'alphabetic';
         ctx.textAlign = 'left';
         const x = Math.round(0.362 * c.width); // just after the ":" on every row
         for (const f of fields) {
+          // Only rows whose line runs under the QR are width-limited by it.
+          const rowRight = qrImg && f.y > qrY - 6 ? qrX - pad * 2 : fullRight;
           let size = 40;
           ctx.font = `700 ${size}px Arial, sans-serif`;
-          while (size > 22 && x + ctx.measureText(f.text).width > maxRight) {
+          while (size > 24 && x + ctx.measureText(f.text).width > rowRight) {
             size -= 2;
             ctx.font = `700 ${size}px Arial, sans-serif`;
           }
+          // Clip to the row's lane so nothing can ever bleed into the QR.
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(x - 4, f.y - 46, rowRight - x + 4, 56);
+          ctx.clip();
           ctx.fillText(f.text, x, f.y - 6);
+          ctx.restore();
         }
       }
       return c.toDataURL('image/png');
@@ -1609,16 +1558,11 @@ export default function CandidateFormPage() {
             <div>
               <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 4 }}>Encodes Candidate Reg. No</div>
               <div style={{ fontWeight: 600, marginBottom: 14 }}>{candidateRegNo}</div>
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                <button className="sr-btn-primary" onClick={printQr} style={{ padding: '10px 18px', borderRadius: 8, fontSize: 14 }}>
-                  Print QR Card
+              {form.passport_retention === 'yes' && (
+                <button className="sr-btn-primary" onClick={printPassportDocs} style={{ padding: '10px 18px', borderRadius: 8, fontSize: 14 }}>
+                  Print Passport Card + Sticker
                 </button>
-                {form.passport_retention === 'yes' && (
-                  <button className="sr-btn-primary" onClick={printPassportDocs} style={{ padding: '10px 18px', borderRadius: 8, fontSize: 14 }}>
-                    Print Passport Card + Sticker
-                  </button>
-                )}
-              </div>
+              )}
             </div>
           </div>
         </div>
