@@ -15,6 +15,11 @@ const SKILL_LABEL: Record<string, string> = {
   training: 'Training',
 };
 
+const PAGE_SIZES = [10, 25, 50, 100];
+
+type SortKey = 'registration_no' | 'candidate_reg_no' | 'full_name' | 'country' | 'candidate_skill';
+type SortDir = 'asc' | 'desc';
+
 export default function CandidatesPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -25,6 +30,10 @@ export default function CandidatesPage() {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [sortKey, setSortKey] = useState<SortKey>('full_name');
+  const [sortDir, setSortDir] = useState<SortDir>('asc');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   async function load() {
     const res = await api.get<Candidate[]>('/candidates');
@@ -67,6 +76,35 @@ export default function CandidatesPage() {
           .some((v) => String(v).toLowerCase().includes(q)),
       )
     : candidates;
+
+  const sorted = [...filtered].sort((a, b) => {
+    const av = String(a[sortKey] ?? '').toLowerCase();
+    const bv = String(b[sortKey] ?? '').toLowerCase();
+    const cmp = av.localeCompare(bv, undefined, { numeric: true });
+    return sortDir === 'asc' ? cmp : -cmp;
+  });
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const start = (currentPage - 1) * pageSize;
+  const pageRows = sorted.slice(start, start + pageSize);
+
+  // Reset to first page whenever the result set changes
+  useEffect(() => {
+    setPage(1);
+  }, [q, sortKey, sortDir, pageSize]);
+
+  function toggleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  }
+
+  const sortArrow = (key: SortKey) =>
+    sortKey === key ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
 
   const initials = (name: string) =>
     name
@@ -171,11 +209,30 @@ export default function CandidatesPage() {
           }}
         >
           <div />
-          <div>Registration No</div>
-          <div>Candidate Reg No</div>
-          <div>Name</div>
-          <div>Country</div>
-          <div>Skill</div>
+          <div
+            onClick={() => toggleSort('registration_no')}
+            style={{ cursor: 'pointer', userSelect: 'none' }}
+          >
+            Registration No{sortArrow('registration_no')}
+          </div>
+          <div
+            onClick={() => toggleSort('candidate_reg_no')}
+            style={{ cursor: 'pointer', userSelect: 'none' }}
+          >
+            Candidate Reg No{sortArrow('candidate_reg_no')}
+          </div>
+          <div onClick={() => toggleSort('full_name')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+            Name{sortArrow('full_name')}
+          </div>
+          <div onClick={() => toggleSort('country')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+            Country{sortArrow('country')}
+          </div>
+          <div
+            onClick={() => toggleSort('candidate_skill')}
+            style={{ cursor: 'pointer', userSelect: 'none' }}
+          >
+            Skill{sortArrow('candidate_skill')}
+          </div>
           <div>Progress</div>
           <div />
         </div>
@@ -196,7 +253,7 @@ export default function CandidatesPage() {
           </div>
         )}
 
-        {filtered.map((c) => (
+        {pageRows.map((c) => (
           <div
             key={c.id}
             style={{
@@ -288,6 +345,72 @@ export default function CandidatesPage() {
         ))}
         </div>
         </div>
+
+        {!loading && sorted.length > 0 && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: 12,
+              padding: '12px 20px',
+              borderTop: '1px solid var(--border-soft)',
+              fontSize: 13,
+              color: 'var(--muted)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span>Rows per page</span>
+              <select
+                value={pageSize}
+                onChange={(e) => setPageSize(Number(e.target.value))}
+                style={{
+                  padding: '5px 8px',
+                  borderRadius: 6,
+                  border: '1px solid var(--border-soft)',
+                  background: 'var(--card)',
+                  fontSize: 13,
+                }}
+              >
+                {PAGE_SIZES.map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <span>
+                {start + 1}–{Math.min(start + pageSize, sorted.length)} of {sorted.length}
+              </span>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button
+                  className="sr-icon-btn"
+                  onClick={() => setPage(currentPage - 1)}
+                  disabled={currentPage <= 1}
+                  aria-label="Previous page"
+                  style={{ opacity: currentPage <= 1 ? 0.4 : 1 }}
+                >
+                  ‹
+                </button>
+                <span style={{ minWidth: 90, textAlign: 'center' }}>
+                  Page {currentPage} / {totalPages}
+                </span>
+                <button
+                  className="sr-icon-btn"
+                  onClick={() => setPage(currentPage + 1)}
+                  disabled={currentPage >= totalPages}
+                  aria-label="Next page"
+                  style={{ opacity: currentPage >= totalPages ? 0.4 : 1 }}
+                >
+                  ›
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
