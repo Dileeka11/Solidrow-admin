@@ -657,7 +657,9 @@ export default function CandidateFormPage() {
    * Physical print size is driven by CARD_WIDTH_MM below — tune once the printer is chosen.
    */
   async function printPassportDocs() {
-    const CARD_WIDTH_MM = 90; // wallet size; adjust with the chosen printer
+    // Driving-license (ISO/IEC 7810 ID-1) size, so the printed card matches a licence card.
+    const CARD_WIDTH_MM = 85.6;
+    const CARD_HEIGHT_MM = 54;
 
     const collectedDate = form.passport_collected_date
       ? new Date(form.passport_collected_date).toLocaleDateString('en-GB')
@@ -755,7 +757,7 @@ export default function CandidateFormPage() {
           .page { text-align: center; page-break-after: always; }
           .page:last-child { page-break-after: auto; }
           .cap { font-size: 10px; letter-spacing: 1px; color: #888; text-transform: uppercase; margin: 4mm 0 2mm; }
-          img { width: ${CARD_WIDTH_MM}mm; height: auto; display: inline-block; }
+          img { width: ${CARD_WIDTH_MM}mm; height: ${CARD_HEIGHT_MM}mm; object-fit: contain; display: inline-block; }
         </style></head>
         <body>
           ${page('Passport Collection Card — Front', frontUrl)}
