@@ -257,6 +257,13 @@ export default function CandidateFormPage() {
   const [saving, setSaving] = useState(false);
   const qrRef = useRef<HTMLDivElement>(null);
 
+  // Camera capture (take passport photo directly from device camera)
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  useEffect(() => () => { streamRef.current?.getTracks().forEach((t) => t.stop()); }, []);
+
   // Section 2 — Training Details
   const EMPTY_TRAINING: CandidateTraining = {
     training_mode: null,
@@ -552,6 +559,69 @@ export default function CandidateFormPage() {
   function onPassportChange(file: File | null) {
     setPassportFile(file);
     setPassportPreview(file ? URL.createObjectURL(file) : candidate?.passport_image_url ?? null);
+  }
+
+  function stopCameraStream() {
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+  }
+
+  async function openCamera() {
+    setCameraError(null);
+    setCameraOpen(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 1280 } },
+        audio: false,
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play().catch(() => {});
+      }
+    } catch {
+      setCameraError('Camera access failed. Please allow camera permission or use "Choose File" instead.');
+    }
+  }
+
+  function closeCamera() {
+    stopCameraStream();
+    setCameraOpen(false);
+    setCameraError(null);
+  }
+
+  function capturePhoto() {
+    const video = videoRef.current;
+    if (!video || !video.videoWidth) return;
+    // Crop to a passport-style portrait (roughly 826:1062 ≈ 0.778 aspect) from the center.
+    const targetRatio = 826 / 1062;
+    const vw = video.videoWidth;
+    const vh = video.videoHeight;
+    let sw = vw;
+    let sh = Math.round(vw / targetRatio);
+    if (sh > vh) {
+      sh = vh;
+      sw = Math.round(vh * targetRatio);
+    }
+    const sx = Math.round((vw - sw) / 2);
+    const sy = Math.round((vh - sh) / 2);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 826;
+    canvas.height = 1062;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) return;
+        const file = new File([blob], `passport-${Date.now()}.jpg`, { type: 'image/jpeg' });
+        onPassportChange(file);
+        closeCamera();
+      },
+      'image/jpeg',
+      0.92,
+    );
   }
 
   function buildFormData(): FormData {
@@ -1297,6 +1367,58 @@ export default function CandidateFormPage() {
 
   return (
     <div className="fade-in-s" style={{ maxWidth: 1080 }}>
+      {cameraOpen && (
+        <div
+          onClick={closeCamera}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.75)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: 'var(--card, #fff)', borderRadius: 12, padding: 16, width: '100%', maxWidth: 420,
+              display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center',
+            }}
+          >
+            <div style={{ fontSize: 16, fontWeight: 700, alignSelf: 'flex-start' }}>Take Passport Photo</div>
+            {cameraError ? (
+              <div style={{ color: 'var(--danger, #dc2626)', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>
+                {cameraError}
+              </div>
+            ) : (
+              <div style={{ position: 'relative', width: '100%', aspectRatio: '826 / 1062', background: '#000', borderRadius: 8, overflow: 'hidden' }}>
+                <video
+                  ref={videoRef}
+                  playsInline
+                  muted
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+                <div style={{ position: 'absolute', inset: 0, boxShadow: 'inset 0 0 0 2px rgba(255,255,255,0.5)', pointerEvents: 'none' }} />
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 10, width: '100%' }}>
+              <button
+                type="button"
+                onClick={closeCamera}
+                style={{ flex: 1, padding: '10px 12px', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer', fontWeight: 600 }}
+              >
+                Cancel
+              </button>
+              {!cameraError && (
+                <button
+                  type="button"
+                  onClick={capturePhoto}
+                  style={{ flex: 2, padding: '10px 12px', borderRadius: 6, border: 'none', background: 'var(--primary, #2b6fa8)', color: '#fff', cursor: 'pointer', fontWeight: 700 }}
+                >
+                  📷 Capture
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <div>
           <button
@@ -1400,7 +1522,20 @@ export default function CandidateFormPage() {
                 alt="passport"
                 style={{ width: 56, height: 72, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)', flexShrink: 0, background: 'var(--row-border, #f3f4f6)' }}
               />
-              <input className="sr-input" type="file" accept="image/*" style={inputStyle} onChange={(e) => onPassportChange(e.target.files?.[0] ?? null)} />
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <input className="sr-input" type="file" accept="image/*" style={inputStyle} onChange={(e) => onPassportChange(e.target.files?.[0] ?? null)} />
+                <button
+                  type="button"
+                  onClick={openCamera}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                    padding: '8px 12px', borderRadius: 6, border: '1px solid var(--border)',
+                    background: 'var(--row-border, #f3f4f6)', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                  }}
+                >
+                  📷 Take Photo
+                </button>
+              </div>
             </div>
           </div>
 
