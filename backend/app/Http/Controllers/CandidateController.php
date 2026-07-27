@@ -70,6 +70,8 @@ class CandidateController extends Controller
         return response()->json([
             'full_name' => $candidate->full_name,
             'registration_no' => $employeeRegNo ?: $candidate->registration_no,
+            'candidate_reg_no' => $candidate->candidate_reg_no,
+            'candidate_photo' => $candidate->passport_image_url,
             'total_sections' => self::TOTAL_SECTIONS,
             'is_completed' => (bool) $candidate->is_completed,
             'sections' => array_map(fn ($n) => [
