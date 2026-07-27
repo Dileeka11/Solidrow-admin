@@ -74,6 +74,19 @@ body {
   font-family: inherit;
 }
 .sr-btn-primary:hover { background: var(--accent-hover); }
+.sr-btn-primary:disabled { opacity: .55; cursor: not-allowed; }
+
+/* Secondary button (outlined) */
+.sr-btn-secondary {
+  border: 1px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+.sr-btn-secondary:hover { background: var(--accent-ring); }
+.sr-btn-secondary:disabled { opacity: .5; cursor: not-allowed; }
 
 /* Sidebar nav buttons */
 .sr-nav-btn {

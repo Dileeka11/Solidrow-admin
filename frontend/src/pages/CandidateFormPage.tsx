@@ -255,6 +255,10 @@ export default function CandidateFormPage() {
   const [passportFile, setPassportFile] = useState<File | null>(null);
   const [passportPreview, setPassportPreview] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // On a NEW registration, the candidate created by "Save" is kept here so the
+  // Print Agreement / New Application buttons can act on the just-saved record
+  // (we intentionally stay on the form instead of navigating away).
+  const [savedCandidate, setSavedCandidate] = useState<Candidate | null>(null);
   const qrRef = useRef<HTMLDivElement>(null);
 
   // Camera capture (take passport photo directly from device camera)
@@ -676,11 +680,14 @@ export default function CandidateFormPage() {
         hydrate(r.data);
         await markSectionComplete(1); // saving Section 1 unlocks Section 2
         toastSuccess('Candidate updated');
+        navigate('/candidates'); // save & exit back to the candidates list
       } else {
-        await api.post<Candidate>('/candidates', buildFormData());
-        toastSuccess('Section 1 saved');
+        // New registration: keep the record in memory and stay on the form so the
+        // agreement can be printed with the saved data before starting the next one.
+        const r = await api.post<Candidate>('/candidates', buildFormData());
+        setSavedCandidate(r.data);
+        toastSuccess('Candidate saved. You can now print the agreement.');
       }
-      navigate('/candidates'); // save & exit back to the candidates list
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
@@ -873,6 +880,173 @@ export default function CandidateFormPage() {
       [{ label: 'Passport Sticker', src: passportSticker, withFields: true }],
       'Passport Sticker',
     );
+
+  /**
+   * Print the Course Application 2026 agreement pre-filled with the saved candidate
+   * details. The course-fee line switches to the Welding rate (Rs 150,000) when the
+   * selected job category is a welding trade; otherwise the standard Rs 75,000.
+   * Fields we don't capture on the form (education, language skills, witnesses…)
+   * stay as dotted blanks to be completed by hand at signing.
+   */
+  function printAgreement() {
+    const w = window.open('', '_blank', 'width=900,height=1200');
+    if (!w) return;
+    const esc = (s: string) =>
+      (s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const fmtDate = (s: string) => {
+      if (!s) return '';
+      const d = new Date(s);
+      if (isNaN(d.getTime())) return s;
+      return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    };
+    // "Supun Dileeka Madhubhashana" -> "S.D.Madhubhashana" (name with initials).
+    const toInitials = (name: string) => {
+      const parts = name.trim().split(/\s+/).filter(Boolean);
+      if (parts.length <= 1) return name.trim();
+      return parts.slice(0, -1).map((p) => p[0].toUpperCase() + '.').join('') + parts[parts.length - 1];
+    };
+
+    const jobCat = jobCategories.find((c) => c.id === form.job_category_id);
+    const courseName = jobCat?.name ?? '';
+    const isWelding = /weld|වෙල්ඩ/i.test(jobCat?.name ?? '');
+    const feeText = isWelding
+      ? 'රුපියල් එක් ලක්ෂ පනස් දහසක් (150,000)'
+      : 'රුපියල් හැත්තෑ පන්දහසක් (75,000)';
+    const regNo = candidateRegNo || registrationNo || '';
+
+    const fields: [string, string][] = [
+      ['අයදුම් කරන පාඨමාලාව', courseName],
+      ['සම්පූර්ණ නම (ගමන් බලපත්‍රයේ පරිදි ඉංග්‍රීසි කැපිටල් අකුරින්)', (form.full_name || '').toUpperCase()],
+      ['මුලකුරු සමග නම', form.full_name ? toInitials(form.full_name) : ''],
+      ['ලිපිනය', form.address || ''],
+      ['හැදුනුම්පත් අංකය', form.nic || ''],
+      ['විදේශ ගමන් බලපත්‍ර අංකය', form.passport_number || ''],
+      ['ජංගම දුරකථන අංකය', form.phone_number || ''],
+      ['WhatsApp අංකය', form.whatsapp_number || ''],
+      ['හදිසි අවස්ථාවක දැනුම් දිය යුතු දුරකථන අංකය', ''],
+      ['ඔබ මින් පෙර විදේශ ගත වී සිට තිබේද ?', ''],
+      ['එසේනම් ඒ කාල සීමාව සහ රට', ''],
+      ['උපන් දිනය', fmtDate(form.birth_date)],
+      ['ඊ මේල් ලිපිනය', form.email || ''],
+      ['පළාත', form.province || ''],
+      ['දිස්ත්‍රික්කය', form.district || ''],
+      ['ප්‍රාදේශීය ලේකම් කොට්ඨාශය', form.ds_division || ''],
+      ['ග්‍රාමසේවා නිලධාරී වසම', form.gn_division || ''],
+      ['අධ්‍යාපන සුදුසුකම්', ''],
+      ['O/L', ''],
+      ['පාසල', ''],
+      ['A/L', ''],
+      ['පාසල', ''],
+      ['වෙනත්', ''],
+      ['වෘත්තිය සුදුසුකම්', ''],
+      ['අනෙකුත් සුදුසුකම්', ''],
+      ['භාෂා කුසලතාව', ''],
+    ];
+
+    const terms: string[] = [
+      'මෙම පුහුණු පාඨමාලාව සොලිඩ්‍රෝ විදේශ රැකියා ආයතනය මගින් පවත්වනු ලබන අතර මෙම පුහුණු පාඨමාලාව සඳහා ආයතනය මගින් කිසිදු මුදලක් අයකරන්නේ නැත.',
+      'මෙම පාඨමාලාව විදේශ ගත වීමක් සිදු කරන බවට දෙනු ලබන සහතිකයක් නොවන අතර මෙය පුහුණු පාඨමාලාවක් පමණි.',
+      'මෙම පාඨමාලාව සඳහා සම්පූර්ණ පිරිවැය සොලිඩ්රෝ විදේශ රැකියා ආයතනය මගින් දරන අතර පාඨමාලාව අවසානයේ ඔබගේ විදේශ ගතකිරීමේ කටයුතු ඉටුකරනු ලබන්නේ අදාල කාලයට ලැබී ඇති රැකියා ඇණවුම් අනුව සොලිඩ්‍රෝ විදේශ රැකියා ආයතනය වේ.',
+      'සෑම අයකු සඳහාම විදේශ නියෝජිතයින් ඉදිරියේ පරීක්ෂණයට පෙර තෝරාගැනීම සඳහා පරීක්ෂණයක් පවත්වන අතර එම පරීක්ෂණය සමත් අය පමණක් අවසාන පරීක්ෂණයට යොමු කෙරේ. තෝරාගැනීම සඳහා පරීක්ෂණය අසමත් අය නැවත පාඨමාලාව හා සම්බන්ධ කෙරේ.',
+      'අවසන් පරීක්ෂණය සමත් වූ පසු සති දෙකක පුහුණුවක් සඳහා ඔබ ව වැඩබිමක් වෙත යොමු කරනු ලැබේ.',
+      `ඔබ විසින් හදාරනු ලබන මූලික පාඨමාලාවේ වටිනාකම ${feeText} වන අතර යම් හෙයකින් පාඨමාලාව අවසානයේ ඔබ විදේශ ගතවීම ප්‍රතික්ශේප කලහොත් හෝ කිසියම් හෝ හේතුවක් මත ඔබට විදේශගත වීමට නොහැකි වුවහොත් ඔබ හට ආයතනයට එම මුදල ගෙවීමට සිදුවන බව කණගාටුවෙන් දැනුම් දෙමි.`,
+      'ආයතනය විසින් ඔබහට දැනුම් දෙනු ලබන පරීක්ෂණවලට ඔබ විසින් සහභාගී විය යුතු අතර පරීක්ෂණ වලට අදාලව පරීක්ෂණ මධ්‍යස්ථානය සඳහා අය කරනු ලබන ගාස්තුව ඔබ විසින් ගෙවිය යුතුය.',
+      'ආයතනය මගින් ඔබට දැනුම් දෙනු ලබන සියලුම පුහුණු වැඩමුලුවලට සහභාගීවීම කල යුතුය.',
+      'ආයතනය මගින් ඔබට දැනුම් දෙනු ලබන වැඩමුළු සහ පරීක්ෂණ සියල්ලටම සහභාගී වී, වසරක කාලයක් තුල විදේශගතවීමේ පරීක්ෂණයක් සමත් වීමට නොහැකි වුවහොත් ඔබ හට කිසිම ගෙවීමකින් තොරව මෙම ගිවිසුමෙන් ඉවත්වීමේ හැකියාව හිමි වේ.',
+      'පුහුණු පාඨමාලාව තුලදී විනයානුකුලව කටයුතු කල යුතු අතර මත්පැන්, මත්ද්‍රව්‍ය පානය කර පාඨමාලාව සඳහා සහභාගි වුවහොත් ඉන් ඉවත් කරනු ලැබේ.',
+      'මා මෙම පාඨමාලාව සඳහා යොමු වනු ලබන්නේ සොලිඩ්‍රෝ ෆෙස්ටි පුද්ගලික සමාගමේ විදේශ රැකියා ආයතනයෙන් වන අතර, මෙම පාඨමාලාව සඳහා මා වෙනුවෙන් සියලු වියදම් දරන්නේ සොලිඩ්‍රෝ ෆෙස්ටි පුද්ගලික සමාගමේ විදේශ රැකියා ආයතනයෙන් වන බවත් මා දනිමි.',
+      'මා හට මෙම පාඨමාලා ව සඳහා පුහුණු වීමට අවස්ථාව හිමි වන්නේ මා විදේශ ගත වීමට විදේශ රැකියා ආයතනයෙන් ලියාපදිංචි වූ පසුව බවත්, මෙම පාඨමාලාව හා එම ලියාපදිංචිය සඳහා කිසිඳු ගාස්තුවක් මා විසින් නොගෙවූ බවත්, මෙම පාඨමාලා පිරිවැය හා වගකීම සඳහා මා විසින් සම්පූර්ණ කරන ලද විදේශ ගත වීමේ අයදුම්පත්‍රයේ වගකීම් හා කොන්දේසි වලට යටත් බවත් මා පිළිගනිමි.',
+      'මෙම පාඨමාලාව හැදෑරීම සඳහා ඔබට නවාතැන් පහසුකම් අවශ්‍ය වන්නේ නම් එම නවාතැන් පහසුකම් (ජලය, විදුලිය සහතිව) අප ආයතනය විසින් කිසිඳු මුදලක් අය නොකර ලබා දෙන අතර ඒ සඳහා වන සියලු වියදම් දරන්නේ සොලිඩ්‍රෝ ෆෙස්ටි පුද්ගලික සමාගමේ විදේශ රැකියා ආයතනයෙන් වන බවත් මා දනිමි.',
+      'මෙම ක්‍රියාවලිය සඳහා ගත වන කාලය වන්නේ, ඊශ්‍රයල් රාජ්‍ය සඳහා අවසන් පරීක්ෂණ සමත් වී ගිවිසුම් අත්සන් කර මාස 06ත්, මාස 10ත් අතර කාලයකදී වන අතර, රුමේනියා රාජ්‍ය සඳහා ගත වන කාලය වන්නේ අවසන් පරීක්ෂණය සමත් වී රැකියා ප්‍රධානයන් අත්සන් කල දින සිට මාස 12ක කාලයක් ගත වන බවත් මා දනිමි.',
+      'මා විසින් ඉහත සඳහන් කරුණු සියල්ල හොදින් කියවූ බවත්, මා මින් පෙර උසාවියක වරද කරුවී හෝ විදේශ ගතවීම සඳහා අවශ්‍ය පොලිස් නිශ්කාශණ සහතිකය ලබා ගැනීමේ හෝ බැංකු ණය ලබා ගැනීමේ හෝ ගැටලුවක් නොමැති බවත් මින් සහතික කරමි.',
+      'යම් හෙයකින් උක්ත කටයුතුවල ගැටලුවක් මතු වුවහොත් එහි සියලුම වගකීම හා පාඩුව මා විසින් දරනා බවත් ආයතනයට යම් පාඩුවක් උවහොත් එයද ගෙවීමට එකග වන බවත් මින් සහතික කරමි.',
+      'එසේම ආයතනයේ නීතිරීති වලට අනුකුලව පාඨමාලාව හදාරන බවට මින් සහතික කරමි.',
+    ];
+
+    const fieldRow = ([label, val]: [string, string]) =>
+      `<div class="frow"><span class="fl">${esc(label)}</span><span class="fc">:</span><span class="fv${val ? ' filled' : ''}">${esc(val)}</span></div>`;
+
+    w.document.write(`
+      <html><head><title>ගිවිසුම් පත්‍රය — ${esc(regNo)}</title>
+      <style>
+        @page { size: A4 portrait; margin: 14mm 16mm; }
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: "Iskoola Pota", "Noto Sans Sinhala", "Nirmala UI", system-ui, sans-serif; color: #111; font-size: 12px; line-height: 1.7; }
+        .hdr { display: flex; align-items: center; gap: 14px; border-bottom: 2px solid #14486f; padding-bottom: 8px; margin-bottom: 6px; }
+        .hdr img { height: 60px; width: auto; }
+        .hdr .co { font-size: 16px; font-weight: 800; color: #14486f; }
+        .hdr .rn { margin-left: auto; text-align: right; font-size: 11px; color: #333; }
+        .hdr .rn b { font-size: 13px; color: #14486f; }
+        h2 { text-align: center; font-size: 15px; margin: 4px 0 10px; color: #14486f; }
+        h3 { font-size: 13px; margin: 14px 0 8px; color: #14486f; border-top: 1px solid #cbd5e1; padding-top: 8px; }
+        .frow { display: flex; align-items: flex-end; gap: 6px; margin-bottom: 6px; }
+        .fl { flex: none; max-width: 62%; font-weight: 600; }
+        .fc { flex: none; }
+        .fv { flex: 1; border-bottom: 1px dotted #555; min-height: 16px; padding: 0 2px; }
+        .fv.filled { font-weight: 700; border-bottom-style: solid; }
+        .terms { text-align: justify; }
+        .terms p { margin: 0 0 7px; }
+        .closing { text-align: justify; margin: 12px 0 18px; }
+        .signs { display: flex; justify-content: space-between; gap: 24px; margin-top: 20px; }
+        .col { flex: 1; }
+        .srow { margin-bottom: 12px; }
+        .srow .sl { font-weight: 600; }
+        .dots { border-bottom: 1px dotted #555; min-width: 150px; display: inline-block; }
+        .val { font-weight: 700; border-bottom: 1px solid #555; display: inline-block; min-width: 150px; padding: 0 2px; }
+        .officer { text-align: right; margin-top: 30px; }
+        .officer .line { border-top: 1px solid #555; width: 200px; margin-left: auto; padding-top: 4px; font-weight: 600; }
+      </style></head>
+      <body onload="window.print(); setTimeout(function(){ window.close(); }, 400);">
+        <div class="hdr">
+          <img src="${window.location.origin}${solidrowLogo}" alt="Solidrow" />
+          <div class="co">Solidrow FESTI (PVT) LTD</div>
+          <div class="rn">ලියාපදිංචි අංකය<br/><b>${esc(regNo)}</b></div>
+        </div>
+        <h2>පුහුණු පාඨමාලා අයදුම් පත්‍රය</h2>
+        ${fields.map(fieldRow).join('')}
+        <h3>ගිවිසුම් පත්‍රය</h3>
+        <div class="terms">${terms.map((t) => `<p>${esc(t)}</p>`).join('')}</div>
+        <div class="closing">ඉහත සියල්ල හොඳින් කියවා බලා 12/87, කැළණිමුල්ල, මුල්ලේරියාව නව නගරය ලිපිනයේ දී 202... ක් වූ ...................... මස ....... දින මෙහි අත්සන් කරන ලදී.</div>
+        <div class="signs">
+          <div class="col">
+            <div class="srow"><div class="sl">සාක්ෂි 1</div>අත්සන: <span class="dots"></span></div>
+            <div class="srow">නම: <span class="dots"></span></div>
+            <div class="srow">ජා.හැ.අ: <span class="dots"></span></div>
+            <div class="srow" style="margin-top:18px;"><div class="sl">සාක්ෂි 2</div>අත්සන: <span class="dots"></span></div>
+            <div class="srow">නම: <span class="dots"></span></div>
+            <div class="srow">ජා.හැ.අ: <span class="dots"></span></div>
+          </div>
+          <div class="col">
+            <div class="srow"><div class="sl">අයදුම්කරු</div>අත්සන: <span class="dots"></span></div>
+            <div class="srow">නම: <span class="val">${esc((form.full_name || '').toUpperCase())}</span></div>
+            <div class="srow">ජා.හැ.අ: <span class="val">${esc(form.nic || '')}</span></div>
+          </div>
+        </div>
+        <div class="officer">
+          <div class="line">බලයලත් නිලධාරී</div>
+          <div>සොලිඩ්‍රෝ එෆ්.ඊ.එස්.ටී.අයි. පුද්ගලික සමාගම</div>
+        </div>
+      </body></html>`);
+    w.document.close();
+  }
+
+  /** Reset the form to a blank state and fetch the next reg-no for the next applicant. */
+  function handleNewApplication() {
+    setSavedCandidate(null);
+    setForm(EMPTY);
+    setRegManual('');
+    setPassportFile(null);
+    setPassportPreview(null);
+    setLocSel({ province: '', district: '', ds: '', gn: '' });
+    setDistricts([]);
+    setDsDivisions([]);
+    setGnDivisions([]);
+    api
+      .get<{ registration_no: string }>('/candidates/next-registration-no')
+      .then((r) => setRegistrationNo(r.data.registration_no))
+      .catch(() => setRegistrationNo(''));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
 
   const staffName = (sid: string) => staff.find((s) => String(s.id) === sid)?.name ?? '—';
   const sectionByNo = (n: number): CandidateSection | undefined =>
@@ -1727,10 +1901,49 @@ export default function CandidateFormPage() {
           </div>
         </div>
 
-        <div style={{ marginTop: 24 }}>
-          <button className="sr-btn-primary" onClick={handleSave} disabled={saving} style={{ padding: '11px 22px', borderRadius: 8, fontSize: 14 }}>
-            {saving ? 'Saving…' : isEdit ? 'Update Section 1' : 'Save Section 1'}
-          </button>
+        <div style={{ marginTop: 24, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+          {isEdit ? (
+            <>
+              <button className="sr-btn-primary" onClick={handleSave} disabled={saving} style={{ padding: '11px 22px', borderRadius: 8, fontSize: 14 }}>
+                {saving ? 'Saving…' : 'Update Section 1'}
+              </button>
+              <button className="sr-btn-secondary" onClick={printAgreement} style={{ padding: '11px 22px', borderRadius: 8, fontSize: 14 }}>
+                🖨️ Print Agreement
+              </button>
+            </>
+          ) : (
+            <>
+              {/* Step 1 — Save to the database (must happen before the agreement is printed). */}
+              <button
+                className="sr-btn-primary"
+                onClick={handleSave}
+                disabled={saving || !!savedCandidate}
+                style={{ padding: '11px 22px', borderRadius: 8, fontSize: 14 }}
+              >
+                {saving ? 'Saving…' : savedCandidate ? '✓ Saved' : '💾 Save'}
+              </button>
+              {/* Step 2 — Print the agreement filled with the saved data. */}
+              <button
+                className="sr-btn-secondary"
+                onClick={printAgreement}
+                disabled={!savedCandidate}
+                title={savedCandidate ? '' : 'Save the candidate first'}
+                style={{ padding: '11px 22px', borderRadius: 8, fontSize: 14 }}
+              >
+                🖨️ Print Agreement
+              </button>
+              {/* Step 3 — Clear the form for the next applicant. */}
+              <button
+                className="sr-btn-secondary"
+                onClick={handleNewApplication}
+                disabled={!savedCandidate}
+                title={savedCandidate ? '' : 'Save the candidate first'}
+                style={{ padding: '11px 22px', borderRadius: 8, fontSize: 14 }}
+              >
+                ➕ New Application
+              </button>
+            </>
+          )}
         </div>
       </div>
 
