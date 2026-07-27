@@ -677,10 +677,10 @@ export default function CandidateFormPage() {
         await markSectionComplete(1); // saving Section 1 unlocks Section 2
         toastSuccess('Candidate updated');
       } else {
-        const r = await api.post<Candidate>('/candidates', buildFormData());
+        await api.post<Candidate>('/candidates', buildFormData());
         toastSuccess('Section 1 saved');
-        navigate(`/candidates/${r.data.id}`);
       }
+      navigate('/candidates'); // save & exit back to the candidates list
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
@@ -986,6 +986,7 @@ export default function CandidateFormPage() {
       setTrainingBondFile(null);
       await markSectionComplete(2); // completing Section 2 unlocks Section 3
       toastSuccess('Training details saved');
+      navigate('/candidates'); // save & exit back to the candidates list
     } catch {
       toastError('Could not save training details.');
     } finally {
@@ -1270,6 +1271,7 @@ export default function CandidateFormPage() {
       setDatedFiles({ police_certificate: [], certified_police_report: [] });
       await markSectionComplete(3); // completing Section 3 advances the workflow
       toastSuccess('Documents saved');
+      navigate('/candidates'); // save & exit back to the candidates list
     } catch {
       toastError('Could not save documents.');
     } finally {
@@ -1299,6 +1301,7 @@ export default function CandidateFormPage() {
         : r.data.visa_status === 'visa_cancel' ? ' — visa cancelled SMS queued'
         : '';
       toastSuccess(`Section 4 saved${statusMsg}`);
+      navigate('/candidates'); // save & exit back to the candidates list
     } catch {
       toastError('Could not save visa details.');
     } finally {
@@ -1321,6 +1324,7 @@ export default function CandidateFormPage() {
       setEmployee(r.data);
       await markSectionComplete(6); // Employee Details is Section 6 — completing it finalises the workflow
       toastSuccess('Employee details saved');
+      navigate('/candidates'); // save & exit back to the candidates list
     } catch {
       toastError('Could not save employee details.');
     } finally {
@@ -1346,6 +1350,7 @@ export default function CandidateFormPage() {
       setDeparture(r.data);
       await markSectionComplete(5); // Departure Details is now Section 5, unlocking Section 6
       toastSuccess('Departure details saved');
+      navigate('/candidates'); // save & exit back to the candidates list
     } catch {
       toastError('Could not save departure details.');
     } finally {

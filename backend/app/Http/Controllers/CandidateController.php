@@ -288,9 +288,23 @@ class CandidateController extends Controller
             'gender' => ['nullable', 'string', 'max:20'],
             'passport_retention' => ['nullable', Rule::in(['yes', 'no'])],
             'passport_collected_date' => ['nullable', 'date'],
-            'passport_number' => ['nullable', 'string', 'max:50'],
+            'passport_number' => [
+                'nullable',
+                'string',
+                'max:50',
+                Rule::unique('candidates', 'passport_number')
+                    ->ignore($candidate?->id)
+                    ->whereNotNull('passport_number'),
+            ],
             'email' => ['nullable', 'email', 'max:255'],
-            'phone_number' => ['nullable', 'string', 'max:15'],
+            'phone_number' => [
+                'nullable',
+                'string',
+                'max:15',
+                Rule::unique('candidates', 'phone_number')
+                    ->ignore($candidate?->id)
+                    ->whereNotNull('phone_number'),
+            ],
             'whatsapp_number' => ['nullable', 'string', 'max:15'],
             'province' => ['nullable', 'string', 'max:100'],
             'district' => ['nullable', 'string', 'max:100'],
@@ -308,6 +322,8 @@ class CandidateController extends Controller
             'passport_image' => ['nullable', 'image', 'max:20480'], // up to 20MB
         ], [
             'nic.unique' => 'This NIC number is already registered for another candidate.',
+            'passport_number.unique' => 'This passport number is already registered for another candidate.',
+            'phone_number.unique' => 'This mobile number is already registered for another candidate.',
         ]);
     }
 }
