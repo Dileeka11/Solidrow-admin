@@ -757,7 +757,7 @@ export default function CandidateFormPage() {
           .page { text-align: center; page-break-after: always; }
           .page:last-child { page-break-after: auto; }
           .cap { font-size: 10px; letter-spacing: 1px; color: #888; text-transform: uppercase; margin: 4mm 0 2mm; }
-          img { width: ${CARD_WIDTH_MM}mm; height: ${CARD_HEIGHT_MM}mm; object-fit: contain; display: inline-block; }
+          img { width: ${CARD_WIDTH_MM}mm; height: ${CARD_HEIGHT_MM}mm; object-fit: fill; display: inline-block; }
         </style></head>
         <body>
           ${page('Passport Collection Card — Front', frontUrl)}
