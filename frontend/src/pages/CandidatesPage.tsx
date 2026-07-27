@@ -7,7 +7,7 @@ import { useAuth } from '../auth/AuthContext';
 import { can } from '../lib/permissions';
 import type { Candidate } from '../types';
 
-const GRID = '52px 1.5fr 1.1fr 1.5fr 1fr 1fr 100px 120px';
+const GRID = '52px 1.4fr 1fr 1fr 1.4fr 0.9fr 0.9fr 84px 120px';
 
 const SKILL_LABEL: Record<string, string> = {
   skill: 'Skill',
@@ -17,7 +17,7 @@ const SKILL_LABEL: Record<string, string> = {
 
 const PAGE_SIZES = [10, 25, 50, 100];
 
-type SortKey = 'registration_no' | 'candidate_reg_no' | 'full_name' | 'country' | 'candidate_skill';
+type SortKey = 'registration_no' | 'candidate_reg_no' | 'registration_date' | 'full_name' | 'country' | 'candidate_skill';
 type SortDir = 'asc' | 'desc';
 
 export default function CandidatesPage() {
@@ -105,6 +105,13 @@ export default function CandidatesPage() {
 
   const sortArrow = (key: SortKey) =>
     sortKey === key ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
+
+  const fmtDate = (d: string | null) => {
+    if (!d) return '—';
+    const dt = new Date(d);
+    if (Number.isNaN(dt.getTime())) return '—';
+    return dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  };
 
   const initials = (name: string) =>
     name
@@ -195,7 +202,7 @@ export default function CandidatesPage() {
         }}
       >
         <div className="sr-table-scroll">
-        <div style={{ minWidth: 780 }}>
+        <div style={{ minWidth: 900 }}>
         <div
           style={{
             display: 'grid',
@@ -221,7 +228,16 @@ export default function CandidatesPage() {
           >
             Candidate Reg No{sortArrow('candidate_reg_no')}
           </div>
-          <div onClick={() => toggleSort('full_name')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+          <div
+            onClick={() => toggleSort('registration_date')}
+            style={{ cursor: 'pointer', userSelect: 'none' }}
+          >
+            Reg Date{sortArrow('registration_date')}
+          </div>
+          <div
+            onClick={() => toggleSort('full_name')}
+            style={{ cursor: 'pointer', userSelect: 'none', minWidth: 0 }}
+          >
             Name{sortArrow('full_name')}
           </div>
           <div onClick={() => toggleSort('country')} style={{ cursor: 'pointer', userSelect: 'none' }}>
@@ -296,10 +312,11 @@ export default function CandidatesPage() {
                 {initials(c.full_name)}
               </div>
             )}
-            <div style={{ fontWeight: 500, fontSize: 12 }}>{c.registration_no}</div>
-            <div style={{ color: 'var(--label-2)' }}>{c.candidate_reg_no || '—'}</div>
-            <div style={{ fontWeight: 500 }}>{c.full_name}</div>
-            <div style={{ color: 'var(--label-2)' }}>{c.country || '—'}</div>
+            <div style={{ fontWeight: 500, fontSize: 12, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.registration_no}</div>
+            <div style={{ color: 'var(--label-2)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.candidate_reg_no || '—'}</div>
+            <div style={{ color: 'var(--label-2)', whiteSpace: 'nowrap' }}>{fmtDate(c.registration_date)}</div>
+            <div style={{ fontWeight: 500, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={c.full_name}>{c.full_name}</div>
+            <div style={{ color: 'var(--label-2)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.country || '—'}</div>
             <div style={{ color: 'var(--label-2)' }}>
               {c.candidate_skill ? SKILL_LABEL[c.candidate_skill] : '—'}
             </div>
