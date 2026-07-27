@@ -669,10 +669,19 @@ export default function CandidateFormPage() {
     const collectedDate = form.passport_collected_date
       ? new Date(form.passport_collected_date).toLocaleDateString('en-GB')
       : '';
+    // Abbreviate leading names to initials, keeping the last name in full:
+    // "Supun Dileeka Madhubhashana" -> "S.D.Madhubhashana".
+    const toInitials = (name: string) => {
+      const parts = name.trim().split(/\s+/).filter(Boolean);
+      if (parts.length <= 1) return name.trim();
+      const initials = parts.slice(0, -1).map((p) => p[0].toUpperCase() + '.').join('');
+      return initials + parts[parts.length - 1];
+    };
+
     // Dotted-line baselines measured on the 1218×844 artwork crop.
     const fields = [
       { y: 435, text: candidateRegNo },
-      { y: 518, text: form.full_name || '' },
+      { y: 518, text: form.full_name || '', abbreviate: true },
       { y: 601, text: form.passport_number || '' },
       { y: 685, text: collectedDate },
     ];
@@ -720,7 +729,12 @@ export default function CandidateFormPage() {
           const rowRight = qrImg && f.y > qrY - 6 ? qrX - pad * 2 : fullRight;
           let size = 40;
           ctx.font = `700 ${size}px Arial, sans-serif`;
-          while (size > 24 && x + ctx.measureText(f.text).width > rowRight) {
+          let text = f.text;
+          // For the name row, prefer initials over a smaller font when it won't fit.
+          if (f.abbreviate && x + ctx.measureText(text).width > rowRight) {
+            text = toInitials(text);
+          }
+          while (size > 24 && x + ctx.measureText(text).width > rowRight) {
             size -= 2;
             ctx.font = `700 ${size}px Arial, sans-serif`;
           }
@@ -729,7 +743,7 @@ export default function CandidateFormPage() {
           ctx.beginPath();
           ctx.rect(x - 4, f.y - 46, rowRight - x + 4, 56);
           ctx.clip();
-          ctx.fillText(f.text, x, f.y - 6);
+          ctx.fillText(text, x, f.y - 6);
           ctx.restore();
         }
       }
