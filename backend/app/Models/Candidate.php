@@ -32,6 +32,7 @@ class Candidate extends Model
         'other_coordinator_mobile',
         'country',
         'candidate_skill',
+        'job_category_id',
         'registration_date',
         'current_section',
         'is_completed',

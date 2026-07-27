@@ -192,6 +192,7 @@ interface FormState {
   other_coordinator_mobile: string;
   country: string;
   candidate_skill: string;
+  job_category_id: number | null;
   registration_date: string;
 }
 
@@ -218,6 +219,7 @@ const EMPTY: FormState = {
   other_coordinator_mobile: '',
   country: '',
   candidate_skill: '',
+  job_category_id: null,
   registration_date: new Date().toISOString().slice(0, 10),
 };
 
@@ -536,6 +538,7 @@ export default function CandidateFormPage() {
       other_coordinator_mobile: c.other_coordinator_mobile ?? '',
       country: c.country ?? '',
       candidate_skill: c.candidate_skill ?? '',
+      job_category_id: c.job_category_id ?? null,
       registration_date: c.registration_date ? c.registration_date.slice(0, 10) : '',
     });
     // Manual part = whatever follows the last "/" of the stored reg no.
@@ -1337,6 +1340,21 @@ export default function CandidateFormPage() {
               <option value="skill">Skill</option>
               <option value="unskill">Unskill</option>
               <option value="training">Training</option>
+            </select>
+          </div>
+
+          <div>
+            <label style={labelStyle}>Job Category</label>
+            <select
+              className="sr-input"
+              style={inputStyle}
+              value={form.job_category_id ?? ''}
+              onChange={(e) => set('job_category_id', e.target.value ? Number(e.target.value) : null)}
+            >
+              <option value="">-- Select Job Category --</option>
+              {jobCategories.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
             </select>
           </div>
 

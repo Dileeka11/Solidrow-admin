@@ -303,6 +303,7 @@ class CandidateController extends Controller
             'other_coordinator_mobile' => ['nullable', 'string', 'max:15'],
             'country' => ['nullable', Rule::in(['Romania', 'Israel'])],
             'candidate_skill' => ['nullable', Rule::in(['skill', 'unskill', 'training'])],
+            'job_category_id' => ['nullable', 'integer', Rule::exists('job_categories', 'id')],
             'registration_date' => ['nullable', 'date'],
             'passport_image' => ['nullable', 'image', 'max:20480'], // up to 20MB
         ], [

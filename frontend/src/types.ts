@@ -94,6 +94,7 @@ export interface Candidate {
   other_coordinator_mobile: string | null;
   country: 'Romania' | 'Israel' | null;
   candidate_skill: 'skill' | 'unskill' | 'training' | null;
+  job_category_id: number | null;
   registration_date: string | null;
   current_section: number;
   is_completed: boolean;
