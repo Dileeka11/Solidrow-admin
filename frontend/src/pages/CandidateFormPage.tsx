@@ -657,8 +657,8 @@ export default function CandidateFormPage() {
    * Physical print size is driven by CARD_WIDTH_MM below — tune once the printer is chosen.
    */
   async function printPassportDocs() {
-    // Driving-license (ISO/IEC 7810 ID-1) size, so the printed card matches a licence card.
-    const CARD_WIDTH_MM = 85.6;
+    // Sri Lankan driving-licence (ID-1 / credit-card) size, so the printed card matches a licence card.
+    const CARD_WIDTH_MM = 86;
     const CARD_HEIGHT_MM = 54;
 
     const collectedDate = form.passport_collected_date
