@@ -656,7 +656,12 @@ export default function CandidateFormPage() {
    * dotted-line coordinates, so the output matches the artwork pixel-for-pixel.
    * Physical print size is driven by CARD_WIDTH_MM below — tune once the printer is chosen.
    */
-  async function printPassportDocs() {
+  // Render the given artwork pages (label + source + whether to stamp candidate fields)
+  // into a print window at driving-licence (ID-1) size.
+  async function printPassportArtwork(
+    items: { label: string; src: string; withFields: boolean }[],
+    title: string,
+  ) {
     // Sri Lankan driving-licence (ID-1 / credit-card) size, so the printed card matches a licence card.
     const CARD_WIDTH_MM = 86;
     const CARD_HEIGHT_MM = 54;
@@ -732,14 +737,8 @@ export default function CandidateFormPage() {
     };
 
     try {
-      const [fImg, bImg, sImg] = await Promise.all([
-        loadImg(passportCardFront),
-        loadImg(passportCardBack),
-        loadImg(passportSticker),
-      ]);
-      const frontUrl = compose(fImg, true);
-      const backUrl = compose(bImg, false);
-      const stickerUrl = compose(sImg, true);
+      const imgs = await Promise.all(items.map((it) => loadImg(it.src)));
+      const urls = imgs.map((img, i) => compose(img, items[i].withFields));
 
       const w = window.open('', '_blank', 'width=900,height=700');
       if (!w) return;
@@ -749,7 +748,7 @@ export default function CandidateFormPage() {
           <img src="${url}" />
         </div>`;
       w.document.write(`
-        <html><head><title>Passport Documents — ${candidateRegNo.replace(/[<>&]/g, '')}</title>
+        <html><head><title>${title} — ${candidateRegNo.replace(/[<>&]/g, '')}</title>
         <style>
           @page { size: A4 portrait; margin: 12mm; }
           * { box-sizing: border-box; }
@@ -760,9 +759,7 @@ export default function CandidateFormPage() {
           img { width: ${CARD_WIDTH_MM}mm; height: ${CARD_HEIGHT_MM}mm; object-fit: fill; display: inline-block; }
         </style></head>
         <body>
-          ${page('Passport Collection Card — Front', frontUrl)}
-          ${page('Passport Collection Card — Back', backUrl)}
-          ${page('Passport Sticker', stickerUrl)}
+          ${items.map((it, i) => page(it.label, urls[i])).join('')}
           <script>
             window.onload = function () { window.print(); setTimeout(function(){ window.close(); }, 400); };
           </script>
@@ -772,6 +769,23 @@ export default function CandidateFormPage() {
       toastError('Could not generate passport documents.');
     }
   }
+
+  // Print just the collection card (front + back).
+  const printPassportDocs = () =>
+    printPassportArtwork(
+      [
+        { label: 'Passport Collection Card — Front', src: passportCardFront, withFields: true },
+        { label: 'Passport Collection Card — Back', src: passportCardBack, withFields: false },
+      ],
+      'Passport Collection Card',
+    );
+
+  // Print just the passport sticker.
+  const printPassportSticker = () =>
+    printPassportArtwork(
+      [{ label: 'Passport Sticker', src: passportSticker, withFields: true }],
+      'Passport Sticker',
+    );
 
   const staffName = (sid: string) => staff.find((s) => String(s.id) === sid)?.name ?? '—';
   const sectionByNo = (n: number): CandidateSection | undefined =>
@@ -1561,9 +1575,14 @@ export default function CandidateFormPage() {
               <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 4 }}>Encodes Candidate Reg. No</div>
               <div style={{ fontWeight: 600, marginBottom: 14 }}>{candidateRegNo}</div>
               {form.passport_retention === 'yes' && (
-                <button className="sr-btn-primary" onClick={printPassportDocs} style={{ padding: '10px 18px', borderRadius: 8, fontSize: 14 }}>
-                  Print Passport Card + Sticker
-                </button>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  <button className="sr-btn-primary" onClick={printPassportDocs} style={{ padding: '10px 18px', borderRadius: 8, fontSize: 14 }}>
+                    Print Passport Card
+                  </button>
+                  <button className="sr-btn-primary" onClick={printPassportSticker} style={{ padding: '10px 18px', borderRadius: 8, fontSize: 14 }}>
+                    Print Sticker
+                  </button>
+                </div>
               )}
             </div>
           </div>
