@@ -253,6 +253,8 @@ export default function CandidateFormPage() {
   const [candidate, setCandidate] = useState<Candidate | null>(null);
   const [staff, setStaff] = useState<Staff[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
+  const [showStaffCoordinator, setShowStaffCoordinator] = useState(false);
+  const [showAgent, setShowAgent] = useState(false);
   const [passportFile, setPassportFile] = useState<File | null>(null);
   const [passportPreview, setPassportPreview] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -1874,30 +1876,56 @@ export default function CandidateFormPage() {
             </select>
           </div>
 
-          <div>
-            <label style={labelStyle}>Staff Coordinator</label>
-            <select className="sr-input" style={inputStyle} value={form.staff_coordinator} onChange={(e) => set('staff_coordinator', e.target.value)}>
-              <option value="">-- Select Staff Coordinator --</option>
-              {staff.map((s) => (
-                <option key={s.id} value={s.name}>{s.name}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label style={labelStyle}>Agent</label>
-            <select className="sr-input" style={inputStyle} value={form.agent} onChange={(e) => set('agent', e.target.value)}>
-              <option value="">-- Select Agent --</option>
-              {agents.map((a) => (
-                <option key={a.id} value={a.name}>{a.name}</option>
-              ))}
-              {/* Preserve a legacy free-text value that isn't in the managed list. */}
-              {form.agent && !agents.some((a) => a.name === form.agent) && (
-                <option value={form.agent}>{form.agent}</option>
-              )}
-            </select>
-          </div>
+          {(showStaffCoordinator || !!form.staff_coordinator) && (
+            <div>
+              <label style={labelStyle}>Staff Coordinator</label>
+              <select className="sr-input" style={inputStyle} value={form.staff_coordinator} onChange={(e) => set('staff_coordinator', e.target.value)}>
+                <option value="">-- Select Staff Coordinator --</option>
+                {staff.map((s) => (
+                  <option key={s.id} value={s.name}>{s.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          {(showAgent || !!form.agent) && (
+            <div>
+              <label style={labelStyle}>Agent</label>
+              <select className="sr-input" style={inputStyle} value={form.agent} onChange={(e) => set('agent', e.target.value)}>
+                <option value="">-- Select Agent --</option>
+                {agents.map((a) => (
+                  <option key={a.id} value={a.name}>{a.name}</option>
+                ))}
+                {/* Preserve a legacy free-text value that isn't in the managed list. */}
+                {form.agent && !agents.some((a) => a.name === form.agent) && (
+                  <option value={form.agent}>{form.agent}</option>
+                )}
+              </select>
+            </div>
+          )}
 
           <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={showStaffCoordinator || !!form.staff_coordinator}
+                onChange={(e) => {
+                  setShowStaffCoordinator(e.target.checked);
+                  if (!e.target.checked) set('staff_coordinator', '');
+                }}
+              />
+              Staff Coordinator
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={showAgent || !!form.agent}
+                onChange={(e) => {
+                  setShowAgent(e.target.checked);
+                  if (!e.target.checked) set('agent', '');
+                }}
+              />
+              Agent
+            </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
               <input type="checkbox" checked={form.other_coordinator} onChange={(e) => set('other_coordinator', e.target.checked)} />
               Other Coordinator
