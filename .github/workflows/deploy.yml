@@ -71,11 +71,27 @@ jobs:
           LFTP_OPTS="set cmd:fail-exit true; set ftp:ssl-force true; set ftp:ssl-protect-data true; set ssl:verify-certificate no; set ftp:passive-mode true; set net:max-retries 3; set net:timeout 30;"
           run_lftp() { printf '%s\n%s\nbye\n' "$LFTP_OPTS" "$1" | lftp -u "$FTP_USERNAME","$FTP_PASSWORD" "$FTP_SERVER"; }
 
-          # 1) Laravel app (WITHOUT vendor) -> registration_app/
+          # Soft variant: DON'T abort on error. Used for cache-clear rm's where the
+          # target file may legitimately not exist yet.
+          LFTP_OPTS_SOFT="set cmd:fail-exit false; set ftp:ssl-force true; set ftp:ssl-protect-data true; set ssl:verify-certificate no; set ftp:passive-mode true; set net:max-retries 3; set net:timeout 30;"
+          run_lftp_soft() { printf '%s\n%s\nbye\n' "$LFTP_OPTS_SOFT" "$1" | lftp -u "$FTP_USERNAME","$FTP_PASSWORD" "$FTP_SERVER"; }
+
+          # The site is actually served from the doc root, which holds a full,
+          # flattened Laravel copy (app/, routes/, bootstrap/, vendor/ live next to
+          # the built assets). So the Laravel app code must be mirrored to the doc
+          # root too — registration_app/ alone is not what runs.
+          APP_EXCLUDES="--exclude '\.git' --exclude 'node_modules/' --exclude '^vendor/' --exclude '^\.env' --exclude '^public/' --exclude '^storage' --exclude '^tests/'"
+
+          # 1) Laravel app (WITHOUT vendor) -> registration_app/ (legacy target)
           # NOTE: no --ignore-time here. A fresh CI checkout gives new mtimes, so
           # mirror re-uploads every changed file. (--ignore-time compares size only,
           # which silently skips same-size edits like index.html's hashed asset refs.)
-          run_lftp "mirror -R --parallel=3 --exclude '\.git' --exclude 'node_modules/' --exclude '^vendor/' --exclude '^\.env' --exclude '^public/' --exclude '^storage' --exclude '^tests/' ./backend/ registration_app/"
+          run_lftp "mirror -R --parallel=3 $APP_EXCLUDES ./backend/ registration_app/"
+
+          # 1b) Laravel app (WITHOUT vendor) -> doc root (the served location).
+          # index.php lives under backend/public (excluded) so the custom server
+          # index.php is never touched.
+          run_lftp "mirror -R --parallel=3 $APP_EXCLUDES ./backend/ sites/registration.solidrow.lk/"
 
           # 2) Built public assets -> doc root (skip custom index.php + storage symlink)
           run_lftp "mirror -R --parallel=3 --exclude '\.git' --exclude '^index\.php\$' --exclude '^storage' ./backend/public/ sites/registration.solidrow.lk/"
@@ -86,10 +102,20 @@ jobs:
           # always overwrites, guaranteeing the browser loads the freshly built bundle.
           run_lftp "put -O sites/registration.solidrow.lk/ ./backend/public/index.html"
 
-          # 3) vendor/ only when composer deps changed
+          # 3) vendor/ only when composer deps changed (to BOTH targets)
           if [ "$SYNC_VENDOR" = 1 ]; then
             echo "Syncing vendor/ ..."
             run_lftp "mirror -R --ignore-time --parallel=4 ./backend/vendor/ registration_app/vendor/"
+            run_lftp "mirror -R --ignore-time --parallel=4 ./backend/vendor/ sites/registration.solidrow.lk/vendor/"
           else
             echo "Skipping vendor/ (composer deps unchanged)"
           fi
+
+          # 4) Bust Laravel's route/config cache so newly deployed routes take
+          # effect. We can't run artisan over FTP, but deleting the cache files
+          # makes Laravel rebuild them from source on the next request.
+          echo "Clearing route/config cache ..."
+          for base in "sites/registration.solidrow.lk" "registration_app"; do
+            run_lftp_soft "rm -f $base/bootstrap/cache/routes-v7.php"
+            run_lftp_soft "rm -f $base/bootstrap/cache/config.php"
+          done
