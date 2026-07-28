@@ -32,6 +32,15 @@ export interface TrendPoint {
   value: number;
 }
 
+export interface RegistrationsTrend {
+  group: 'day' | 'month' | 'year';
+  year: number;
+  month: number;
+  points: StageCount[];
+  total: number;
+  years: number[];
+}
+
 export interface DepartmentSlice {
   label: string;
   value: number;

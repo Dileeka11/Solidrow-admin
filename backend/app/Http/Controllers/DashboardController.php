@@ -6,6 +6,8 @@ use App\Models\Candidate;
 use App\Models\CandidateDepartureDetail;
 use App\Models\CandidateVisaDetail;
 use App\Models\Staff;
+use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 
 class DashboardController extends Controller
 {
@@ -88,6 +90,102 @@ class DashboardController extends Controller
             'monthlyTrend' => $monthlyTrend,
             'departmentBreakdown' => $departmentBreakdown,
             'placementsByCountry' => $placementsByCountry,
+        ]);
+    }
+
+    /**
+     * Candidate registration counts over time.
+     *
+     * Grouping (`group` query param):
+     *   - `day`   → per-day counts for the given month/year (default view)
+     *   - `month` → per-month counts for the given year
+     *   - `year`  → per-year counts across all data
+     */
+    public function registrations(Request $request)
+    {
+        return $this->trend($request, new Candidate(), 'registration_date');
+    }
+
+    /**
+     * Candidate departure counts over time (same grouping as registrations).
+     * A candidate is considered departed once they have a departure date.
+     */
+    public function departures(Request $request)
+    {
+        return $this->trend($request, new CandidateDepartureDetail(), 'departure_date');
+    }
+
+    /**
+     * Shared time-series aggregation over a date column of the given model.
+     *
+     * Grouping (`group` query param):
+     *   - `day`   → per-day counts for the given month/year (default view)
+     *   - `month` → per-month counts for the given year
+     *   - `year`  → per-year counts across all data
+     */
+    private function trend(Request $request, $model, string $column)
+    {
+        $group = $request->query('group', 'day');
+        $year = (int) $request->query('year', now()->year);
+        $month = (int) $request->query('month', now()->month);
+
+        if ($group === 'year') {
+            $counts = $model->newQuery()->selectRaw("YEAR($column) as k, COUNT(*) as value")
+                ->whereNotNull($column)
+                ->groupBy('k')
+                ->orderBy('k')
+                ->pluck('value', 'k');
+
+            $points = $counts->map(fn ($value, $k) => [
+                'label' => (string) $k,
+                'value' => (int) $value,
+            ])->values();
+        } elseif ($group === 'month') {
+            $counts = $model->newQuery()->selectRaw("MONTH($column) as k, COUNT(*) as value")
+                ->whereNotNull($column)
+                ->whereYear($column, $year)
+                ->groupBy('k')
+                ->pluck('value', 'k');
+
+            $points = collect(range(1, 12))->map(fn ($m) => [
+                'label' => Carbon::create($year, $m, 1)->format('M'),
+                'value' => (int) ($counts[$m] ?? 0),
+            ]);
+        } else {
+            $group = 'day';
+            $daysInMonth = Carbon::create($year, $month, 1)->daysInMonth;
+            $counts = $model->newQuery()->selectRaw("DAY($column) as k, COUNT(*) as value")
+                ->whereNotNull($column)
+                ->whereYear($column, $year)
+                ->whereMonth($column, $month)
+                ->groupBy('k')
+                ->pluck('value', 'k');
+
+            $points = collect(range(1, $daysInMonth))->map(fn ($d) => [
+                'label' => (string) $d,
+                'value' => (int) ($counts[$d] ?? 0),
+            ]);
+        }
+
+        // Distinct years that have data, for the year dropdown.
+        $years = $model->newQuery()->selectRaw("DISTINCT YEAR($column) as y")
+            ->whereNotNull($column)
+            ->orderBy('y')
+            ->pluck('y')
+            ->map(fn ($y) => (int) $y)
+            ->values();
+
+        if ($years->isEmpty()) {
+            $years = collect([now()->year]);
+        }
+
+        return response()->json([
+            'group' => $group,
+            'year' => $year,
+            'month' => $month,
+            'points' => $points->values(),
+            'total' => $points->sum('value'),
+            'years' => $years,
         ]);
     }
 }

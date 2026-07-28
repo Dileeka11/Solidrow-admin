@@ -33,6 +33,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
 
     Route::get('/dashboard', [DashboardController::class, 'index']);
+    Route::get('/dashboard/registrations', [DashboardController::class, 'registrations']);
+    Route::get('/dashboard/departures', [DashboardController::class, 'departures']);
 
     Route::get('/locations/provinces', [LocationController::class, 'provinces']);
     Route::get('/locations/districts', [LocationController::class, 'districts']);
