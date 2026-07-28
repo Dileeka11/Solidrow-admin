@@ -54,6 +54,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }
 
+  // Auto-logout after a period of inactivity while signed in.
+  useEffect(() => {
+    if (!user) return;
+
+    const IDLE_MS = 30 * 60 * 1000; // 30 minutes
+    let timer: ReturnType<typeof setTimeout>;
+
+    const reset = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        void logout();
+      }, IDLE_MS);
+    };
+
+    const events: (keyof WindowEventMap)[] = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
+    events.forEach((e) => window.addEventListener(e, reset, { passive: true }));
+    reset();
+
+    return () => {
+      clearTimeout(timer);
+      events.forEach((e) => window.removeEventListener(e, reset));
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
   return (
     <AuthContext.Provider value={{ user, loading, login, logout }}>
       {children}

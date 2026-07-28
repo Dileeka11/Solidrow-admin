@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { LogoMark } from '../components/icons';
 import { useIsMobile } from '../lib/useMediaQuery';
+import { toastError } from '../lib/alerts';
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -21,13 +22,17 @@ export default function LoginPage() {
       await login(username.trim(), password);
       navigate('/dashboard', { replace: true });
     } catch (err: unknown) {
+      const status = (err as { response?: { status?: number } })?.response?.status;
       const message =
-        // Laravel validation error shape
-        (err as { response?: { data?: { errors?: { username?: string[] }; message?: string } } })
-          ?.response?.data?.errors?.username?.[0] ??
-        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
-        'Invalid username or password. Try admin / admin123.';
+        status === 429
+          ? 'Too many attempts. Please wait a moment and try again.'
+          : // Laravel validation error shape
+            (err as { response?: { data?: { errors?: { username?: string[] }; message?: string } } })
+              ?.response?.data?.errors?.username?.[0] ??
+            (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+            'Invalid credentials.';
       setError(message);
+      toastError(message);
     } finally {
       setBusy(false);
     }
@@ -147,7 +152,7 @@ export default function LoginPage() {
             <input
               className="sr-input"
               type="text"
-              placeholder="admin, or your staff email"
+              placeholder="Username or email"
               value={username}
               onChange={(e) => {
                 setUsername(e.target.value);
@@ -195,18 +200,7 @@ export default function LoginPage() {
             </div>
           )}
 
-          <div
-            style={{
-              fontSize: 12,
-              color: 'var(--muted-2)',
-              margin: '14px 0 22px 0',
-              background: 'oklch(0.96 0.01 250)',
-              padding: '10px 12px',
-              borderRadius: 8,
-            }}
-          >
-            Admin — username: <b>admin</b>, password: <b>admin123</b>. Staff log in with their <b>email</b> + password.
-          </div>
+          <div style={{ marginBottom: 22 }} />
 
           <button
             className="sr-btn-primary"

@@ -53,7 +53,9 @@ php artisan migrate --seed
 php artisan serve            # http://127.0.0.1:8000
 ```
 
-The seeder creates the admin account and the initial staff + permission matrix.
+The seeder creates the admin account, the roles, and the permission matrix. Set the
+admin password before seeding via `ADMIN_DEFAULT_PASSWORD` in `.env`; if it is left
+unset the seeder generates a random password and prints it once to the console.
 
 ## Frontend setup
 
@@ -69,11 +71,11 @@ origins (5173 / 5174).
 
 Open the frontend, and log in.
 
-## Demo credentials
+## Admin login
 
-| Username | Password |
-|----------|----------|
-| `admin`  | `admin123` |
+The admin logs in with username `admin` and the password set via
+`ADMIN_DEFAULT_PASSWORD` (or the random one printed by the seeder). Change it after the
+first login. Staff log in with their **email** + password.
 
 ## API
 
@@ -95,8 +97,8 @@ All routes are prefixed with `/api`. Every route except `login` requires an
 
 ## Notes on the design mapping
 
-- **Auth.** The design's hardcoded `admin / admin123` demo login is now backed by a
-  real `users` table with a bcrypt-hashed password and a seeded admin account.
+- **Auth.** Login is backed by a real `users` table with a bcrypt-hashed password and a
+  seeded admin account; the login endpoint is rate-limited against brute force.
 - **Live data.** The dashboard's *Total Staff* KPI, the donut total, and the
   department breakdown are computed live from the `staff` table. The remaining
   business figures (placements, revenue, pending applications, monthly trend,

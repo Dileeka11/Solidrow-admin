@@ -7,6 +7,8 @@ use App\Models\Staff;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
@@ -22,10 +24,22 @@ class AuthController extends Controller
             'password' => ['required', 'string'],
         ]);
 
+        // Throttle by identifier + IP to slow brute-force attempts.
+        $throttleKey = Str::transliterate(Str::lower($credentials['username']) . '|' . $request->ip());
+
+        if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
+            $seconds = RateLimiter::availableIn($throttleKey);
+
+            throw ValidationException::withMessages([
+                'username' => ["Too many login attempts. Please try again in {$seconds} seconds."],
+            ])->status(429);
+        }
+
         // 1. Try the admin account (users table, by username).
         $user = User::where('username', $credentials['username'])->first();
 
         if ($user && Hash::check($credentials['password'], $user->password)) {
+            RateLimiter::clear($throttleKey);
             $token = $user->createToken('admin-panel')->plainTextToken;
 
             return response()->json([
@@ -39,11 +53,14 @@ class AuthController extends Controller
 
         if ($staff && $staff->password && Hash::check($credentials['password'], $staff->password)) {
             if ($staff->status !== 'Active') {
+                // Correct credentials but the account is disabled — safe to be specific.
+                RateLimiter::clear($throttleKey);
                 throw ValidationException::withMessages([
                     'username' => ['Your account is not active. Contact an administrator.'],
                 ]);
             }
 
+            RateLimiter::clear($throttleKey);
             $token = $staff->createToken('staff-panel')->plainTextToken;
 
             return response()->json([
@@ -52,8 +69,12 @@ class AuthController extends Controller
             ]);
         }
 
+        // Failed attempt — count it (decays after 60s) and return a generic message
+        // that does not reveal whether the identifier exists or which field was wrong.
+        RateLimiter::hit($throttleKey, 60);
+
         throw ValidationException::withMessages([
-            'username' => ['Invalid credentials. Admins use their username; staff use their email.'],
+            'username' => ['Invalid credentials.'],
         ]);
     }
 

@@ -18,3 +18,21 @@ api.interceptors.request.use((config) => {
   }
   return config;
 });
+
+// If the token is rejected (expired or revoked), drop it and send the user back to
+// the login screen. Guard against a loop on the login request itself.
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const status = error?.response?.status;
+    const url: string = error?.config?.url ?? '';
+    const hadToken = Boolean(localStorage.getItem(TOKEN_KEY));
+    if (status === 401 && hadToken && !url.includes('/login')) {
+      localStorage.removeItem(TOKEN_KEY);
+      if (window.location.pathname !== '/login') {
+        window.location.assign('/login');
+      }
+    }
+    return Promise.reject(error);
+  },
+);

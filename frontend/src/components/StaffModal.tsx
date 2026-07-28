@@ -27,6 +27,14 @@ const fieldLabel: React.CSSProperties = {
   color: 'var(--label-2)',
 };
 
+/** Mirrors the backend policy: min 8 chars, upper + lower case, and a number. */
+const PASSWORD_HINT = 'At least 8 characters with upper- and lower-case letters and a number.';
+function passwordProblem(pw: string): string | null {
+  if (pw.length < 8) return PASSWORD_HINT;
+  if (!/[a-z]/.test(pw) || !/[A-Z]/.test(pw) || !/[0-9]/.test(pw)) return PASSWORD_HINT;
+  return null;
+}
+
 export default function StaffModal({ open, editing, roles, onClose, onSave }: Props) {
   const isMobile = useIsMobile();
   const [form, setForm] = useState<StaffInput>(EMPTY);
@@ -62,13 +70,19 @@ export default function StaffModal({ open, editing, roles, onClose, onSave }: Pr
       return;
     }
     // Password is required for new staff (it's their login). Optional when editing.
-    if (!editing && (form.password ?? '').length < 6) {
-      setError('Password is required (min 6 characters) so the staff member can log in.');
-      return;
+    if (!editing) {
+      const problem = passwordProblem(form.password ?? '');
+      if (problem) {
+        setError(`Password is required for login. ${problem}`);
+        return;
+      }
     }
-    if (editing && form.password && form.password.length < 6) {
-      setError('Password must be at least 6 characters.');
-      return;
+    if (editing && form.password) {
+      const problem = passwordProblem(form.password);
+      if (problem) {
+        setError(problem);
+        return;
+      }
     }
 
     // Don't send a blank password on edit — that would mean "keep current".
@@ -80,8 +94,12 @@ export default function StaffModal({ open, editing, roles, onClose, onSave }: Pr
     try {
       await onSave(payload);
     } catch (err: unknown) {
+      const data = (err as { response?: { data?: { message?: string; errors?: Record<string, string[]> } } })
+        ?.response?.data;
+      const firstFieldError = data?.errors ? Object.values(data.errors)[0]?.[0] : undefined;
       const msg =
-        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+        firstFieldError ??
+        data?.message ??
         'Could not save. Please check the fields and try again.';
       setError(msg);
     } finally {
@@ -201,6 +219,7 @@ export default function StaffModal({ open, editing, roles, onClose, onSave }: Pr
             onChange={(e) => setForm({ ...form, password: e.target.value })}
             style={{ padding: '10px 12px', borderRadius: 7, fontSize: 14 }}
           />
+          <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 5 }}>{PASSWORD_HINT}</div>
         </div>
 
         {error && (

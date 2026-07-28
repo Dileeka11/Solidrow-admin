@@ -122,12 +122,11 @@ php artisan config:cache
 
 Open **https://registration.solidrow.lk**
 
-Default admin login (seeded):
+Admin login (seeded): username `admin`. Set the password **before** seeding by adding
+`ADMIN_DEFAULT_PASSWORD=your-strong-password` to `.env`. If you skip it, the seeder
+prints a random password once to the Terminal — copy it immediately.
 
-- **Username:** `admin`
-- **Password:** `admin123`
-
-**Change this password immediately** after first login (Staff / your account).
+**Change this password** after first login (Staff / your account).
 
 ---
 

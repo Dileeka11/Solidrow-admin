@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Staff;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Password;
 
 class StaffController extends Controller
 {
@@ -25,7 +26,7 @@ class StaffController extends Controller
 
         // Password is required when creating a login-capable staff member.
         $request->validate([
-            'password' => ['required', 'string', 'min:6', 'max:255'],
+            'password' => ['required', 'string', 'max:255', $this->passwordRule()],
         ]);
         $data['password'] = $request->input('password');
 
@@ -52,7 +53,7 @@ class StaffController extends Controller
         // Only change the password when a new one is supplied; blank = keep current.
         if ($request->filled('password')) {
             $request->validate([
-                'password' => ['string', 'min:6', 'max:255'],
+                'password' => ['string', 'max:255', $this->passwordRule()],
             ]);
             $data['password'] = $request->input('password');
         }
@@ -70,6 +71,15 @@ class StaffController extends Controller
         $staff->delete();
 
         return response()->json(['message' => 'Deleted.']);
+    }
+
+    /**
+     * Password policy for staff logins: at least 8 characters with upper- and
+     * lower-case letters and a number.
+     */
+    private function passwordRule(): Password
+    {
+        return Password::min(8)->mixedCase()->numbers();
     }
 
     private function validateStaff(Request $request, ?Staff $staff = null): array
