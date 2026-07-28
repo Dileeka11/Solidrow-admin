@@ -9,12 +9,14 @@ import {
   LogoMark,
   LogoutIcon,
   PermissionsIcon,
+  ReportIcon,
   StaffIcon,
 } from '../components/icons';
 
 const NAV = [
   { to: '/dashboard', label: 'Dashboard', icon: <DashboardIcon />, permission: 'dashboard.view' },
   { to: '/candidates', label: 'Candidates', icon: <CandidatesIcon />, permission: 'candidates.view' },
+  { to: '/reports', label: 'Reports', icon: <ReportIcon />, permission: 'candidates.view' },
   { to: '/staff', label: 'Staff Management', icon: <StaffIcon />, permission: 'staff.view' },
   { to: '/section-assignments', label: 'Section Assignment', icon: <CandidatesIcon />, permission: 'sections.view' },
   { to: '/job-categories', label: 'Job Categories', icon: <StaffIcon />, permission: 'staff.view' },

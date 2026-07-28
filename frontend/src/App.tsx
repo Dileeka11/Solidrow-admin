@@ -12,6 +12,7 @@ import JobCategoriesPage from './pages/JobCategoriesPage';
 import LoginPage from './pages/LoginPage';
 import PermissionsPage from './pages/PermissionsPage';
 import ProgressCheckPage from './pages/ProgressCheckPage';
+import ReportsPage from './pages/ReportsPage';
 import RolesPage from './pages/RolesPage';
 import SectionAssignmentPage from './pages/SectionAssignmentPage';
 import StaffPage from './pages/StaffPage';
@@ -108,6 +109,14 @@ export default function App() {
           element={
             <RequirePermission permission="candidates.view">
               <CandidateFormPage />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="/reports"
+          element={
+            <RequirePermission permission="candidates.view">
+              <ReportsPage />
             </RequirePermission>
           }
         />
