@@ -977,62 +977,84 @@ export default function CandidateFormPage() {
     w.document.write(`
       <html><head><title>ගිවිසුම් පත්‍රය — ${esc(regNo)}</title>
       <style>
-        @page { size: A4 portrait; margin: 14mm 16mm; }
+        @page { size: A4 portrait; margin: 12mm 16mm; }
         * { box-sizing: border-box; }
-        body { margin: 0; font-family: "Iskoola Pota", "Noto Sans Sinhala", "Nirmala UI", system-ui, sans-serif; color: #111; font-size: 12px; line-height: 1.7; }
+        body { margin: 0; font-family: "Iskoola Pota", "Noto Sans Sinhala", "Nirmala UI", system-ui, sans-serif; color: #111; font-size: 12px; line-height: 1.6; }
+        /* One sheet == one printed page: form on page 1, agreement on page 2. */
+        .sheet { page-break-after: always; break-after: page; }
+        .sheet:last-child { page-break-after: auto; break-after: auto; }
         .hdr { display: flex; align-items: center; gap: 14px; border-bottom: 2px solid #14486f; padding-bottom: 8px; margin-bottom: 6px; }
-        .hdr img { height: 60px; width: auto; }
+        .hdr img { height: 54px; width: auto; }
         .hdr .co { font-size: 16px; font-weight: 800; color: #14486f; }
         .hdr .rn { margin-left: auto; text-align: right; font-size: 11px; color: #333; }
         .hdr .rn b { font-size: 13px; color: #14486f; }
-        h2 { text-align: center; font-size: 15px; margin: 4px 0 10px; color: #14486f; }
-        h3 { font-size: 13px; margin: 14px 0 8px; color: #14486f; border-top: 1px solid #cbd5e1; padding-top: 8px; }
-        .frow { display: flex; align-items: flex-end; gap: 6px; margin-bottom: 6px; }
+        h2 { text-align: center; font-size: 15px; margin: 4px 0 8px; color: #14486f; }
+        h3 { text-align: center; font-size: 14px; margin: 2px 0 8px; color: #14486f; }
+        .frow { display: flex; align-items: flex-end; gap: 6px; margin-bottom: 13px; }
         .fl { flex: none; max-width: 62%; font-weight: 600; }
         .fc { flex: none; }
-        .fv { flex: 1; border-bottom: 1px dotted #555; min-height: 16px; padding: 0 2px; }
+        .fv { flex: 1; border-bottom: 1px dotted #555; min-height: 18px; padding: 0 2px; }
         .fv.filled { font-weight: 700; border-bottom-style: solid; }
-        .terms { text-align: justify; }
-        .terms p { margin: 0 0 7px; }
-        .closing { text-align: justify; margin: 12px 0 18px; }
-        .signs { display: flex; justify-content: space-between; gap: 24px; margin-top: 20px; }
+        .terms { text-align: justify; font-size: 9.8px; line-height: 1.33; }
+        .terms p { margin: 0 0 4px; }
+        .closing { text-align: justify; font-size: 9.8px; margin: 7px 0 10px; }
+        .signs { display: flex; justify-content: space-between; gap: 24px; margin-top: 10px; }
         .col { flex: 1; }
-        .srow { margin-bottom: 12px; }
+        .srow { margin-bottom: 8px; }
         .srow .sl { font-weight: 600; }
         .dots { border-bottom: 1px dotted #555; min-width: 150px; display: inline-block; }
         .val { font-weight: 700; border-bottom: 1px solid #555; display: inline-block; min-width: 150px; padding: 0 2px; }
-        .officer { text-align: right; margin-top: 30px; }
+        .approw { display: flex; align-items: flex-start; gap: 12px; }
+        .appsigns { flex: 1; }
+        .thumb { flex: none; text-align: center; }
+        .thumb-box { width: 62px; height: 78px; border: 1px solid #555; border-radius: 3px; }
+        .thumb-lbl { font-size: 9px; margin-top: 3px; }
+        .officer { text-align: right; margin-top: 12px; }
         .officer .line { border-top: 1px solid #555; width: 200px; margin-left: auto; padding-top: 4px; font-weight: 600; }
       </style></head>
       <body onload="window.print(); setTimeout(function(){ window.close(); }, 400);">
-        <div class="hdr">
-          <img src="${window.location.origin}${solidrowLogo}" alt="Solidrow" />
-          <div class="co">Solidrow FESTI (PVT) LTD</div>
-          <div class="rn">ලියාපදිංචි අංකය<br/><b>${esc(regNo)}</b></div>
+        <div class="sheet">
+          <div class="hdr">
+            <img src="${window.location.origin}${solidrowLogo}" alt="Solidrow" />
+            <div class="co">Solidrow FESTI (PVT) LTD</div>
+            <div class="rn">ලියාපදිංචි අංකය<br/><b>${esc(regNo)}</b></div>
+          </div>
+          <h2>පුහුණු පාඨමාලා අයදුම් පත්‍රය</h2>
+          ${fields.map(fieldRow).join('')}
         </div>
-        <h2>පුහුණු පාඨමාලා අයදුම් පත්‍රය</h2>
-        ${fields.map(fieldRow).join('')}
-        <h3>ගිවිසුම් පත්‍රය</h3>
-        <div class="terms">${terms.map((t) => `<p>${esc(t)}</p>`).join('')}</div>
-        <div class="closing">ඉහත සියල්ල හොඳින් කියවා බලා 12/87, කැළණිමුල්ල, මුල්ලේරියාව නව නගරය ලිපිනයේ දී 202... ක් වූ ...................... මස ....... දින මෙහි අත්සන් කරන ලදී.</div>
-        <div class="signs">
+        <div class="sheet">
+          <div class="hdr">
+            <img src="${window.location.origin}${solidrowLogo}" alt="Solidrow" />
+            <div class="co">Solidrow FESTI (PVT) LTD</div>
+            <div class="rn">ලියාපදිංචි අංකය<br/><b>${esc(regNo)}</b></div>
+          </div>
+          <h3>ගිවිසුම් පත්‍රය</h3>
+          <div class="terms">${terms.map((t) => `<p>${esc(t)}</p>`).join('')}</div>
+          <div class="closing">ඉහත සියල්ල හොඳින් කියවා බලා 12/87, කැළණිමුල්ල, මුල්ලේරියාව නව නගරය ලිපිනයේ දී 202... ක් වූ ...................... මස ....... දින මෙහි අත්සන් කරන ලදී.</div>
+          <div class="signs">
           <div class="col">
             <div class="srow"><div class="sl">සාක්ෂි 1</div>අත්සන: <span class="dots"></span></div>
             <div class="srow">නම: <span class="dots"></span></div>
             <div class="srow">ජා.හැ.අ: <span class="dots"></span></div>
-            <div class="srow" style="margin-top:18px;"><div class="sl">සාක්ෂි 2</div>අත්සන: <span class="dots"></span></div>
+            <div class="srow" style="margin-top:12px;"><div class="sl">සාක්ෂි 2</div>අත්සන: <span class="dots"></span></div>
             <div class="srow">නම: <span class="dots"></span></div>
             <div class="srow">ජා.හැ.අ: <span class="dots"></span></div>
           </div>
           <div class="col">
-            <div class="srow"><div class="sl">අයදුම්කරු</div>අත්සන: <span class="dots"></span></div>
-            <div class="srow">නම: <span class="val">${esc((form.full_name || '').toUpperCase())}</span></div>
-            <div class="srow">ජා.හැ.අ: <span class="val">${esc(form.nic || '')}</span></div>
+            <div class="approw">
+              <div class="appsigns">
+                <div class="srow"><div class="sl">අයදුම්කරු</div>අත්සන: <span class="dots"></span></div>
+                <div class="srow">නම: <span class="val">${esc((form.full_name || '').toUpperCase())}</span></div>
+                <div class="srow">ජා.හැ.අ: <span class="val">${esc(form.nic || '')}</span></div>
+              </div>
+              <div class="thumb"><div class="thumb-box"></div><div class="thumb-lbl">මහපට ඇඟිල්ල</div></div>
+            </div>
           </div>
         </div>
-        <div class="officer">
-          <div class="line">බලයලත් නිලධාරී</div>
-          <div>සොලිඩ්‍රෝ එෆ්.ඊ.එස්.ටී.අයි. පුද්ගලික සමාගම</div>
+          <div class="officer">
+            <div class="line">බලයලත් නිලධාරී</div>
+            <div>සොලිඩ්‍රෝ එෆ්.ඊ.එස්.ටී.අයි. පුද්ගලික සමාගම</div>
+          </div>
         </div>
       </body></html>`);
     w.document.close();
