@@ -103,7 +103,9 @@ class DashboardController extends Controller
      */
     public function registrations(Request $request)
     {
-        return $this->trend($request, new Candidate(), 'registration_date');
+        // Fall back to the row's creation time when no explicit registration
+        // date was captured, so every candidate is counted somewhere.
+        return $this->trend($request, new Candidate(), 'COALESCE(registration_date, created_at)');
     }
 
     /**
@@ -116,22 +118,23 @@ class DashboardController extends Controller
     }
 
     /**
-     * Shared time-series aggregation over a date column of the given model.
+     * Shared time-series aggregation over a date expression of the given model.
+     * `$expr` may be a plain column or a SQL expression (e.g. COALESCE(...)).
      *
      * Grouping (`group` query param):
      *   - `day`   → per-day counts for the given month/year (default view)
      *   - `month` → per-month counts for the given year
      *   - `year`  → per-year counts across all data
      */
-    private function trend(Request $request, $model, string $column)
+    private function trend(Request $request, $model, string $expr)
     {
         $group = $request->query('group', 'day');
         $year = (int) $request->query('year', now()->year);
         $month = (int) $request->query('month', now()->month);
 
         if ($group === 'year') {
-            $counts = $model->newQuery()->selectRaw("YEAR($column) as k, COUNT(*) as value")
-                ->whereNotNull($column)
+            $counts = $model->newQuery()->selectRaw("YEAR($expr) as k, COUNT(*) as value")
+                ->whereRaw("$expr IS NOT NULL")
                 ->groupBy('k')
                 ->orderBy('k')
                 ->pluck('value', 'k');
@@ -141,9 +144,8 @@ class DashboardController extends Controller
                 'value' => (int) $value,
             ])->values();
         } elseif ($group === 'month') {
-            $counts = $model->newQuery()->selectRaw("MONTH($column) as k, COUNT(*) as value")
-                ->whereNotNull($column)
-                ->whereYear($column, $year)
+            $counts = $model->newQuery()->selectRaw("MONTH($expr) as k, COUNT(*) as value")
+                ->whereRaw("YEAR($expr) = ?", [$year])
                 ->groupBy('k')
                 ->pluck('value', 'k');
 
@@ -154,10 +156,9 @@ class DashboardController extends Controller
         } else {
             $group = 'day';
             $daysInMonth = Carbon::create($year, $month, 1)->daysInMonth;
-            $counts = $model->newQuery()->selectRaw("DAY($column) as k, COUNT(*) as value")
-                ->whereNotNull($column)
-                ->whereYear($column, $year)
-                ->whereMonth($column, $month)
+            $counts = $model->newQuery()->selectRaw("DAY($expr) as k, COUNT(*) as value")
+                ->whereRaw("YEAR($expr) = ?", [$year])
+                ->whereRaw("MONTH($expr) = ?", [$month])
                 ->groupBy('k')
                 ->pluck('value', 'k');
 
@@ -168,8 +169,8 @@ class DashboardController extends Controller
         }
 
         // Distinct years that have data, for the year dropdown.
-        $years = $model->newQuery()->selectRaw("DISTINCT YEAR($column) as y")
-            ->whereNotNull($column)
+        $years = $model->newQuery()->selectRaw("DISTINCT YEAR($expr) as y")
+            ->whereRaw("$expr IS NOT NULL")
             ->orderBy('y')
             ->pluck('y')
             ->map(fn ($y) => (int) $y)
