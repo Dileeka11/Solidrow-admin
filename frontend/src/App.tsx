@@ -8,6 +8,7 @@ import CandidatesPage from './pages/CandidatesPage';
 import CandidateFormPage from './pages/CandidateFormPage';
 import CandidateViewPage from './pages/CandidateViewPage';
 import DashboardPage from './pages/DashboardPage';
+import AgentsPage from './pages/AgentsPage';
 import JobCategoriesPage from './pages/JobCategoriesPage';
 import LoginPage from './pages/LoginPage';
 import PermissionsPage from './pages/PermissionsPage';
@@ -141,6 +142,14 @@ export default function App() {
           element={
             <RequirePermission permission="staff.view">
               <JobCategoriesPage />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="/agents"
+          element={
+            <RequirePermission permission="staff.view">
+              <AgentsPage />
             </RequirePermission>
           }
         />

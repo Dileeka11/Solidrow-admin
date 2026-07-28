@@ -215,6 +215,13 @@ export interface JobCategory {
   code: string | null;
 }
 
+/** An agent (master data managed on its own page, selected on the candidate form). */
+export interface Agent {
+  id: number;
+  name: string;
+  phone: string | null;
+}
+
 /** Section 5 — Employee Details. */
 export interface CandidateEmployeeDetails {
   id?: number;

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AgentController;
 use App\Http\Controllers\AttendanceScanController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CandidateController;
@@ -75,6 +76,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/job-categories', [JobCategoryController::class, 'store']);
     Route::put('/job-categories/{jobCategory}', [JobCategoryController::class, 'update']);
     Route::delete('/job-categories/{jobCategory}', [JobCategoryController::class, 'destroy']);
+
+    // Agents (master data for the candidate Agent dropdown)
+    Route::get('/agents', [AgentController::class, 'index']);
+    Route::post('/agents', [AgentController::class, 'store']);
+    Route::put('/agents/{agent}', [AgentController::class, 'update']);
+    Route::delete('/agents/{agent}', [AgentController::class, 'destroy']);
 
     Route::get('/roles', [RoleController::class, 'index']);
     Route::post('/roles', [RoleController::class, 'store']);

@@ -10,7 +10,7 @@ import { DatePicker } from '../components/DatePicker';
 import { confirmAction, toastError, toastSuccess } from '../lib/alerts';
 import { useAuth } from '../auth/AuthContext';
 import { useIsMobile } from '../lib/useMediaQuery';
-import type { Candidate, CandidateDatedFileField, CandidateDepartureDetails, CandidateDocumentFileField, CandidateDocuments, CandidateEmployeeDetails, CandidateSection, CandidateTraining, CandidateVisaDetails, JobCategory, PibaSubmissionStatus, PreTestCycle, Staff, VisaStatus } from '../types';
+import type { Agent, Candidate, CandidateDatedFileField, CandidateDepartureDetails, CandidateDocumentFileField, CandidateDocuments, CandidateEmployeeDetails, CandidateSection, CandidateTraining, CandidateVisaDetails, JobCategory, PibaSubmissionStatus, PreTestCycle, Staff, VisaStatus } from '../types';
 
 const SECTION_TITLES = [
   'Personal Details',
@@ -252,6 +252,7 @@ export default function CandidateFormPage() {
   const [registrationNo, setRegistrationNo] = useState('');
   const [candidate, setCandidate] = useState<Candidate | null>(null);
   const [staff, setStaff] = useState<Staff[]>([]);
+  const [agents, setAgents] = useState<Agent[]>([]);
   const [passportFile, setPassportFile] = useState<File | null>(null);
   const [passportPreview, setPassportPreview] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -382,6 +383,11 @@ export default function CandidateFormPage() {
   // Load staff list (for coordinator + section assignment dropdowns).
   useEffect(() => {
     api.get<Staff[]>('/staff').then((r) => setStaff(r.data)).catch(() => setStaff([]));
+  }, []);
+
+  // Load the agents list (for the Agent dropdown).
+  useEffect(() => {
+    api.get<Agent[]>('/agents').then((r) => setAgents(r.data)).catch(() => setAgents([]));
   }, []);
 
   // Load the top-level provinces list once.
@@ -1879,7 +1885,16 @@ export default function CandidateFormPage() {
           </div>
           <div>
             <label style={labelStyle}>Agent</label>
-            <input className="sr-input" style={inputStyle} value={form.agent} onChange={(e) => set('agent', e.target.value)} />
+            <select className="sr-input" style={inputStyle} value={form.agent} onChange={(e) => set('agent', e.target.value)}>
+              <option value="">-- Select Agent --</option>
+              {agents.map((a) => (
+                <option key={a.id} value={a.name}>{a.name}</option>
+              ))}
+              {/* Preserve a legacy free-text value that isn't in the managed list. */}
+              {form.agent && !agents.some((a) => a.name === form.agent) && (
+                <option value={form.agent}>{form.agent}</option>
+              )}
+            </select>
           </div>
 
           <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
