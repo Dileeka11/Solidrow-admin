@@ -847,7 +847,7 @@ export default function CandidateFormPage() {
       const page = (label: string, url: string) => `
         <div class="page">
           <div class="cap">${label}</div>
-          <img src="${url}" />
+          <div class="card"><img src="${url}" /></div>
         </div>`;
       w.document.write(`
         <html><head><title>${title} — ${candidateRegNo.replace(/[<>&]/g, '')}</title>
@@ -858,7 +858,20 @@ export default function CandidateFormPage() {
           .page { text-align: center; page-break-after: always; }
           .page:last-child { page-break-after: auto; }
           .cap { font-size: 10px; letter-spacing: 1px; color: #888; text-transform: uppercase; margin: 4mm 0 2mm; }
-          img { width: ${CARD_WIDTH_MM}mm; height: ${CARD_HEIGHT_MM}mm; object-fit: fill; display: inline-block; }
+          /* Fixed ID-1 card frame: rounded corners + a small inner gap so the
+             artwork's blue border never sits on the cut line. Card size unchanged. */
+          .card {
+            width: ${CARD_WIDTH_MM}mm;
+            height: ${CARD_HEIGHT_MM}mm;
+            padding: 1.2mm;
+            border-radius: 3mm;
+            overflow: hidden;
+            display: inline-block;
+            background: #fff;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          img { width: 100%; height: 100%; object-fit: fill; border-radius: 2mm; display: block; }
         </style></head>
         <body>
           ${items.map((it, i) => page(it.label, urls[i])).join('')}
