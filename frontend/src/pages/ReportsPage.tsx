@@ -32,6 +32,26 @@ function regDay(c: Candidate): string | null {
   return c.registration_date.slice(0, 10);
 }
 
+/** Aggregate counts for a set of candidates. */
+function computeSummary(rows: Candidate[]) {
+  const byCountry: Record<string, number> = {};
+  const bySkill: Record<string, number> = {};
+  let completed = 0;
+  for (const c of rows) {
+    const country = c.country || 'Unspecified';
+    byCountry[country] = (byCountry[country] ?? 0) + 1;
+    const skill = c.candidate_skill ? SKILL_LABEL[c.candidate_skill] : 'Unspecified';
+    bySkill[skill] = (bySkill[skill] ?? 0) + 1;
+    if (c.is_completed) completed += 1;
+  }
+  return {
+    total: rows.length,
+    completed,
+    byCountry: Object.entries(byCountry).sort((a, b) => b[1] - a[1]),
+    bySkill: Object.entries(bySkill).sort((a, b) => b[1] - a[1]),
+  };
+}
+
 export default function ReportsPage() {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [jobCategories, setJobCategories] = useState<JobCategory[]>([]);
@@ -70,25 +90,35 @@ export default function ReportsPage() {
     return rows.sort((a, b) => (regDay(a)! < regDay(b)! ? -1 : 1));
   }, [candidates, from, to]);
 
-  // Aggregate summary for the range.
-  const summary = useMemo(() => {
-    const byCountry: Record<string, number> = {};
-    const bySkill: Record<string, number> = {};
-    let completed = 0;
-    for (const c of inRange) {
-      const country = c.country || 'Unspecified';
-      byCountry[country] = (byCountry[country] ?? 0) + 1;
-      const skill = c.candidate_skill ? SKILL_LABEL[c.candidate_skill] : 'Unspecified';
-      bySkill[skill] = (bySkill[skill] ?? 0) + 1;
-      if (c.is_completed) completed += 1;
-    }
-    return {
-      total: inRange.length,
-      completed,
-      byCountry: Object.entries(byCountry).sort((a, b) => b[1] - a[1]),
-      bySkill: Object.entries(bySkill).sort((a, b) => b[1] - a[1]),
-    };
+  // Ticked candidate ids. Empty = "print everything in range".
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+
+  // Drop any selected ids that are no longer in the visible range.
+  useEffect(() => {
+    setSelected((prev) => {
+      const visible = new Set(inRange.map((c) => c.id));
+      const next = new Set([...prev].filter((id) => visible.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
   }, [inRange]);
+
+  const toggleOne = (id: number) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const allSelected = inRange.length > 0 && inRange.every((c) => selected.has(c.id));
+  const toggleAll = () =>
+    setSelected(allSelected ? new Set() : new Set(inRange.map((c) => c.id)));
+
+  // Rows that will actually be printed: the ticked ones, or all-in-range if none ticked.
+  const printRows = selected.size ? inRange.filter((c) => selected.has(c.id)) : inRange;
+
+  // Summary for the on-screen cards (always the full range).
+  const summary = useMemo(() => computeSummary(inRange), [inRange]);
 
   const rangeInvalid = !!from && !!to && from > to;
 
@@ -97,6 +127,11 @@ export default function ReportsPage() {
       toastError('“From” date is after the “To” date.');
       return;
     }
+    if (printRows.length === 0) {
+      toastError('No candidates to print in this date range.');
+      return;
+    }
+    const printSummary = computeSummary(printRows);
     const w = window.open('', '_blank', 'width=900,height=1200');
     if (!w) return;
     const esc = (s: unknown) =>
@@ -107,14 +142,13 @@ export default function ReportsPage() {
         ? entries.map(([k, v]) => `<tr><td>${esc(k)}</td><td class="num">${v}</td></tr>`).join('')
         : '<tr><td colspan="2" class="empty">No data</td></tr>';
 
-    const detailRows = inRange.length
-      ? inRange
+    const detailRows = printRows.length
+      ? printRows
           .map(
             (c, i) => `
           <tr>
             <td class="num">${i + 1}</td>
             <td>${esc(fmtDate(c.registration_date))}</td>
-            <td>${esc(c.registration_no)}</td>
             <td>${esc(c.candidate_reg_no || '—')}</td>
             <td>${esc(c.full_name)}</td>
             <td>${esc(c.country || '—')}</td>
@@ -123,7 +157,7 @@ export default function ReportsPage() {
           </tr>`,
           )
           .join('')
-      : '<tr><td colspan="8" class="empty">No registrations in this date range.</td></tr>';
+      : '<tr><td colspan="7" class="empty">No registrations in this date range.</td></tr>';
 
     w.document.write(`
       <html><head><title>Registration Summary — ${esc(from)} to ${esc(to)}</title>
@@ -158,31 +192,33 @@ export default function ReportsPage() {
           <div class="meta">Overseas Careers<br/>Registration Report</div>
         </div>
         <h1>Candidate Registration Summary</h1>
-        <div class="sub">Period: <b>${esc(fmtDate(from))}</b> to <b>${esc(fmtDate(to))}</b></div>
+        <div class="sub">Period: <b>${esc(fmtDate(from))}</b> to <b>${esc(fmtDate(to))}</b>${
+          selected.size ? ` &nbsp;·&nbsp; ${printSummary.total} selected` : ''
+        }</div>
 
         <div class="cards">
-          <div class="card"><div class="lbl">Total Registrations</div><div class="val">${summary.total}</div></div>
-          <div class="card"><div class="lbl">Completed</div><div class="val">${summary.completed}</div></div>
-          <div class="card"><div class="lbl">In Progress</div><div class="val">${summary.total - summary.completed}</div></div>
+          <div class="card"><div class="lbl">Total Registrations</div><div class="val">${printSummary.total}</div></div>
+          <div class="card"><div class="lbl">Completed</div><div class="val">${printSummary.completed}</div></div>
+          <div class="card"><div class="lbl">In Progress</div><div class="val">${printSummary.total - printSummary.completed}</div></div>
         </div>
 
         <div class="split">
           <div>
             <h3>By Country</h3>
             <table><thead><tr><th>Country</th><th class="num">Count</th></tr></thead>
-            <tbody>${summaryRows(summary.byCountry)}</tbody></table>
+            <tbody>${summaryRows(printSummary.byCountry)}</tbody></table>
           </div>
           <div>
             <h3>By Skill Type</h3>
             <table><thead><tr><th>Skill</th><th class="num">Count</th></tr></thead>
-            <tbody>${summaryRows(summary.bySkill)}</tbody></table>
+            <tbody>${summaryRows(printSummary.bySkill)}</tbody></table>
           </div>
         </div>
 
-        <h3>Registrations (${summary.total})</h3>
+        <h3>Registrations (${printSummary.total})</h3>
         <table>
           <thead><tr>
-            <th class="num">#</th><th>Reg Date</th><th>Registration No</th><th>Candidate Reg No</th>
+            <th class="num">#</th><th>Reg Date</th><th>Candidate Reg No</th>
             <th>Name</th><th>Country</th><th>Skill</th><th>Job Category</th>
           </tr></thead>
           <tbody>${detailRows}</tbody>
@@ -221,16 +257,16 @@ export default function ReportsPage() {
         <button
           className="sr-btn-primary"
           onClick={handlePrint}
-          disabled={loading || rangeInvalid}
+          disabled={loading || rangeInvalid || printRows.length === 0}
           style={{
             padding: '11px 18px',
             borderRadius: 8,
             fontSize: 14,
-            opacity: loading || rangeInvalid ? 0.5 : 1,
-            cursor: loading || rangeInvalid ? 'not-allowed' : 'pointer',
+            opacity: loading || rangeInvalid || printRows.length === 0 ? 0.5 : 1,
+            cursor: loading || rangeInvalid || printRows.length === 0 ? 'not-allowed' : 'pointer',
           }}
         >
-          Print Report
+          {selected.size ? `Print Selected (${selected.size})` : 'Print Report'}
         </button>
       </div>
 
@@ -290,24 +326,40 @@ export default function ReportsPage() {
       <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
         <div style={{ padding: '16px 20px', fontSize: 15, fontWeight: 700, borderBottom: '1px solid var(--border-soft)' }}>
           Registrations in range ({summary.total})
+          {selected.size > 0 && (
+            <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--accent)', marginLeft: 10 }}>
+              · {selected.size} selected for print
+            </span>
+          )}
         </div>
         <div className="sr-table-scroll">
           <div style={{ minWidth: 780 }}>
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: '48px 1fr 1fr 1.4fr 0.9fr 0.9fr 1.2fr',
+                gridTemplateColumns: '36px 48px 1fr 1fr 1.4fr 0.9fr 0.9fr 1.2fr',
                 columnGap: 14,
                 padding: '12px 20px',
                 fontSize: 12,
                 fontWeight: 600,
                 color: 'var(--muted)',
                 borderBottom: '1px solid var(--border-soft)',
+                alignItems: 'center',
               }}
             >
+              <div>
+                <input
+                  type="checkbox"
+                  checked={allSelected}
+                  onChange={toggleAll}
+                  disabled={inRange.length === 0}
+                  title="Select all"
+                  style={{ cursor: inRange.length === 0 ? 'default' : 'pointer' }}
+                />
+              </div>
               <div>#</div>
               <div>Reg Date</div>
-              <div>Registration No</div>
+              <div>Candidate Reg No</div>
               <div>Name</div>
               <div>Country</div>
               <div>Skill</div>
@@ -326,20 +378,31 @@ export default function ReportsPage() {
               inRange.map((c, i) => (
                 <div
                   key={c.id}
+                  onClick={() => toggleOne(c.id)}
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: '48px 1fr 1fr 1.4fr 0.9fr 0.9fr 1.2fr',
+                    gridTemplateColumns: '36px 48px 1fr 1fr 1.4fr 0.9fr 0.9fr 1.2fr',
                     columnGap: 14,
                     padding: '12px 20px',
                     fontSize: 13,
                     alignItems: 'center',
                     borderBottom: '1px solid var(--row-border)',
+                    cursor: 'pointer',
+                    background: selected.has(c.id) ? 'var(--nav-active, oklch(0.96 0.02 250))' : undefined,
                   }}
                 >
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      checked={selected.has(c.id)}
+                      onChange={() => toggleOne(c.id)}
+                      style={{ cursor: 'pointer' }}
+                    />
+                  </div>
                   <div style={{ color: 'var(--muted)' }}>{i + 1}</div>
                   <div style={{ whiteSpace: 'nowrap' }}>{fmtDate(c.registration_date)}</div>
                   <div style={{ color: 'var(--label-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {c.registration_no}
+                    {c.candidate_reg_no || '—'}
                   </div>
                   <div style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={c.full_name}>
                     {c.full_name}
