@@ -392,8 +392,10 @@ export default function CandidateViewPage() {
           <Field label="Birth Date" value={c.birth_date} />
           <Field label="Gender" value={c.gender} />
           <Field label="Passport Retention" value={c.passport_retention} />
-          <Field label="Passport Collected Date" value={c.passport_collected_date} />
+          <Field label="Passport Collected Date" value={c.passport_collected_date ? c.passport_collected_date.slice(0, 10) : null} />
           <Field label="Passport Number" value={c.passport_number} />
+          <Field label="Passport Returned" value={c.passport_returned} />
+          <Field label="Passport Returned Date" value={c.passport_return_date ? c.passport_return_date.slice(0, 10) : null} />
           <Field label="Email Address" value={c.email} />
           <Field label="Phone Number" value={c.phone_number} />
           <Field label="WhatsApp Number" value={c.whatsapp_number} />

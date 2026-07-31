@@ -178,6 +178,13 @@ class CandidateController extends Controller
     {
         $data = $this->validatePersonal($request, $candidate);
 
+        // Once retention details have been saved with a collected date they lock:
+        // the retention/collected-date/passport-number can no longer change. Only the
+        // separate "passport returned" fields stay editable for the eventual hand-back.
+        if ($candidate->passport_retention === 'yes' && $candidate->passport_collected_date) {
+            unset($data['passport_retention'], $data['passport_collected_date'], $data['passport_number']);
+        }
+
         if ($request->hasFile('passport_image')) {
             $data['passport_image'] = $request->file('passport_image')
                 ->store('candidates', 'public');
@@ -289,7 +296,7 @@ class CandidateController extends Controller
             'birth_date' => ['nullable', 'string', 'max:20'],
             'gender' => ['nullable', 'string', 'max:20'],
             'passport_retention' => ['nullable', Rule::in(['yes', 'no'])],
-            'passport_collected_date' => ['nullable', 'date'],
+            'passport_collected_date' => ['nullable', 'required_if:passport_retention,yes', 'date'],
             'passport_number' => [
                 'nullable',
                 'string',
@@ -298,6 +305,8 @@ class CandidateController extends Controller
                     ->ignore($candidate?->id)
                     ->whereNotNull('passport_number'),
             ],
+            'passport_returned' => ['nullable', Rule::in(['yes', 'no'])],
+            'passport_return_date' => ['nullable', 'required_if:passport_returned,yes', 'date'],
             'email' => ['nullable', 'email', 'max:255'],
             'phone_number' => [
                 'nullable',
@@ -326,6 +335,8 @@ class CandidateController extends Controller
             'nic.unique' => 'This NIC number is already registered for another candidate.',
             'passport_number.unique' => 'This passport number is already registered for another candidate.',
             'phone_number.unique' => 'This mobile number is already registered for another candidate.',
+            'passport_collected_date.required_if' => 'Passport collected date is required when the passport is retained.',
+            'passport_return_date.required_if' => 'Return date is required when the passport has been returned.',
         ]);
     }
 }

@@ -1,7 +1,18 @@
 <?php
 
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
+
+// TEMPORARY — run pending migrations from the browser when there is no terminal/DB
+// access on the host. Open /__migrate/<token> once after deploy, confirm the output,
+// then DELETE this route and redeploy. Do NOT leave it in production.
+Route::get('/__migrate/{token}', function (string $token) {
+    abort_unless(hash_equals('sldrw-passport-return-2026', $token), 403);
+    Artisan::call('migrate', ['--force' => true]);
+
+    return response('<pre>' . e(Artisan::output()) . '</pre>');
+});
 
 // Serve uploaded files (passport photos, training bonds, documents) from the
 // public storage disk. Works without a `storage` symlink — important on hosting

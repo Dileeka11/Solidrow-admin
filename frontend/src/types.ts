@@ -89,6 +89,8 @@ export interface Candidate {
   passport_number: string | null;
   passport_image: string | null;
   passport_image_url: string | null;
+  passport_returned: string | null;
+  passport_return_date: string | null;
   email: string | null;
   phone_number: string | null;
   whatsapp_number: string | null;

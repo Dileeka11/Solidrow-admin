@@ -178,6 +178,8 @@ interface FormState {
   passport_retention: string;
   passport_collected_date: string;
   passport_number: string;
+  passport_returned: string;
+  passport_return_date: string;
   email: string;
   phone_number: string;
   whatsapp_number: string;
@@ -205,6 +207,8 @@ const EMPTY: FormState = {
   passport_retention: '',
   passport_collected_date: '',
   passport_number: '',
+  passport_returned: '',
+  passport_return_date: '',
   email: '',
   phone_number: '',
   whatsapp_number: '',
@@ -263,6 +267,13 @@ export default function CandidateFormPage() {
   // (we intentionally stay on the form instead of navigating away).
   const [savedCandidate, setSavedCandidate] = useState<Candidate | null>(null);
   const qrRef = useRef<HTMLDivElement>(null);
+
+  // Passport retention locks once a candidate has been saved with a collected date:
+  // retention / collected-date / passport-number become read-only. Only the separate
+  // "passport returned" fields below stay editable so the hand-back can be recorded later.
+  // Works for both an opened record and a brand-new one straight after its first save.
+  const savedRecord = candidate ?? savedCandidate;
+  const passportLocked = savedRecord?.passport_retention === 'yes' && !!savedRecord?.passport_collected_date;
 
   // Camera capture (take passport photo directly from device camera)
   const [cameraOpen, setCameraOpen] = useState(false);
@@ -541,8 +552,10 @@ export default function CandidateFormPage() {
       birth_date: c.birth_date ?? '',
       gender: c.gender ?? '',
       passport_retention: c.passport_retention ?? '',
-      passport_collected_date: c.passport_collected_date ?? '',
+      passport_collected_date: c.passport_collected_date ? c.passport_collected_date.slice(0, 10) : '',
       passport_number: c.passport_number ?? '',
+      passport_returned: c.passport_returned ?? '',
+      passport_return_date: c.passport_return_date ? c.passport_return_date.slice(0, 10) : '',
       email: c.email ?? '',
       phone_number: c.phone_number ?? '',
       whatsapp_number: c.whatsapp_number ?? '',
@@ -666,12 +679,23 @@ export default function CandidateFormPage() {
       toastError(whatsappErr);
       return;
     }
-    if (form.passport_retention === 'yes') {
-      const passportErr = passportError(form.passport_number);
-      if (passportErr) {
-        toastError(passportErr);
-        return;
-      }
+    // Passport Number is mandatory regardless of the retention Yes/No choice.
+    if (!form.passport_number.trim()) {
+      toastError('Passport Number එක අනිවාර්යයි.');
+      return;
+    }
+    const passportErr = passportError(form.passport_number);
+    if (passportErr) {
+      toastError(passportErr);
+      return;
+    }
+    if (form.passport_retention === 'yes' && !form.passport_collected_date) {
+      toastError('Passport Retention "Yes" විට Passport Collected Date එක අනිවාර්යයි.');
+      return;
+    }
+    if (form.passport_returned === 'yes' && !form.passport_return_date) {
+      toastError('Passport Returned "Yes" විට Return Date එක අනිවාර්යයි.');
+      return;
     }
     const ok = await confirmAction(
       isEdit ? 'Save the changes to this candidate?' : 'Save this candidate?',
@@ -1795,9 +1819,37 @@ export default function CandidateFormPage() {
             )}
           </div>
 
+          {/* Passport Number is a standalone mandatory field — always visible,
+              independent of the Passport Retention Yes/No choice. */}
           <div>
-            <label style={labelStyle}>Passport Retention</label>
-            <select className="sr-input" style={inputStyle} value={form.passport_retention} onChange={(e) => set('passport_retention', e.target.value)}>
+            <label style={labelStyle}>Passport Number *</label>
+            <input
+              className="sr-input"
+              style={passportLocked ? { ...inputStyle, background: 'var(--row-border, #f3f4f6)' } : inputStyle}
+              value={form.passport_number}
+              readOnly={passportLocked}
+              onChange={(e) => set('passport_number', e.target.value.toUpperCase())}
+              placeholder="e.g. N1234567"
+            />
+            {passportError(form.passport_number) && (
+              <span style={{ display: 'block', marginTop: 4, fontSize: 12, color: '#dc2626' }}>
+                {passportError(form.passport_number)}
+              </span>
+            )}
+          </div>
+
+          <div>
+            <label style={labelStyle}>
+              Passport Retention
+              {passportLocked && <span style={{ marginLeft: 6, fontWeight: 600, color: 'var(--muted)' }}>🔒 Locked</span>}
+            </label>
+            <select
+              className="sr-input"
+              style={passportLocked ? { ...inputStyle, background: 'var(--row-border, #f3f4f6)' } : inputStyle}
+              value={form.passport_retention}
+              disabled={passportLocked}
+              onChange={(e) => set('passport_retention', e.target.value)}
+            >
               <option value="">-- Select --</option>
               <option value="yes">Yes</option>
               <option value="no">No</option>
@@ -1807,24 +1859,35 @@ export default function CandidateFormPage() {
           {form.passport_retention === 'yes' && (
             <>
               <div>
-                <label style={labelStyle}>Passport Collected Date</label>
-                <DatePicker style={inputStyle} value={form.passport_collected_date} onChange={(iso) => set('passport_collected_date', iso)} />
+                <label style={labelStyle}>Passport Collected Date *</label>
+                <DatePicker
+                  style={passportLocked ? { ...inputStyle, background: 'var(--row-border, #f3f4f6)' } : inputStyle}
+                  value={form.passport_collected_date}
+                  disabled={passportLocked}
+                  onChange={(iso) => set('passport_collected_date', iso)}
+                />
               </div>
+
+              {/* Passport hand-back — recorded later when the retained passport is returned. */}
               <div>
-                <label style={labelStyle}>Passport Number</label>
-                <input
+                <label style={labelStyle}>Passport Returned</label>
+                <select
                   className="sr-input"
                   style={inputStyle}
-                  value={form.passport_number}
-                  onChange={(e) => set('passport_number', e.target.value.toUpperCase())}
-                  placeholder="e.g. N1234567"
-                />
-                {passportError(form.passport_number) && (
-                  <span style={{ display: 'block', marginTop: 4, fontSize: 12, color: '#dc2626' }}>
-                    {passportError(form.passport_number)}
-                  </span>
-                )}
+                  value={form.passport_returned}
+                  onChange={(e) => set('passport_returned', e.target.value)}
+                >
+                  <option value="">-- Select --</option>
+                  <option value="no">No</option>
+                  <option value="yes">Yes</option>
+                </select>
               </div>
+              {form.passport_returned === 'yes' && (
+                <div>
+                  <label style={labelStyle}>Passport Returned Date *</label>
+                  <DatePicker style={inputStyle} value={form.passport_return_date} onChange={(iso) => set('passport_return_date', iso)} />
+                </div>
+              )}
             </>
           )}
 

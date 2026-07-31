@@ -18,6 +18,8 @@ class Candidate extends Model
         'passport_collected_date',
         'passport_number',
         'passport_image',
+        'passport_returned',
+        'passport_return_date',
         'email',
         'phone_number',
         'whatsapp_number',
@@ -44,6 +46,7 @@ class Candidate extends Model
         'is_completed' => 'boolean',
         'registration_date' => 'date',
         'passport_collected_date' => 'date',
+        'passport_return_date' => 'date',
     ];
 
     protected $appends = ['passport_image_url'];
