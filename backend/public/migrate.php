@@ -33,6 +33,10 @@ echo "=== migrate --force ===\n";
 $kernel->call('migrate', ['--force' => true]);
 echo $kernel->output();
 
+echo "\n=== db:seed --force (roles/permissions incl. Baddegama) ===\n";
+$kernel->call('db:seed', ['--force' => true]);
+echo $kernel->output();
+
 echo "\n=== clearing stale caches ===\n";
 $kernel->call('optimize:clear');
 echo $kernel->output();
