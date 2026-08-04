@@ -58,9 +58,12 @@ class BaddegamaRegistration extends Model
 
         $prefix = 'SDW' . $countryChar . date('y') . 'B';
 
-        // Highest existing code for this prefix; the numeric suffix + 1 is next.
+        // Highest existing code for this prefix. We order by the *numeric* suffix
+        // (not the raw string) so mixed-width legacy codes like SDWI26B999 and
+        // SDWI26B01279 still yield the true maximum — always incrementing.
+        $suffixStart = strlen($prefix) + 1;
         $last = static::where('registration_code', 'like', $prefix . '%')
-            ->orderByDesc('registration_code')
+            ->orderByRaw('CAST(SUBSTRING(registration_code, ?) AS UNSIGNED) DESC', [$suffixStart])
             ->value('registration_code');
 
         $lastNumber = $last ? (int) substr($last, strlen($prefix)) : 0;
