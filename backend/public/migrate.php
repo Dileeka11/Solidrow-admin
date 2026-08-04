@@ -18,6 +18,8 @@ if (($_GET['key'] ?? '') !== $SECRET) {
 }
 
 header('Content-Type: text/plain; charset=utf-8');
+ini_set('display_errors', '1');
+error_reporting(E_ALL);
 
 // Works whether Laravel lives in this dir (doc root) or one level up.
 $base = is_dir(__DIR__ . '/vendor') ? __DIR__ : __DIR__ . '/..';
@@ -29,16 +31,23 @@ $app = require $base . '/bootstrap/app.php';
 
 $kernel = $app->make(\Illuminate\Contracts\Console\Kernel::class);
 
-echo "=== migrate --force ===\n";
-$kernel->call('migrate', ['--force' => true]);
-echo $kernel->output();
+try {
+    echo "=== migrate --force ===\n";
+    $kernel->call('migrate', ['--force' => true]);
+    echo $kernel->output();
 
-echo "\n=== db:seed --force (roles/permissions incl. Baddegama) ===\n";
-$kernel->call('db:seed', ['--force' => true]);
-echo $kernel->output();
+    echo "\n=== db:seed --force (roles/permissions incl. Baddegama) ===\n";
+    $kernel->call('db:seed', ['--force' => true]);
+    echo $kernel->output();
 
-echo "\n=== clearing stale caches ===\n";
-$kernel->call('optimize:clear');
-echo $kernel->output();
+    echo "\n=== clearing stale caches ===\n";
+    $kernel->call('optimize:clear');
+    echo $kernel->output();
 
-echo "\n=== Done. DELETE migrate.php now. ===\n";
+    echo "\n=== Done. DELETE migrate.php now. ===\n";
+} catch (\Throwable $e) {
+    echo "\n!!! ERROR !!!\n";
+    echo get_class($e) . ": " . $e->getMessage() . "\n";
+    echo $e->getFile() . ":" . $e->getLine() . "\n\n";
+    echo $e->getTraceAsString() . "\n";
+}
