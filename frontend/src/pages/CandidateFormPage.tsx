@@ -1033,21 +1033,21 @@ export default function CandidateFormPage() {
         .fc { flex: none; }
         .fv { flex: 1; border-bottom: 1px dotted #555; min-height: 18px; padding: 0 2px; }
         .fv.filled { font-weight: 700; border-bottom-style: solid; }
-        .terms { text-align: justify; font-size: 11.5px; line-height: 1.4; }
-        .terms p { margin: 0 0 5px; }
-        .closing { text-align: justify; font-size: 11.5px; margin: 8px 0 12px; }
-        .signs { display: flex; justify-content: space-between; gap: 24px; margin-top: 10px; }
+        .terms { text-align: justify; font-size: 11px; line-height: 1.28; }
+        .terms p { margin: 0 0 3px; }
+        .closing { text-align: justify; font-size: 11px; margin: 6px 0 8px; }
+        .signs { display: flex; justify-content: space-between; gap: 24px; margin-top: 8px; page-break-inside: avoid; break-inside: avoid; }
         .col { flex: 1; }
         .srow { margin-bottom: 8px; }
         .srow .sl { font-weight: 600; }
         .dots { border-bottom: 1px dotted #555; min-width: 150px; display: inline-block; }
         .val { font-weight: 700; border-bottom: 1px solid #555; display: inline-block; min-width: 150px; padding: 0 2px; }
-        .approw { display: flex; align-items: flex-start; gap: 12px; }
+        .approw { display: flex; align-items: flex-start; gap: 12px; page-break-inside: avoid; break-inside: avoid; }
         .appsigns { flex: 1; }
         .thumb { flex: none; text-align: center; }
         .thumb-box { width: 120px; height: 150px; border: 1px solid #555; border-radius: 3px; }
         .thumb-lbl { font-size: 13px; font-weight: 600; margin-top: 5px; }
-        .officer { text-align: right; margin-top: 12px; }
+        .officer { text-align: right; margin-top: 10px; page-break-inside: avoid; break-inside: avoid; }
         .officer .line { border-top: 1px solid #555; width: 200px; margin-left: auto; padding-top: 4px; font-weight: 600; }
       </style></head>
       <body onload="window.print(); setTimeout(function(){ window.close(); }, 400);">
