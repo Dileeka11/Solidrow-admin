@@ -1021,6 +1021,10 @@ export default function CandidateFormPage() {
         /* One sheet == one printed page: form on page 1, agreement on page 2. */
         .sheet { page-break-after: always; break-after: page; }
         .sheet:last-child { page-break-after: auto; break-after: auto; }
+        /* Page 1 fills the full printable height and spreads the fields evenly so
+           there's no large blank block at the bottom. */
+        .form-sheet { display: flex; flex-direction: column; min-height: 262mm; }
+        .fields { flex: 1; display: flex; flex-direction: column; justify-content: space-between; }
         .hdr { display: flex; align-items: center; gap: 14px; border-bottom: 2px solid #14486f; padding-bottom: 8px; margin-bottom: 6px; }
         .hdr img { height: 54px; width: auto; }
         .hdr .co { font-size: 16px; font-weight: 800; color: #14486f; }
@@ -1051,14 +1055,14 @@ export default function CandidateFormPage() {
         .officer .line { border-top: 1px solid #555; width: 200px; margin-left: auto; padding-top: 4px; font-weight: 600; }
       </style></head>
       <body onload="window.print(); setTimeout(function(){ window.close(); }, 400);">
-        <div class="sheet">
+        <div class="sheet form-sheet">
           <div class="hdr">
             <img src="${window.location.origin}${solidrowLogo}" alt="Solidrow" />
             <div class="co">Solidrow FESTI (PVT) LTD</div>
             <div class="rn">ලියාපදිංචි අංකය<br/><b>${esc(regNo)}</b></div>
           </div>
           <h2>පුහුණු පාඨමාලා අයදුම් පත්‍රය</h2>
-          ${fields.map(fieldRow).join('')}
+          <div class="fields">${fields.map(fieldRow).join('')}</div>
         </div>
         <div class="sheet">
           <div class="hdr">
