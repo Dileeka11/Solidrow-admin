@@ -32,8 +32,14 @@ $app = require $base . '/bootstrap/app.php';
 $kernel = $app->make(\Illuminate\Contracts\Console\Kernel::class);
 
 try {
-    echo "=== migrate --force ===\n";
-    $kernel->call('migrate', ['--force' => true]);
+    // Run ONLY the Baddegama migration. A full `migrate` fails here because the
+    // live DB was built from a SQL dump (schema is ahead of the migrations ledger),
+    // so older "pending" migrations try to re-add columns that already exist.
+    echo "=== migrate (Baddegama only, via --path) ===\n";
+    $kernel->call('migrate', [
+        '--force' => true,
+        '--path' => 'database/migrations/2026_08_04_000001_create_baddegama_module.php',
+    ]);
     echo $kernel->output();
 
     echo "\n=== db:seed --force (roles/permissions incl. Baddegama) ===\n";
