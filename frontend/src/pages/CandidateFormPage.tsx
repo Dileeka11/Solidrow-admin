@@ -773,10 +773,16 @@ export default function CandidateFormPage() {
   async function printPassportArtwork(
     items: { label: string; src: string; withFields: boolean }[],
     title: string,
+    opts?: { widthMm?: number; heightMm?: number; padMm?: number; radiusMm?: number },
   ) {
-    // Sri Lankan driving-licence (ID-1 / credit-card) size, so the printed card matches a licence card.
-    const CARD_WIDTH_MM = 86;
-    const CARD_HEIGHT_MM = 54;
+    // Default: Sri Lankan driving-licence (ID-1 / credit-card) size for the collection card.
+    // The sticker overrides these (80×45mm, no padding) so the design fills the box edge-to-edge.
+    const CARD_WIDTH_MM = opts?.widthMm ?? 86;
+    const CARD_HEIGHT_MM = opts?.heightMm ?? 54;
+    // Padding + corner radius previously left a thin white frame around the artwork; default to
+    // none so only the design prints (removes the surrounding white background).
+    const CARD_PAD_MM = opts?.padMm ?? 0;
+    const CARD_RADIUS_MM = opts?.radiusMm ?? 0;
 
     const collectedDate = form.passport_collected_date
       ? new Date(form.passport_collected_date).toLocaleDateString('en-GB')
@@ -887,15 +893,15 @@ export default function CandidateFormPage() {
           .card {
             width: ${CARD_WIDTH_MM}mm;
             height: ${CARD_HEIGHT_MM}mm;
-            padding: 1.2mm;
-            border-radius: 3mm;
+            padding: ${CARD_PAD_MM}mm;
+            border-radius: ${CARD_RADIUS_MM}mm;
             overflow: hidden;
             display: inline-block;
             background: #fff;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
           }
-          img { width: 100%; height: 100%; object-fit: fill; border-radius: 2mm; display: block; }
+          img { width: 100%; height: 100%; object-fit: fill; border-radius: ${CARD_RADIUS_MM}mm; display: block; }
         </style></head>
         <body>
           ${items.map((it, i) => page(it.label, urls[i])).join('')}
@@ -924,6 +930,7 @@ export default function CandidateFormPage() {
     printPassportArtwork(
       [{ label: 'Passport Sticker', src: passportSticker, withFields: true }],
       'Passport Sticker',
+      { widthMm: 80, heightMm: 45 }, // sticker paper size; design fills the box, no white margin
     );
 
   /**
@@ -1032,9 +1039,9 @@ export default function CandidateFormPage() {
         .fc { flex: none; }
         .fv { flex: 1; border-bottom: 1px dotted #555; min-height: 18px; padding: 0 2px; }
         .fv.filled { font-weight: 700; border-bottom-style: solid; }
-        .terms { text-align: justify; font-size: 9.8px; line-height: 1.33; }
-        .terms p { margin: 0 0 4px; }
-        .closing { text-align: justify; font-size: 9.8px; margin: 7px 0 10px; }
+        .terms { text-align: justify; font-size: 11.5px; line-height: 1.4; }
+        .terms p { margin: 0 0 5px; }
+        .closing { text-align: justify; font-size: 11.5px; margin: 8px 0 12px; }
         .signs { display: flex; justify-content: space-between; gap: 24px; margin-top: 10px; }
         .col { flex: 1; }
         .srow { margin-bottom: 8px; }
@@ -1044,7 +1051,7 @@ export default function CandidateFormPage() {
         .approw { display: flex; align-items: flex-start; gap: 12px; }
         .appsigns { flex: 1; }
         .thumb { flex: none; text-align: center; }
-        .thumb-box { width: 62px; height: 78px; border: 1px solid #555; border-radius: 3px; }
+        .thumb-box { width: 84px; height: 104px; border: 1px solid #555; border-radius: 3px; }
         .thumb-lbl { font-size: 9px; margin-top: 3px; }
         .officer { text-align: right; margin-top: 12px; }
         .officer .line { border-top: 1px solid #555; width: 200px; margin-left: auto; padding-top: 4px; font-weight: 600; }
