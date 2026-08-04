@@ -3,6 +3,9 @@
 use App\Http\Controllers\AgentController;
 use App\Http\Controllers\AttendanceScanController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\BaddegamaLocationController;
+use App\Http\Controllers\BaddegamaPublicController;
+use App\Http\Controllers\BaddegamaRegistrationController;
 use App\Http\Controllers\CandidateController;
 use App\Http\Controllers\CandidateDepartureDetailController;
 use App\Http\Controllers\CandidateDocumentController;
@@ -23,6 +26,15 @@ Route::post('/login', [AuthController::class, 'login']);
 
 // Public — candidate self-service progress lookup (passport / mobile / NIC)
 Route::get('/progress', [CandidateController::class, 'publicProgress']);
+
+// Public — Baddegama registration form (master data + OTP + sign-up)
+Route::get('/baddegama/provinces', [BaddegamaPublicController::class, 'provinces']);
+Route::get('/baddegama/countries', [BaddegamaPublicController::class, 'countries']);
+Route::get('/baddegama/active-location', [BaddegamaPublicController::class, 'activeLocation']);
+Route::get('/baddegama/location/{location}', [BaddegamaPublicController::class, 'location']);
+Route::post('/baddegama/otp/send', [BaddegamaPublicController::class, 'sendOtp']);
+Route::post('/baddegama/otp/verify', [BaddegamaPublicController::class, 'verifyOtp']);
+Route::post('/baddegama/register', [BaddegamaPublicController::class, 'register']);
 
 // Authenticated (Sanctum bearer token)
 Route::middleware('auth:sanctum')->group(function () {
@@ -84,6 +96,20 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/agents', [AgentController::class, 'store']);
     Route::put('/agents/{agent}', [AgentController::class, 'update']);
     Route::delete('/agents/{agent}', [AgentController::class, 'destroy']);
+
+    // Baddegama registration locations (branches) — admin management
+    Route::get('/baddegama-locations', [BaddegamaLocationController::class, 'index']);
+    Route::post('/baddegama-locations', [BaddegamaLocationController::class, 'store']);
+    Route::put('/baddegama-locations/{location}', [BaddegamaLocationController::class, 'update']);
+    Route::delete('/baddegama-locations/{location}', [BaddegamaLocationController::class, 'destroy']);
+    Route::post('/baddegama-locations/{location}/set-active', [BaddegamaLocationController::class, 'setActive']);
+
+    // Baddegama registrations — admin management
+    Route::get('/baddegama-registrations', [BaddegamaRegistrationController::class, 'index']);
+    Route::get('/baddegama-registrations/locations', [BaddegamaRegistrationController::class, 'locations']);
+    Route::get('/baddegama-registrations/{baddegamaRegistration}', [BaddegamaRegistrationController::class, 'show']);
+    Route::put('/baddegama-registrations/{baddegamaRegistration}', [BaddegamaRegistrationController::class, 'update']);
+    Route::delete('/baddegama-registrations/{baddegamaRegistration}', [BaddegamaRegistrationController::class, 'destroy']);
 
     Route::get('/roles', [RoleController::class, 'index']);
     Route::post('/roles', [RoleController::class, 'store']);

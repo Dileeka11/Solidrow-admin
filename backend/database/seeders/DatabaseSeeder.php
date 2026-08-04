@@ -49,6 +49,7 @@ class DatabaseSeeder extends Seeder
         $modules = [
             'Dashboard'   => ['view'],
             'Candidates'  => ['view', 'add', 'edit', 'delete'],
+            'Baddegama'   => ['view', 'add', 'edit', 'delete'],
             'Staff'       => ['view', 'add', 'edit', 'delete'],
             'Roles'       => ['view', 'add', 'edit', 'delete'],
             'Permissions' => ['view', 'add', 'edit', 'delete'],

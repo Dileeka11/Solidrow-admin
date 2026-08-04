@@ -7,6 +7,10 @@ import AppLayout from './pages/AppLayout';
 import CandidatesPage from './pages/CandidatesPage';
 import CandidateFormPage from './pages/CandidateFormPage';
 import CandidateViewPage from './pages/CandidateViewPage';
+import BaddegamaPublicFormPage from './pages/BaddegamaPublicFormPage';
+import BaddegamaRegistrationsPage from './pages/BaddegamaRegistrationsPage';
+import BaddegamaLocationsPage from './pages/BaddegamaLocationsPage';
+import BaddegamaViewPage from './pages/BaddegamaViewPage';
 import DashboardPage from './pages/DashboardPage';
 import AgentsPage from './pages/AgentsPage';
 import JobCategoriesPage from './pages/JobCategoriesPage';
@@ -66,6 +70,7 @@ export default function App() {
       <Route path="/login" element={<LoginRoute />} />
       <Route path="/no-access" element={<NoAccess />} />
       <Route path="/progress" element={<ProgressCheckPage />} />
+      <Route path="/baddegama-registration" element={<BaddegamaPublicFormPage />} />
       <Route
         element={
           <ProtectedRoute>
@@ -110,6 +115,38 @@ export default function App() {
           element={
             <RequirePermission permission="candidates.view">
               <CandidateFormPage />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="/baddegama"
+          element={
+            <RequirePermission permission="baddegama.view">
+              <BaddegamaRegistrationsPage />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="/baddegama/locations"
+          element={
+            <RequirePermission permission="baddegama.view">
+              <BaddegamaLocationsPage />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="/baddegama/:id/view"
+          element={
+            <RequirePermission permission="baddegama.view">
+              <BaddegamaViewPage />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="/baddegama/:id"
+          element={
+            <RequirePermission permission="baddegama.edit">
+              <BaddegamaViewPage />
             </RequirePermission>
           }
         />

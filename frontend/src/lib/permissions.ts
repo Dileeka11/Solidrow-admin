@@ -4,6 +4,7 @@ import type { User } from '../types';
 export const ROUTE_PERMISSION: Record<string, string> = {
   '/dashboard': 'dashboard.view',
   '/candidates': 'candidates.view',
+  '/baddegama': 'baddegama.view',
   '/staff': 'staff.view',
   '/job-categories': 'staff.view',
   '/agents': 'staff.view',

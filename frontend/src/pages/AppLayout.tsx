@@ -16,6 +16,7 @@ import {
 const NAV = [
   { to: '/dashboard', label: 'Dashboard', icon: <DashboardIcon />, permission: 'dashboard.view' },
   { to: '/candidates', label: 'Candidates', icon: <CandidatesIcon />, permission: 'candidates.view' },
+  { to: '/baddegama', label: 'Baddegama Registrations', icon: <CandidatesIcon />, permission: 'baddegama.view' },
   { to: '/reports', label: 'Reports', icon: <ReportIcon />, permission: 'candidates.view' },
   { to: '/staff', label: 'Staff Management', icon: <StaffIcon />, permission: 'staff.view' },
   { to: '/section-assignments', label: 'Section Assignment', icon: <CandidatesIcon />, permission: 'sections.view' },
