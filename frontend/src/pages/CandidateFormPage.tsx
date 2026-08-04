@@ -1045,8 +1045,8 @@ export default function CandidateFormPage() {
         .approw { display: flex; align-items: flex-start; gap: 12px; }
         .appsigns { flex: 1; }
         .thumb { flex: none; text-align: center; }
-        .thumb-box { width: 84px; height: 104px; border: 1px solid #555; border-radius: 3px; }
-        .thumb-lbl { font-size: 9px; margin-top: 3px; }
+        .thumb-box { width: 120px; height: 150px; border: 1px solid #555; border-radius: 3px; }
+        .thumb-lbl { font-size: 13px; font-weight: 600; margin-top: 5px; }
         .officer { text-align: right; margin-top: 12px; }
         .officer .line { border-top: 1px solid #555; width: 200px; margin-left: auto; padding-top: 4px; font-weight: 600; }
       </style></head>
@@ -1082,8 +1082,8 @@ export default function CandidateFormPage() {
             <div class="approw">
               <div class="appsigns">
                 <div class="srow"><div class="sl">අයදුම්කරු</div>අත්සන: <span class="dots"></span></div>
-                <div class="srow">නම: <span class="val">${esc((form.full_name || '').toUpperCase())}</span></div>
-                <div class="srow">ජා.හැ.අ: <span class="val">${esc(form.nic || '')}</span></div>
+                <div class="srow">නම: <span class="dots"></span></div>
+                <div class="srow">ජා.හැ.අ: <span class="dots"></span></div>
               </div>
               <div class="thumb"><div class="thumb-box"></div><div class="thumb-lbl">මහපට ඇඟිල්ල</div></div>
             </div>
