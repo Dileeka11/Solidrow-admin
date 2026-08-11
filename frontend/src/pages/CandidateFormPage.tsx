@@ -879,15 +879,23 @@ export default function CandidateFormPage() {
           <div class="cap">${label}</div>
           <div class="card"><img src="${url}" /></div>
         </div>`;
+      // The printed sheet is exactly the card box (card + padding) so the label
+      // printer emits only the card — no surrounding A4/white "background" page
+      // to trim off.
+      const SHEET_W_MM = CARD_WIDTH_MM + CARD_PAD_MM * 2;
+      const SHEET_H_MM = CARD_HEIGHT_MM + CARD_PAD_MM * 2;
       w.document.write(`
         <html><head><title>${title} — ${candidateRegNo.replace(/[<>&]/g, '')}</title>
         <style>
-          @page { size: A4 portrait; margin: 12mm; }
+          @page { size: ${SHEET_W_MM}mm ${SHEET_H_MM}mm; margin: 0; }
           * { box-sizing: border-box; }
-          body { margin: 0; font-family: system-ui, sans-serif; }
-          .page { text-align: center; page-break-after: always; }
+          html, body { margin: 0; padding: 0; font-family: system-ui, sans-serif; }
+          /* Each card is its own sheet, sized to the card — no background page. */
+          .page { page-break-after: always; }
           .page:last-child { page-break-after: auto; }
-          .cap { font-size: 10px; letter-spacing: 1px; color: #888; text-transform: uppercase; margin: 4mm 0 2mm; }
+          /* On-screen label only; never printed so it can't add a background/margin. */
+          .cap { font-size: 10px; letter-spacing: 1px; color: #888; text-transform: uppercase; margin: 4mm 0 2mm; text-align: center; }
+          @media print { .cap { display: none; } }
           /* Fixed ID-1 card frame: rounded corners + a small inner gap so the
              artwork's blue border never sits on the cut line. Card size unchanged. */
           .card {
@@ -896,7 +904,7 @@ export default function CandidateFormPage() {
             padding: ${CARD_PAD_MM}mm;
             border-radius: ${CARD_RADIUS_MM}mm;
             overflow: hidden;
-            display: inline-block;
+            display: block;
             background: #fff;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
