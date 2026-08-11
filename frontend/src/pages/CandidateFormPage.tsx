@@ -773,7 +773,7 @@ export default function CandidateFormPage() {
   async function printPassportArtwork(
     items: { label: string; src: string; withFields: boolean }[],
     title: string,
-    opts?: { widthMm?: number; heightMm?: number; padMm?: number; radiusMm?: number },
+    opts?: { widthMm?: number; heightMm?: number; padMm?: number; radiusMm?: number; portrait?: boolean },
   ) {
     // Default: Sri Lankan driving-licence (ID-1 / credit-card) size for the collection card.
     // The sticker overrides these (80×45mm, no padding) so the design fills the box edge-to-edge.
@@ -783,6 +783,9 @@ export default function CandidateFormPage() {
     // none so only the design prints (removes the surrounding white background).
     const CARD_PAD_MM = opts?.padMm ?? 0;
     const CARD_RADIUS_MM = opts?.radiusMm ?? 0;
+    // Labels feed portrait (tall), so rotate the landscape artwork 90° and emit a
+    // portrait sheet. The card text still reads upright when the label is held tall.
+    const PORTRAIT = opts?.portrait ?? true;
 
     const collectedDate = form.passport_collected_date
       ? new Date(form.passport_collected_date).toLocaleDateString('en-GB')
@@ -865,7 +868,16 @@ export default function CandidateFormPage() {
           ctx.restore();
         }
       }
-      return c.toDataURL('image/png');
+      if (!PORTRAIT) return c.toDataURL('image/png');
+      // Rotate the landscape artwork 90° clockwise into a portrait canvas.
+      const r = document.createElement('canvas');
+      r.width = c.height;
+      r.height = c.width;
+      const rctx = r.getContext('2d')!;
+      rctx.translate(r.width, 0);
+      rctx.rotate(Math.PI / 2);
+      rctx.drawImage(c, 0, 0);
+      return r.toDataURL('image/png');
     };
 
     try {
@@ -881,9 +893,11 @@ export default function CandidateFormPage() {
         </div>`;
       // The printed sheet is exactly the card box (card + padding) so the label
       // printer emits only the card — no surrounding A4/white "background" page
-      // to trim off.
-      const SHEET_W_MM = CARD_WIDTH_MM + CARD_PAD_MM * 2;
-      const SHEET_H_MM = CARD_HEIGHT_MM + CARD_PAD_MM * 2;
+      // to trim off. In portrait the artwork is rotated 90°, so the box dims swap.
+      const BOX_W_MM = PORTRAIT ? CARD_HEIGHT_MM : CARD_WIDTH_MM;
+      const BOX_H_MM = PORTRAIT ? CARD_WIDTH_MM : CARD_HEIGHT_MM;
+      const SHEET_W_MM = BOX_W_MM + CARD_PAD_MM * 2;
+      const SHEET_H_MM = BOX_H_MM + CARD_PAD_MM * 2;
       w.document.write(`
         <html><head><title>${title} — ${candidateRegNo.replace(/[<>&]/g, '')}</title>
         <style>
@@ -899,8 +913,8 @@ export default function CandidateFormPage() {
           /* Fixed ID-1 card frame: rounded corners + a small inner gap so the
              artwork's blue border never sits on the cut line. Card size unchanged. */
           .card {
-            width: ${CARD_WIDTH_MM}mm;
-            height: ${CARD_HEIGHT_MM}mm;
+            width: ${BOX_W_MM}mm;
+            height: ${BOX_H_MM}mm;
             padding: ${CARD_PAD_MM}mm;
             border-radius: ${CARD_RADIUS_MM}mm;
             overflow: hidden;
