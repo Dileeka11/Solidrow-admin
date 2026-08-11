@@ -82,15 +82,18 @@ https://sweetalert2.github.io/#ajax-request`),fi(e),typeof e.title==`string`&&(e
         <div class="page">
           <div class="cap">${e}</div>
           <div class="card"><img src="${t}" /></div>
-        </div>`;o.document.write(`
+        </div>`,l=r+a*2,u=i+a*2;o.document.write(`
         <html><head><title>${t} — ${nt.replace(/[<>&]/g,``)}</title>
         <style>
-          @page { size: A4 portrait; margin: 12mm; }
+          @page { size: ${l}mm ${u}mm; margin: 0; }
           * { box-sizing: border-box; }
-          body { margin: 0; font-family: system-ui, sans-serif; }
-          .page { text-align: center; page-break-after: always; }
+          html, body { margin: 0; padding: 0; font-family: system-ui, sans-serif; }
+          /* Each card is its own sheet, sized to the card — no background page. */
+          .page { page-break-after: always; }
           .page:last-child { page-break-after: auto; }
-          .cap { font-size: 10px; letter-spacing: 1px; color: #888; text-transform: uppercase; margin: 4mm 0 2mm; }
+          /* On-screen label only; never printed so it can't add a background/margin. */
+          .cap { font-size: 10px; letter-spacing: 1px; color: #888; text-transform: uppercase; margin: 4mm 0 2mm; text-align: center; }
+          @media print { .cap { display: none; } }
           /* Fixed ID-1 card frame: rounded corners + a small inner gap so the
              artwork's blue border never sits on the cut line. Card size unchanged. */
           .card {
@@ -99,7 +102,7 @@ https://sweetalert2.github.io/#ajax-request`),fi(e),typeof e.title==`string`&&(e
             padding: ${a}mm;
             border-radius: ${s}mm;
             overflow: hidden;
-            display: inline-block;
+            display: block;
             background: #fff;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
