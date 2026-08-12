@@ -15,9 +15,7 @@ Route::get('/__migrate/{token}', function (string $token) {
     abort_unless(hash_equals('57747518ca87f42fa9fccff16a67d942', $token), 403);
 
     $paths = [
-        'database/migrations/2026_08_12_000003_create_demands_table.php',
         'database/migrations/2026_08_12_000004_add_demand_id_to_candidate_employee_details.php',
-        'database/migrations/2026_08_12_000002_reorder_candidate_sections.php',
     ];
 
     $out = [];
