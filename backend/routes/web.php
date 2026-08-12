@@ -1,35 +1,7 @@
 <?php
 
-use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
-
-// TEMPORARY — run ONLY this feature's new migrations from the browser when there is
-// no terminal/SSH access on the host. The live `migrations` table is out of sync with
-// the schema (some old columns exist but were never recorded), so the full migrator
-// tries to re-add existing columns and fails. We therefore run each new migration by
-// its exact --path, which scopes the run to just that file. Each is applied in order
-// and independently; already-applied files are skipped via the `migrations` table.
-// Open /__migrate/<token> once, confirm the output, then DELETE this route and redeploy.
-Route::get('/__migrate/{token}', function (string $token) {
-    abort_unless(hash_equals('57747518ca87f42fa9fccff16a67d942', $token), 403);
-
-    $paths = [
-        'database/migrations/2026_08_12_000004_add_demand_id_to_candidate_employee_details.php',
-    ];
-
-    $out = [];
-    foreach ($paths as $path) {
-        try {
-            Artisan::call('migrate', ['--force' => true, '--path' => $path]);
-            $out[] = "== {$path} ==\n" . trim(Artisan::output());
-        } catch (\Throwable $e) {
-            $out[] = "== {$path} ==\nERROR: " . $e->getMessage();
-        }
-    }
-
-    return response('<pre>' . e(implode("\n\n", $out)) . '</pre>');
-});
 
 // Serve uploaded files (passport photos, training bonds, documents) from the
 // public storage disk. Works without a `storage` symlink — important on hosting
