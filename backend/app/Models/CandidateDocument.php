@@ -43,6 +43,7 @@ class CandidateDocument extends Model
         'certified_police_report',
         'police_report_expire_date',
         'police_report_expiry_sms_sent_at',
+        'police_report_reminder_stage',
         'document_submission_date',
         'document_resubmission_date',
     ];
@@ -53,6 +54,7 @@ class CandidateDocument extends Model
         'certified_police_report'          => 'array',
         'police_report_expire_date'        => 'date',
         'police_report_expiry_sms_sent_at' => 'datetime',
+        'police_report_reminder_stage'     => 'integer',
         'document_submission_date'         => 'date',
         'document_resubmission_date'       => 'date',
     ];

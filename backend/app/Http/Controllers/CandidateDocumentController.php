@@ -104,11 +104,12 @@ class CandidateDocumentController extends Controller
             $documents->{$field} = $entries;
         }
 
-        // Reset the reminder marker when the expiry date changes so a fresh
-        // 45-days-before SMS can go out for the new date.
+        // Reset the reminder markers when the expiry date changes so a fresh
+        // set of staged (45/30/14-day) SMS reminders can go out for the new date.
         $newExpiry = $validated['police_report_expire_date'] ?? null;
         if ((string) $documents->police_report_expire_date?->format('Y-m-d') !== (string) $newExpiry) {
             $documents->police_report_expiry_sms_sent_at = null;
+            $documents->police_report_reminder_stage = null;
         }
 
         $documents->fill([
