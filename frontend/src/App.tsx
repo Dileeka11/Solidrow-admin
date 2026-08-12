@@ -14,6 +14,7 @@ import BaddegamaViewPage from './pages/BaddegamaViewPage';
 import DashboardPage from './pages/DashboardPage';
 import AgentsPage from './pages/AgentsPage';
 import JobCategoriesPage from './pages/JobCategoriesPage';
+import DemandsPage from './pages/DemandsPage';
 import LoginPage from './pages/LoginPage';
 import PermissionsPage from './pages/PermissionsPage';
 import ProgressCheckPage from './pages/ProgressCheckPage';
@@ -179,6 +180,14 @@ export default function App() {
           element={
             <RequirePermission permission="staff.view">
               <JobCategoriesPage />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="/demands"
+          element={
+            <RequirePermission permission="staff.view">
+              <DemandsPage />
             </RequirePermission>
           }
         />

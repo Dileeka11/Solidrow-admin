@@ -10,15 +10,15 @@ import { DatePicker } from '../components/DatePicker';
 import { confirmAction, toastError, toastSuccess } from '../lib/alerts';
 import { useAuth } from '../auth/AuthContext';
 import { useIsMobile } from '../lib/useMediaQuery';
-import type { Agent, Candidate, CandidateDatedFileField, CandidateDepartureDetails, CandidateDocumentFileField, CandidateDocuments, CandidateEmployeeDetails, CandidateSection, CandidateTraining, CandidateVisaDetails, JobCategory, PibaSubmissionStatus, PreTestCycle, Staff, VisaStatus } from '../types';
+import type { Agent, Candidate, CandidateDatedFileField, CandidateDepartureDetails, CandidateDocumentFileField, CandidateDocuments, CandidateEmployeeDetails, CandidateSection, CandidateTraining, CandidateVisaDetails, Demand, JobCategory, PibaSubmissionStatus, PreTestCycle, Staff, VisaStatus } from '../types';
 
 const SECTION_TITLES = [
   'Personal Details',
   'Training Details',
+  'Employee Details',
   'Document Attachment',
   'Job & Visa Processing',
   'Departure Details',
-  'Employee Details',
 ];
 
 const COUNTRY_LETTER: Record<string, string> = { Romania: 'R', Israel: 'I' };
@@ -350,10 +350,12 @@ export default function CandidateFormPage() {
   const EMPTY_EMPLOYEE: CandidateEmployeeDetails = {
     registration_number: null,
     job_category_id: null,
+    demand_id: null,
   };
   const [employee, setEmployee] = useState<CandidateEmployeeDetails>(EMPTY_EMPLOYEE);
   const [employeeSaving, setEmployeeSaving] = useState(false);
   const [jobCategories, setJobCategories] = useState<JobCategory[]>([]);
+  const [demands, setDemands] = useState<Demand[]>([]);
 
   // Section 6 — Departure Details
   const EMPTY_DEPARTURE: CandidateDepartureDetails = {
@@ -536,9 +538,14 @@ export default function CandidateFormPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  // Load the managed job-category list (for the Section 5 dropdown).
+  // Load the managed job-category list (for the Employee Details dropdown).
   useEffect(() => {
     api.get<JobCategory[]>('/job-categories').then((r) => setJobCategories(r.data)).catch(() => setJobCategories([]));
+  }, []);
+
+  // Load the managed demand list (for the Employee Details dropdown).
+  useEffect(() => {
+    api.get<Demand[]>('/demands').then((r) => setDemands(r.data)).catch(() => setDemands([]));
   }, []);
 
   function hydrate(c: Candidate) {
@@ -1537,7 +1544,7 @@ export default function CandidateFormPage() {
       setDocumentFiles({});
       setServiceLetterFiles([]);
       setDatedFiles({ police_certificate: [], certified_police_report: [] });
-      await markSectionComplete(3); // completing Section 3 advances the workflow
+      await markSectionComplete(4); // Document Attachment is Section 4 — completing it advances the workflow
       toastSuccess('Documents saved');
       navigate('/candidates'); // save & exit back to the candidates list
     } catch {
@@ -1563,12 +1570,12 @@ export default function CandidateFormPage() {
     try {
       const r = await api.post<CandidateVisaDetails>(`/candidates/${id}/visa-details`, visa);
       setVisa(r.data);
-      await markSectionComplete(4); // completing Section 4 advances the workflow
+      await markSectionComplete(5); // Job & Visa Processing is Section 5 — completing it advances the workflow
       const statusMsg =
         r.data.visa_status === 'visa_received' ? ' — visa received SMS queued'
         : r.data.visa_status === 'visa_cancel' ? ' — visa cancelled SMS queued'
         : '';
-      toastSuccess(`Section 4 saved${statusMsg}`);
+      toastSuccess(`Section 5 saved${statusMsg}`);
       navigate('/candidates'); // save & exit back to the candidates list
     } catch {
       toastError('Could not save visa details.');
@@ -1588,9 +1595,10 @@ export default function CandidateFormPage() {
       const r = await api.post<CandidateEmployeeDetails>(`/candidates/${id}/employee-details`, {
         registration_number: employee.registration_number ?? '',
         job_category_id: employee.job_category_id ?? '',
+        demand_id: employee.demand_id ?? '',
       });
       setEmployee(r.data);
-      await markSectionComplete(6); // Employee Details is Section 6 — completing it finalises the workflow
+      await markSectionComplete(3); // Employee Details is now Section 3 — completing it advances the workflow
       toastSuccess('Employee details saved');
       navigate('/candidates'); // save & exit back to the candidates list
     } catch {
@@ -1616,7 +1624,7 @@ export default function CandidateFormPage() {
         departure_date: departure.departure_date ?? '',
       });
       setDeparture(r.data);
-      await markSectionComplete(5); // Departure Details is now Section 5, unlocking Section 6
+      await markSectionComplete(6); // Departure Details is now Section 6 — the final section, finalising the workflow
       toastSuccess('Departure details saved');
       navigate('/candidates'); // save & exit back to the candidates list
     } catch {
@@ -2598,14 +2606,96 @@ export default function CandidateFormPage() {
         </div>
       )}
 
-      {/* ── Section 3: Personal Details (Attachment) ──────────────────────── */}
+      {/* ── Section 3: Employee Details ───────────────────────────────────── */}
       {isEdit && candidate && !section2Done && (
-        <LockedSectionCard no="03" title="Document Attachment" needNo={2} />
+        <LockedSectionCard no="03" title="Employee Details" needNo={2} />
       )}
       {isEdit && candidate && section2Done && (
         <div style={cardStyle}>
           <div style={{ color: 'var(--accent, #6366f1)', fontWeight: 700, marginBottom: 4 }}>
-            03. Document Attachment
+            03. Employee Details
+          </div>
+          <hr style={{ border: 'none', borderTop: '1px solid var(--border-soft)', margin: '10px 0 18px' }} />
+
+          <div className="sr-grid-2">
+            <div>
+              <label style={labelStyle}>Registration Number</label>
+              <input
+                className="sr-input"
+                style={inputStyle}
+                value={employee.registration_number || ''}
+                onChange={(e) =>
+                  setEmployee((s) => ({ ...s, registration_number: e.target.value }))
+                }
+                placeholder="Enter registration number"
+              />
+              <span style={{ display: 'block', fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
+                Type the registration number manually.
+              </span>
+            </div>
+
+            <div>
+              <label style={labelStyle}>Job Category</label>
+              <select
+                className="sr-input"
+                style={inputStyle}
+                value={employee.job_category_id ?? ''}
+                onChange={(e) =>
+                  setEmployee((s) => ({ ...s, job_category_id: e.target.value ? Number(e.target.value) : null }))
+                }
+              >
+                <option value="">-- Select Job Category --</option>
+                {jobCategories.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+              <span style={{ display: 'block', fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
+                Manage the list on the <strong>Job Categories</strong> page.
+              </span>
+            </div>
+
+            <div>
+              <label style={labelStyle}>Demand</label>
+              <select
+                className="sr-input"
+                style={inputStyle}
+                value={employee.demand_id ?? ''}
+                onChange={(e) =>
+                  setEmployee((s) => ({ ...s, demand_id: e.target.value ? Number(e.target.value) : null }))
+                }
+              >
+                <option value="">-- Select Demand --</option>
+                {demands.map((d) => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </select>
+              <span style={{ display: 'block', fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
+                Manage the list on the <strong>Demands</strong> page.
+              </span>
+            </div>
+          </div>
+
+          <div style={{ marginTop: 24 }}>
+            <button
+              className="sr-btn-primary"
+              onClick={saveEmployee}
+              disabled={employeeSaving}
+              style={{ padding: '11px 22px', borderRadius: 8, fontSize: 14 }}
+            >
+              {employeeSaving ? 'Saving…' : 'Save Section 3'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Section 4: Document Attachment ────────────────────────────────── */}
+      {isEdit && candidate && !section3Done && (
+        <LockedSectionCard no="04" title="Document Attachment" needNo={3} />
+      )}
+      {isEdit && candidate && section3Done && (
+        <div style={cardStyle}>
+          <div style={{ color: 'var(--accent, #6366f1)', fontWeight: 700, marginBottom: 4 }}>
+            04. Document Attachment
           </div>
           <hr style={{ border: 'none', borderTop: '1px solid var(--border-soft)', margin: '10px 0 18px' }} />
 
@@ -2801,20 +2891,20 @@ export default function CandidateFormPage() {
               disabled={documentsSaving}
               style={{ padding: '11px 22px', borderRadius: 8, fontSize: 14 }}
             >
-              {documentsSaving ? 'Saving…' : 'Save Section 3'}
+              {documentsSaving ? 'Saving…' : 'Save Section 4'}
             </button>
           </div>
         </div>
       )}
 
       {/* ── Section 4: Job & Visa Processing (country-scoped) ─────────────── */}
-      {isEdit && candidate && !section3Done && (
-        <LockedSectionCard no="04" title="Job & Visa Processing" needNo={3} />
+      {isEdit && candidate && !section4Done && (
+        <LockedSectionCard no="05" title="Job & Visa Processing" needNo={4} />
       )}
-      {isEdit && candidate && section3Done && (
+      {isEdit && candidate && section4Done && (
         <div style={cardStyle}>
           <div style={{ color: 'var(--accent, #6366f1)', fontWeight: 700, marginBottom: 4 }}>
-            04. Job &amp; Visa Processing
+            05. Job &amp; Visa Processing
           </div>
           <hr style={{ border: 'none', borderTop: '1px solid var(--border-soft)', margin: '10px 0 18px' }} />
 
@@ -2890,7 +2980,7 @@ export default function CandidateFormPage() {
                 disabled={visaSaving}
                 style={{ padding: '11px 22px', borderRadius: 8, fontSize: 14 }}
               >
-                {visaSaving ? 'Saving…' : 'Save Section 4'}
+                {visaSaving ? 'Saving…' : 'Save Section 5'}
               </button>
             </div>
           )}
@@ -2898,13 +2988,13 @@ export default function CandidateFormPage() {
       )}
 
       {/* ── Section 5: Departure Details ──────────────────────────────────── */}
-      {isEdit && candidate && !section4Done && (
-        <LockedSectionCard no="05" title="Departure Details" needNo={4} />
+      {isEdit && candidate && !section5Done && (
+        <LockedSectionCard no="06" title="Departure Details" needNo={5} />
       )}
-      {isEdit && candidate && section4Done && (
+      {isEdit && candidate && section5Done && (
         <div style={cardStyle}>
           <div style={{ color: 'var(--accent, #6366f1)', fontWeight: 700, marginBottom: 4 }}>
-            05. Departure Details
+            06. Departure Details
           </div>
           <hr style={{ border: 'none', borderTop: '1px solid var(--border-soft)', margin: '10px 0 18px' }} />
 
@@ -2968,69 +3058,7 @@ export default function CandidateFormPage() {
               disabled={departureSaving}
               style={{ padding: '11px 22px', borderRadius: 8, fontSize: 14 }}
             >
-              {departureSaving ? 'Saving…' : 'Save Section 5'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ── Section 6: Employee Details ───────────────────────────────────── */}
-      {isEdit && candidate && !section5Done && (
-        <LockedSectionCard no="06" title="Employee Details" needNo={5} />
-      )}
-      {isEdit && candidate && section5Done && (
-        <div style={cardStyle}>
-          <div style={{ color: 'var(--accent, #6366f1)', fontWeight: 700, marginBottom: 4 }}>
-            06. Employee Details
-          </div>
-          <hr style={{ border: 'none', borderTop: '1px solid var(--border-soft)', margin: '10px 0 18px' }} />
-
-          <div className="sr-grid-2">
-            <div>
-              <label style={labelStyle}>Registration Number</label>
-              <input
-                className="sr-input"
-                style={inputStyle}
-                value={employee.registration_number || ''}
-                onChange={(e) =>
-                  setEmployee((s) => ({ ...s, registration_number: e.target.value }))
-                }
-                placeholder="Enter registration number"
-              />
-              <span style={{ display: 'block', fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
-                Type the registration number manually.
-              </span>
-            </div>
-
-            <div>
-              <label style={labelStyle}>Job Category</label>
-              <select
-                className="sr-input"
-                style={inputStyle}
-                value={employee.job_category_id ?? ''}
-                onChange={(e) =>
-                  setEmployee((s) => ({ ...s, job_category_id: e.target.value ? Number(e.target.value) : null }))
-                }
-              >
-                <option value="">-- Select Job Category --</option>
-                {jobCategories.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-              <span style={{ display: 'block', fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
-                Manage the list on the <strong>Job Categories</strong> page.
-              </span>
-            </div>
-          </div>
-
-          <div style={{ marginTop: 24 }}>
-            <button
-              className="sr-btn-primary"
-              onClick={saveEmployee}
-              disabled={employeeSaving}
-              style={{ padding: '11px 22px', borderRadius: 8, fontSize: 14 }}
-            >
-              {employeeSaving ? 'Saving…' : 'Save Section 6'}
+              {departureSaving ? 'Saving…' : 'Save Section 6'}
             </button>
           </div>
         </div>

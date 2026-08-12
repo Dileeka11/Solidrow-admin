@@ -9,10 +9,10 @@ import type { Staff } from '../types';
 const SECTION_TITLES = [
   'Personal Details',
   'Training Details',
+  'Employee Details',
   'Document Attachment',
   'Job & Visa Processing',
   'Departure Details',
-  'Employee Details',
 ];
 
 interface SectionAssignment {

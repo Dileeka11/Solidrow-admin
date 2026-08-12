@@ -22,6 +22,7 @@ class CandidateEmployeeDetailController extends Controller
         $validated = $request->validate([
             'registration_number' => ['nullable', 'string', 'max:255'],
             'job_category_id'     => ['nullable', 'integer', 'exists:job_categories,id'],
+            'demand_id'           => ['nullable', 'integer', 'exists:demands,id'],
         ]);
 
         $details = CandidateEmployeeDetail::firstOrNew(['candidate_id' => $candidate->id]);
@@ -40,6 +41,7 @@ class CandidateEmployeeDetailController extends Controller
             // Entered manually — no auto-fill from the candidate's registration number.
             'registration_number' => $d->registration_number,
             'job_category_id'     => $d->job_category_id,
+            'demand_id'           => $d->demand_id,
         ];
     }
 }

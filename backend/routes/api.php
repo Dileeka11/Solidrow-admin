@@ -13,6 +13,7 @@ use App\Http\Controllers\CandidateTrainingController;
 use App\Http\Controllers\CandidateVisaDetailController;
 use App\Http\Controllers\CandidateEmployeeDetailController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DemandController;
 use App\Http\Controllers\JobCategoryController;
 use App\Http\Controllers\LocationController;
 use App\Http\Controllers\PermissionController;
@@ -47,6 +48,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index']);
     Route::get('/dashboard/registrations', [DashboardController::class, 'registrations']);
     Route::get('/dashboard/departures', [DashboardController::class, 'departures']);
+    Route::get('/dashboard/demand-status', [DashboardController::class, 'demandStatus']);
 
     Route::get('/locations/provinces', [LocationController::class, 'provinces']);
     Route::get('/locations/districts', [LocationController::class, 'districts']);
@@ -77,11 +79,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/candidates/{candidate}/visa-details', [CandidateVisaDetailController::class, 'show']);
     Route::post('/candidates/{candidate}/visa-details', [CandidateVisaDetailController::class, 'save']);
 
-    // Section 6 — Employee Details
+    // Section 3 — Employee Details
     Route::get('/candidates/{candidate}/employee-details', [CandidateEmployeeDetailController::class, 'show']);
     Route::post('/candidates/{candidate}/employee-details', [CandidateEmployeeDetailController::class, 'save']);
 
-    // Section 5 — Departure Details
+    // Section 6 — Departure Details
     Route::get('/candidates/{candidate}/departure-details', [CandidateDepartureDetailController::class, 'show']);
     Route::post('/candidates/{candidate}/departure-details', [CandidateDepartureDetailController::class, 'save']);
 
@@ -90,6 +92,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/job-categories', [JobCategoryController::class, 'store']);
     Route::put('/job-categories/{jobCategory}', [JobCategoryController::class, 'update']);
     Route::delete('/job-categories/{jobCategory}', [JobCategoryController::class, 'destroy']);
+
+    // Demands (master data for Employee Details + dashboard chart)
+    Route::get('/demands', [DemandController::class, 'index']);
+    Route::post('/demands', [DemandController::class, 'store']);
+    Route::put('/demands/{demand}', [DemandController::class, 'update']);
+    Route::delete('/demands/{demand}', [DemandController::class, 'destroy']);
 
     // Agents (master data for the candidate Agent dropdown)
     Route::get('/agents', [AgentController::class, 'index']);

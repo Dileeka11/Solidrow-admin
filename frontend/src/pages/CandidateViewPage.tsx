@@ -13,6 +13,7 @@ import type {
   CandidateTraining,
   CandidateVisaDetails,
   JobCategory,
+  Demand,
 } from '../types';
 
 const SKILL_LABEL: Record<string, string> = {
@@ -287,6 +288,7 @@ export default function CandidateViewPage() {
   const [employee, setEmployee] = useState<CandidateEmployeeDetails | null>(null);
   const [departure, setDeparture] = useState<CandidateDepartureDetails | null>(null);
   const [jobCategories, setJobCategories] = useState<JobCategory[]>([]);
+  const [demands, setDemands] = useState<Demand[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -305,13 +307,14 @@ export default function CandidateViewPage() {
         return;
       }
       // Section data is best-effort — a missing section just shows blanks.
-      const [t, d, v, e, dep, jc] = await Promise.all([
+      const [t, d, v, e, dep, jc, dm] = await Promise.all([
         api.get<CandidateTraining>(`/candidates/${id}/training`).then((r) => r.data).catch(() => null),
         api.get<CandidateDocuments>(`/candidates/${id}/documents`).then((r) => r.data).catch(() => null),
         api.get<CandidateVisaDetails>(`/candidates/${id}/visa-details`).then((r) => r.data).catch(() => null),
         api.get<CandidateEmployeeDetails>(`/candidates/${id}/employee-details`).then((r) => r.data).catch(() => null),
         api.get<CandidateDepartureDetails>(`/candidates/${id}/departure-details`).then((r) => r.data).catch(() => null),
         api.get<JobCategory[]>('/job-categories').then((r) => r.data).catch(() => []),
+        api.get<Demand[]>('/demands').then((r) => r.data).catch(() => []),
       ]);
       if (!alive) return;
       setTraining(t);
@@ -320,6 +323,7 @@ export default function CandidateViewPage() {
       setEmployee(e);
       setDeparture(dep);
       setJobCategories(jc ?? []);
+      setDemands(dm ?? []);
       setLoading(false);
     })();
     return () => {
@@ -469,8 +473,31 @@ export default function CandidateViewPage() {
         )}
       </SectionCard>
 
-      {/* Section 3: Document Attachment */}
-      <SectionCard title="03. Document Attachment" complete={isDone(3)}>
+      {/* Section 3: Employee Details */}
+      <SectionCard title="03. Employee Details" complete={isDone(3)}>
+        <div className="sr-grid-2">
+          <Field label="Registration Number" value={employee?.registration_number} />
+          <Field
+            label="Job Category"
+            value={
+              employee?.job_category_id
+                ? jobCategories.find((j) => j.id === employee.job_category_id)?.name ?? '—'
+                : null
+            }
+          />
+          <Field
+            label="Demand"
+            value={
+              employee?.demand_id
+                ? demands.find((d) => d.id === employee.demand_id)?.name ?? '—'
+                : null
+            }
+          />
+        </div>
+      </SectionCard>
+
+      {/* Section 4: Document Attachment */}
+      <SectionCard title="04. Document Attachment" complete={isDone(4)}>
         <div className="sr-grid-2">
           <FileField label="Passport Size Photo" url={documents?.passport_size_photo_url} />
           <FileField label="NIC Color Copy" url={documents?.nic_color_copy_url} />
@@ -486,8 +513,8 @@ export default function CandidateViewPage() {
         </div>
       </SectionCard>
 
-      {/* Section 4: Job & Visa Processing */}
-      <SectionCard title="04. Job & Visa Processing" complete={isDone(4)}>
+      {/* Section 5: Job & Visa Processing */}
+      <SectionCard title="05. Job & Visa Processing" complete={isDone(5)}>
         {c.country === 'Romania' && (
           <div className="sr-grid-3" style={gridMb16}>
             <Field label="Offer Letter Date" value={visa?.offer_letter_date} />
@@ -515,8 +542,8 @@ export default function CandidateViewPage() {
         </div>
       </SectionCard>
 
-      {/* Section 5: Departure Details */}
-      <SectionCard title="05. Departure Details" complete={isDone(5)}>
+      {/* Section 6: Departure Details */}
+      <SectionCard title="06. Departure Details" complete={isDone(6)}>
         <div className="sr-grid-3">
           <Field label="Final Approval Date" value={departure?.final_approval_date} />
           <Field label="Receipt Number" value={departure?.receipt_number} />
@@ -526,28 +553,13 @@ export default function CandidateViewPage() {
         </div>
       </SectionCard>
 
-      {/* Section 6: Employee Details */}
-      <SectionCard title="06. Employee Details" complete={isDone(6)}>
-        <div className="sr-grid-2">
-          <Field label="Registration Number" value={employee?.registration_number} />
-          <Field
-            label="Job Category"
-            value={
-              employee?.job_category_id
-                ? jobCategories.find((j) => j.id === employee.job_category_id)?.name ?? '—'
-                : null
-            }
-          />
-        </div>
-      </SectionCard>
-
       {/* Sections progress overview */}
       {c.sections && c.sections.length > 0 && (
         <div style={cardStyle}>
           <div style={sectionTitleStyle}>Sections Progress</div>
           <hr style={hrStyle} />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {['Personal Details', 'Training Details', 'Document Attachment', 'Job & Visa Processing', 'Departure Details', 'Employee Details'].map((title, i) => {
+            {['Personal Details', 'Training Details', 'Employee Details', 'Document Attachment', 'Job & Visa Processing', 'Departure Details'].map((title, i) => {
               const n = i + 1;
               const sec = c.sections?.find((s) => s.section_no === n);
               const submitted = sec?.status === 'submitted';

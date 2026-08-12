@@ -19,10 +19,10 @@ class CandidateController extends Controller
     private const SECTION_TITLES = [
         'Personal Details',
         'Training Details',
+        'Employee Details',
         'Document Attachment',
         'Job & Visa Processing',
         'Departure Details',
-        'Employee Details',
     ];
 
     /**
@@ -62,7 +62,7 @@ class CandidateController extends Controller
             ->pluck('section_no')
             ->all();
 
-        // Prefer the manually-entered Employee Details (Section 6) registration number;
+        // Prefer the manually-entered Employee Details (Section 3) registration number;
         // fall back to the auto-generated registration number when not yet entered.
         $employeeRegNo = CandidateEmployeeDetail::where('candidate_id', $candidate->id)
             ->value('registration_number');

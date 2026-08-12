@@ -12,6 +12,7 @@ class CandidateEmployeeDetail extends Model
         'candidate_id',
         'registration_number',
         'job_category_id',
+        'demand_id',
     ];
 
     public function candidate()
@@ -22,5 +23,10 @@ class CandidateEmployeeDetail extends Model
     public function jobCategory()
     {
         return $this->belongsTo(JobCategory::class);
+    }
+
+    public function demand()
+    {
+        return $this->belongsTo(Demand::class);
     }
 }

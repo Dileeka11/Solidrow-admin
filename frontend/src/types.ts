@@ -226,6 +226,12 @@ export interface JobCategory {
   code: string | null;
 }
 
+/** A demand / job order (master data managed on its own page). */
+export interface Demand {
+  id: number;
+  name: string;
+}
+
 /** An agent (master data managed on its own page, selected on the candidate form). */
 export interface Agent {
   id: number;
@@ -233,13 +239,22 @@ export interface Agent {
   phone: string | null;
 }
 
-/** Section 5 — Employee Details. */
+/** Section 3 — Employee Details. */
 export interface CandidateEmployeeDetails {
   id?: number;
   candidate_id?: number;
   /** Defaults to the candidate reg no on the server but editable locally. */
   registration_number: string | null;
   job_category_id: number | null;
+  demand_id: number | null;
+}
+
+/** Demand-wise status breakdown for the dashboard bar chart. */
+export interface DemandStatus {
+  departed: number;
+  pending: number;
+  canceled: number;
+  total: number;
 }
 
 /** Section 6 — Departure Details. */

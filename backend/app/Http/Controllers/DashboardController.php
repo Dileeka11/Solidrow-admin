@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Candidate;
 use App\Models\CandidateDepartureDetail;
+use App\Models\CandidateEmployeeDetail;
 use App\Models\CandidateVisaDetail;
 use App\Models\Staff;
 use Illuminate\Http\Request;
@@ -115,6 +116,50 @@ class DashboardController extends Controller
     public function departures(Request $request)
     {
         return $this->trend($request, new CandidateDepartureDetail(), 'departure_date');
+    }
+
+    /**
+     * Status breakdown for a single Demand: how many of its candidates have
+     * departed, are still pending, or have been cancelled.
+     *
+     *   - departed  → candidate has a departure date (and is not cancelled)
+     *   - canceled  → candidate's visa status is 'visa_cancel'
+     *   - pending   → everyone else assigned to the demand
+     *
+     * Candidates are linked to a demand through candidate_employee_details.
+     */
+    public function demandStatus(Request $request)
+    {
+        $demandId = (int) $request->query('demand_id');
+
+        if (! $demandId) {
+            return response()->json(['departed' => 0, 'pending' => 0, 'canceled' => 0, 'total' => 0]);
+        }
+
+        $candidateIds = CandidateEmployeeDetail::where('demand_id', $demandId)->pluck('candidate_id');
+        $total = $candidateIds->count();
+
+        $canceledIds = CandidateVisaDetail::whereIn('candidate_id', $candidateIds)
+            ->where('visa_status', 'visa_cancel')
+            ->pluck('candidate_id')
+            ->unique();
+        $canceled = $canceledIds->count();
+
+        $departed = CandidateDepartureDetail::whereIn('candidate_id', $candidateIds)
+            ->whereNotNull('departure_date')
+            ->whereNotIn('candidate_id', $canceledIds->all())
+            ->pluck('candidate_id')
+            ->unique()
+            ->count();
+
+        $pending = max(0, $total - $departed - $canceled);
+
+        return response()->json([
+            'departed' => $departed,
+            'pending' => $pending,
+            'canceled' => $canceled,
+            'total' => $total,
+        ]);
     }
 
     /**

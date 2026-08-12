@@ -3,15 +3,46 @@ import { api } from '../api/client';
 import TrendChart from '../components/TrendChart';
 import { ACCENT_HUES } from '../lib/staff';
 import { useIsMobile } from '../lib/useMediaQuery';
-import type { DashboardData } from '../types';
+import type { DashboardData, Demand, DemandStatus } from '../types';
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const isMobile = useIsMobile();
 
+  // Demand-wise status chart
+  const [demands, setDemands] = useState<Demand[]>([]);
+  const [selectedDemand, setSelectedDemand] = useState<number | ''>('');
+  const [demandStatus, setDemandStatus] = useState<DemandStatus | null>(null);
+
   useEffect(() => {
     api.get<DashboardData>('/dashboard').then((res) => setData(res.data));
   }, []);
+
+  useEffect(() => {
+    api.get<Demand[]>('/demands').then((res) => setDemands(res.data)).catch(() => setDemands([]));
+  }, []);
+
+  useEffect(() => {
+    if (selectedDemand === '') {
+      setDemandStatus(null);
+      return;
+    }
+    api
+      .get<DemandStatus>(`/dashboard/demand-status?demand_id=${selectedDemand}`)
+      .then((res) => setDemandStatus(res.data))
+      .catch(() => setDemandStatus(null));
+  }, [selectedDemand]);
+
+  // Bar chart geometry (Departed / Pending / Canceled).
+  const demandBars = useMemo(() => {
+    if (!demandStatus) return [];
+    return [
+      { label: 'Departed', value: demandStatus.departed, hue: 150 },
+      { label: 'Pending', value: demandStatus.pending, hue: 255 },
+      { label: 'Canceled', value: demandStatus.canceled, hue: 25 },
+    ];
+  }, [demandStatus]);
+  const demandMax = Math.max(1, ...demandBars.map((b) => b.value));
 
   // ── Donut (staff by department) geometry ─────────────────────────────────
   const donut = useMemo(() => {
@@ -144,6 +175,81 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Demand-wise status bar chart */}
+      <div style={{ background: 'var(--card)', borderRadius: 12, padding: 24, boxShadow: 'var(--card-shadow)' }}>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: isMobile ? 'column' : 'row',
+            alignItems: isMobile ? 'stretch' : 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            marginBottom: 4,
+          }}
+        >
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Demand Status</div>
+            <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+              Departed, pending and cancelled candidates for a demand
+            </div>
+          </div>
+          <select
+            className="sr-input"
+            style={{ padding: '10px 12px', borderRadius: 7, fontSize: 14, minWidth: isMobile ? '100%' : 240 }}
+            value={selectedDemand}
+            onChange={(e) => setSelectedDemand(e.target.value ? Number(e.target.value) : '')}
+          >
+            <option value="">-- Select Demand --</option>
+            {demands.map((d) => (
+              <option key={d.id} value={d.id}>{d.name}</option>
+            ))}
+          </select>
+        </div>
+
+        {selectedDemand === '' ? (
+          <div style={{ padding: '40px 0', textAlign: 'center', fontSize: 13, color: 'var(--muted)' }}>
+            Select a demand to see its status breakdown.
+          </div>
+        ) : !demandStatus ? (
+          <div style={{ padding: '40px 0', textAlign: 'center', fontSize: 13, color: 'var(--muted)' }}>Loading…</div>
+        ) : (
+          <div style={{ marginTop: 20 }}>
+            <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 16 }}>
+              {demandStatus.total} candidate{demandStatus.total === 1 ? '' : 's'} assigned to this demand
+            </div>
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: isMobile ? 16 : 40, height: 200, padding: '0 8px' }}>
+              {demandBars.map((b) => {
+                const color = `oklch(0.6 0.16 ${b.hue})`;
+                const heightPct = (b.value / demandMax) * 100;
+                return (
+                  <div key={b.label} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%' }}>
+                    <div style={{ flex: 1, width: '100%', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+                      <div
+                        style={{
+                          width: '100%',
+                          maxWidth: 90,
+                          height: `${heightPct}%`,
+                          minHeight: b.value > 0 ? 4 : 0,
+                          background: color,
+                          borderRadius: '6px 6px 0 0',
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          justifyContent: 'center',
+                          transition: 'height 0.3s ease',
+                        }}
+                      >
+                        <span style={{ marginTop: -22, fontSize: 15, fontWeight: 700, color }}>{b.value}</span>
+                      </div>
+                    </div>
+                    <div style={{ fontSize: 13, fontWeight: 600, marginTop: 10, color: 'var(--label)' }}>{b.label}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
