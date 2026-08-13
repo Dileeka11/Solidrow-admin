@@ -15,6 +15,7 @@ import DashboardPage from './pages/DashboardPage';
 import AgentsPage from './pages/AgentsPage';
 import JobCategoriesPage from './pages/JobCategoriesPage';
 import DemandsPage from './pages/DemandsPage';
+import LocationsPage from './pages/LocationsPage';
 import LoginPage from './pages/LoginPage';
 import PermissionsPage from './pages/PermissionsPage';
 import ProgressCheckPage from './pages/ProgressCheckPage';
@@ -196,6 +197,14 @@ export default function App() {
           element={
             <RequirePermission permission="staff.view">
               <AgentsPage />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="/locations"
+          element={
+            <RequirePermission permission="staff.view">
+              <LocationsPage />
             </RequirePermission>
           }
         />

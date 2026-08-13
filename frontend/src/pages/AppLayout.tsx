@@ -23,6 +23,7 @@ const NAV = [
   { to: '/job-categories', label: 'Job Categories', icon: <StaffIcon />, permission: 'staff.view' },
   { to: '/demands', label: 'Demands', icon: <StaffIcon />, permission: 'staff.view' },
   { to: '/agents', label: 'Agents', icon: <StaffIcon />, permission: 'staff.view' },
+  { to: '/locations', label: 'Locations', icon: <StaffIcon />, permission: 'staff.view' },
   { to: '/roles', label: 'Roles', icon: <PermissionsIcon />, permission: 'roles.view' },
   { to: '/permissions', label: 'User Permissions', icon: <PermissionsIcon />, permission: 'permissions.view' },
 ];

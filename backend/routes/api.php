@@ -55,6 +55,14 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/locations/ds-divisions', [LocationController::class, 'dsDivisions']);
     Route::get('/locations/gn-divisions', [LocationController::class, 'gnDivisions']);
 
+    // Location master-data management (add DS / GN divisions per district)
+    Route::post('/locations/ds-divisions', [LocationController::class, 'storeDsDivision']);
+    Route::put('/locations/ds-divisions/{id}', [LocationController::class, 'updateDsDivision']);
+    Route::delete('/locations/ds-divisions/{id}', [LocationController::class, 'destroyDsDivision']);
+    Route::post('/locations/gn-divisions', [LocationController::class, 'storeGnDivision']);
+    Route::put('/locations/gn-divisions/{id}', [LocationController::class, 'updateGnDivision']);
+    Route::delete('/locations/gn-divisions/{id}', [LocationController::class, 'destroyGnDivision']);
+
     Route::apiResource('staff', StaffController::class);
 
     Route::get('/section-assignments', [SectionAssignmentController::class, 'index']);

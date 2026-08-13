@@ -49,4 +49,88 @@ class LocationController extends Controller
             ->orderBy('name')
             ->get();
     }
+
+    // --- Divisional Secretariat (DS division) management ---------------------
+    // The legacy `dsdivision` table has no AUTO_INCREMENT on `id` and a
+    // NOT NULL `queue` column, so ids are generated manually here.
+
+    public function storeDsDivision(Request $request)
+    {
+        $data = $request->validate([
+            'district_id' => ['required'],
+            'name' => ['required', 'string', 'max:38'],
+        ]);
+
+        $nextId = (int) DB::table('dsdivision')->max('id') + 1;
+
+        DB::table('dsdivision')->insert([
+            'id' => $nextId,
+            'district_id' => $data['district_id'],
+            'name' => $data['name'],
+            'queue' => 0,
+        ]);
+
+        return response()->json(['id' => $nextId, 'name' => $data['name']], 201);
+    }
+
+    public function updateDsDivision(Request $request, $id)
+    {
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:38'],
+        ]);
+
+        DB::table('dsdivision')->where('id', $id)->update(['name' => $data['name']]);
+
+        return response()->json(['id' => (int) $id, 'name' => $data['name']]);
+    }
+
+    public function destroyDsDivision($id)
+    {
+        // Remove child GN divisions first so they are not orphaned.
+        DB::table('gndivision')->where('ds_division_id', $id)->delete();
+        DB::table('dsdivision')->where('id', $id)->delete();
+
+        return response()->json(['message' => 'Deleted.']);
+    }
+
+    // --- Grama Niladhari (GN division) management ----------------------------
+
+    public function storeGnDivision(Request $request)
+    {
+        $data = $request->validate([
+            'district_id' => ['required'],
+            'ds_division_id' => ['required'],
+            'name' => ['required', 'string', 'max:34'],
+        ]);
+
+        $nextId = (int) DB::table('gndivision')->max('id') + 1;
+
+        DB::table('gndivision')->insert([
+            'id' => $nextId,
+            'district_id' => $data['district_id'],
+            'ds_division_id' => $data['ds_division_id'],
+            'name' => $data['name'],
+            'queue' => 0,
+        ]);
+
+        return response()->json(['id' => $nextId, 'name' => $data['name']], 201);
+    }
+
+    public function updateGnDivision(Request $request, $id)
+    {
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:34'],
+        ]);
+
+        DB::table('gndivision')->where('id', $id)->update(['name' => $data['name']]);
+
+        return response()->json(['id' => (int) $id, 'name' => $data['name']]);
+    }
+
+    public function destroyGnDivision($id)
+    {
+        DB::table('gndivision')->where('id', $id)->delete();
+
+        return response()->json(['message' => 'Deleted.']);
+    }
 }
