@@ -51,6 +51,7 @@ class DatabaseSeeder extends Seeder
             'Candidates'  => ['view', 'add', 'edit', 'delete'],
             'Baddegama'   => ['view', 'add', 'edit', 'delete'],
             'Staff'       => ['view', 'add', 'edit', 'delete'],
+            'Accounting'  => ['view', 'add', 'edit', 'delete'],
             'Roles'       => ['view', 'add', 'edit', 'delete'],
             'Permissions' => ['view', 'add', 'edit', 'delete'],
         ];
@@ -64,5 +65,11 @@ class DatabaseSeeder extends Seeder
                 );
             }
         }
+
+        // Seed the Chart of Accounts backbone (categories, groups, default accounts).
+        $this->call(AccountingSeeder::class);
+
+        // Seed procurement master data (departments, item categories).
+        $this->call(ProcurementMasterSeeder::class);
     }
 }

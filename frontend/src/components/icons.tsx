@@ -107,6 +107,15 @@ export function ReportIcon() {
   );
 }
 
+export function AccountingIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+      <rect x="4" y="3" width="16" height="18" rx="2" fill="white" opacity="0.85" />
+      <path d="M8 7h8M8 11h8M8 15h5" stroke="var(--panel)" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export function PlusIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none">

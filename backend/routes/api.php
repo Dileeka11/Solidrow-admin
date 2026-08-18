@@ -1,8 +1,23 @@
 <?php
 
+use App\Http\Controllers\AccountCategoryController;
+use App\Http\Controllers\AccountController;
+use App\Http\Controllers\AccountGroupController;
+use App\Http\Controllers\AccountingStatsController;
 use App\Http\Controllers\AgentController;
 use App\Http\Controllers\AttendanceScanController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\BankController;
+use App\Http\Controllers\DepartmentController;
+use App\Http\Controllers\GeneralLedgerController;
+use App\Http\Controllers\GoodsReceivedNoteController;
+use App\Http\Controllers\ItemCategoryController;
+use App\Http\Controllers\PurchaseOrderController;
+use App\Http\Controllers\PurchaseRequisitionController;
+use App\Http\Controllers\SupplierController;
+use App\Http\Controllers\SupplierInvoiceController;
+use App\Http\Controllers\JournalEntryController;
+use App\Http\Controllers\TrialBalanceController;
 use App\Http\Controllers\BaddegamaLocationController;
 use App\Http\Controllers\BaddegamaPublicController;
 use App\Http\Controllers\BaddegamaRegistrationController;
@@ -126,6 +141,100 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/baddegama-registrations/{baddegamaRegistration}', [BaddegamaRegistrationController::class, 'show']);
     Route::put('/baddegama-registrations/{baddegamaRegistration}', [BaddegamaRegistrationController::class, 'update']);
     Route::delete('/baddegama-registrations/{baddegamaRegistration}', [BaddegamaRegistrationController::class, 'destroy']);
+
+    // ── Accounting — Chart of Accounts / General Ledger backbone ──────────
+    Route::get('/accounting/stats', [AccountingStatsController::class, 'index']);
+
+    // Chart nested (categories -> groups) for dropdowns, then category CRUD.
+    Route::get('/accounting/chart', [AccountCategoryController::class, 'chart']);
+    Route::get('/accounting/categories', [AccountCategoryController::class, 'index']);
+    Route::post('/accounting/categories', [AccountCategoryController::class, 'store']);
+    Route::put('/accounting/categories/{accountCategory}', [AccountCategoryController::class, 'update']);
+    Route::delete('/accounting/categories/{accountCategory}', [AccountCategoryController::class, 'destroy']);
+
+    Route::get('/accounting/groups', [AccountGroupController::class, 'index']);
+    Route::post('/accounting/groups', [AccountGroupController::class, 'store']);
+    Route::put('/accounting/groups/{accountGroup}', [AccountGroupController::class, 'update']);
+    Route::delete('/accounting/groups/{accountGroup}', [AccountGroupController::class, 'destroy']);
+
+    Route::get('/accounting/accounts', [AccountController::class, 'index']);
+    Route::post('/accounting/accounts', [AccountController::class, 'store']);
+    Route::put('/accounting/accounts/{account}', [AccountController::class, 'update']);
+    Route::delete('/accounting/accounts/{account}', [AccountController::class, 'destroy']);
+
+    Route::get('/accounting/journal-entries', [JournalEntryController::class, 'index']);
+    Route::get('/accounting/journal-entries/{journalEntry}', [JournalEntryController::class, 'show']);
+    Route::post('/accounting/journal-entries', [JournalEntryController::class, 'store']);
+
+    Route::get('/accounting/general-ledger', [GeneralLedgerController::class, 'index']);
+    Route::get('/accounting/trial-balance', [TrialBalanceController::class, 'index']);
+
+    // ── Procurement master files (Stage 01) ──────────────────────────────
+    Route::get('/accounting/departments', [DepartmentController::class, 'index']);
+    Route::post('/accounting/departments', [DepartmentController::class, 'store']);
+    Route::put('/accounting/departments/{department}', [DepartmentController::class, 'update']);
+    Route::delete('/accounting/departments/{department}', [DepartmentController::class, 'destroy']);
+
+    Route::get('/accounting/suppliers', [SupplierController::class, 'index']);
+    Route::post('/accounting/suppliers', [SupplierController::class, 'store']);
+    Route::put('/accounting/suppliers/{supplier}', [SupplierController::class, 'update']);
+    Route::delete('/accounting/suppliers/{supplier}', [SupplierController::class, 'destroy']);
+
+    Route::get('/accounting/item-categories', [ItemCategoryController::class, 'index']);
+    Route::post('/accounting/item-categories', [ItemCategoryController::class, 'store']);
+    Route::put('/accounting/item-categories/{itemCategory}', [ItemCategoryController::class, 'update']);
+    Route::delete('/accounting/item-categories/{itemCategory}', [ItemCategoryController::class, 'destroy']);
+
+    // Purchase Requisition (PR)
+    Route::get('/accounting/purchase-requisitions', [PurchaseRequisitionController::class, 'index']);
+    Route::get('/accounting/purchase-requisitions/{purchaseRequisition}', [PurchaseRequisitionController::class, 'show']);
+    Route::post('/accounting/purchase-requisitions', [PurchaseRequisitionController::class, 'store']);
+    Route::put('/accounting/purchase-requisitions/{purchaseRequisition}', [PurchaseRequisitionController::class, 'update']);
+    Route::delete('/accounting/purchase-requisitions/{purchaseRequisition}', [PurchaseRequisitionController::class, 'destroy']);
+    Route::post('/accounting/purchase-requisitions/{purchaseRequisition}/submit', [PurchaseRequisitionController::class, 'submit']);
+    Route::post('/accounting/purchase-requisitions/{purchaseRequisition}/approve', [PurchaseRequisitionController::class, 'approve']);
+    Route::post('/accounting/purchase-requisitions/{purchaseRequisition}/reject', [PurchaseRequisitionController::class, 'reject']);
+
+    // Purchase Order (PO)
+    Route::get('/accounting/purchase-orders', [PurchaseOrderController::class, 'index']);
+    Route::get('/accounting/purchase-orders/{purchaseOrder}', [PurchaseOrderController::class, 'show']);
+    Route::post('/accounting/purchase-orders', [PurchaseOrderController::class, 'store']);
+    Route::put('/accounting/purchase-orders/{purchaseOrder}', [PurchaseOrderController::class, 'update']);
+    Route::delete('/accounting/purchase-orders/{purchaseOrder}', [PurchaseOrderController::class, 'destroy']);
+    Route::post('/accounting/purchase-orders/{purchaseOrder}/submit', [PurchaseOrderController::class, 'submit']);
+    Route::post('/accounting/purchase-orders/{purchaseOrder}/approve', [PurchaseOrderController::class, 'approve']);
+    Route::post('/accounting/purchase-orders/{purchaseOrder}/reject', [PurchaseOrderController::class, 'reject']);
+    Route::post('/accounting/purchase-orders/{purchaseOrder}/send', [PurchaseOrderController::class, 'send']);
+    Route::post('/accounting/purchase-orders/{purchaseOrder}/cancel', [PurchaseOrderController::class, 'cancel']);
+
+    // Goods Received Note (GRN)
+    Route::get('/accounting/grns', [GoodsReceivedNoteController::class, 'index']);
+    Route::get('/accounting/grns/{goodsReceivedNote}', [GoodsReceivedNoteController::class, 'show']);
+    Route::post('/accounting/grns', [GoodsReceivedNoteController::class, 'store']);
+    Route::put('/accounting/grns/{goodsReceivedNote}', [GoodsReceivedNoteController::class, 'update']);
+    Route::delete('/accounting/grns/{goodsReceivedNote}', [GoodsReceivedNoteController::class, 'destroy']);
+    Route::post('/accounting/grns/{goodsReceivedNote}/confirm', [GoodsReceivedNoteController::class, 'confirm']);
+
+    // Supplier Payment / Invoice (+ 3-way matching)
+    Route::get('/accounting/supplier-invoices', [SupplierInvoiceController::class, 'index']);
+    Route::get('/accounting/supplier-invoices/{supplierInvoice}', [SupplierInvoiceController::class, 'show']);
+    Route::get('/accounting/supplier-invoices/{supplierInvoice}/matching', [SupplierInvoiceController::class, 'matching']);
+    Route::post('/accounting/supplier-invoices', [SupplierInvoiceController::class, 'store']);
+    Route::put('/accounting/supplier-invoices/{supplierInvoice}', [SupplierInvoiceController::class, 'update']);
+    Route::delete('/accounting/supplier-invoices/{supplierInvoice}', [SupplierInvoiceController::class, 'destroy']);
+    Route::post('/accounting/supplier-invoices/{supplierInvoice}/submit', [SupplierInvoiceController::class, 'submit']);
+    Route::post('/accounting/supplier-invoices/{supplierInvoice}/match', [SupplierInvoiceController::class, 'runMatch']);
+    Route::post('/accounting/supplier-invoices/{supplierInvoice}/approve', [SupplierInvoiceController::class, 'approve']);
+    Route::post('/accounting/supplier-invoices/{supplierInvoice}/pay', [SupplierInvoiceController::class, 'pay']);
+    Route::post('/accounting/supplier-invoices/{supplierInvoice}/dispute', [SupplierInvoiceController::class, 'dispute']);
+
+    Route::get('/accounting/banks', [BankController::class, 'index']);
+    Route::post('/accounting/banks', [BankController::class, 'store']);
+    Route::put('/accounting/banks/{bank}', [BankController::class, 'update']);
+    Route::delete('/accounting/banks/{bank}', [BankController::class, 'destroy']);
+    Route::post('/accounting/banks/{bank}/branches', [BankController::class, 'storeBranch']);
+    Route::put('/accounting/bank-branches/{bankBranch}', [BankController::class, 'updateBranch']);
+    Route::delete('/accounting/bank-branches/{bankBranch}', [BankController::class, 'destroyBranch']);
 
     Route::get('/roles', [RoleController::class, 'index']);
     Route::post('/roles', [RoleController::class, 'store']);
