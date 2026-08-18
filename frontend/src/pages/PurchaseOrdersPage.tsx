@@ -124,7 +124,6 @@ export default function PurchaseOrdersPage() {
               {r.status === 'Approved' && (
                 <>
                   <button onClick={() => navigate(`/accounting/po/${r.id}`)} title="View" style={iconBtn('var(--muted)')}><EyeIcon /></button>
-                  <button onClick={() => act(r.id, 'send', 'sent to supplier')} className="sr-btn-primary" style={{ padding: '5px 10px', borderRadius: 6, fontSize: 12 }}>Send</button>
                   <button onClick={() => act(r.id, 'cancel', 'cancelled')} style={smallBtn('oklch(0.5 0.16 25)', 'oklch(0.95 0.05 25)')}>Cancel</button>
                 </>
               )}

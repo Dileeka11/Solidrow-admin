@@ -107,10 +107,9 @@ export default function PurchaseOrderFormPage() {
   const addLine = () => setLines((prev) => [...prev, emptyLine()]);
   const removeLine = (i: number) => setLines((prev) => (prev.length <= 1 ? prev : prev.filter((_, idx) => idx !== i)));
 
-  /** Pull a PR's items into the line grid (appended after existing rows). */
-  async function pullPrItems(prId: number) {
-    const { data } = await api.get<PurchaseRequisition>(`/accounting/purchase-requisitions/${prId}`);
-    const pulled: PoDraftLine[] = data.items.map((it) => ({
+  /** Append a fetched PR's items to the line grid (after existing rows). */
+  function appendPrItems(pr: PurchaseRequisition) {
+    const pulled: PoDraftLine[] = pr.items.map((it) => ({
       description: it.description,
       category_id: it.category_id ?? '',
       quantity_ordered: String(it.quantity),
@@ -125,16 +124,36 @@ export default function PurchaseOrderFormPage() {
     });
   }
 
-  /** Apply the modal's tick selection: pull items for any newly-added PRs. */
+  /**
+   * Apply the modal's tick selection: pull items for any newly-added PRs, and
+   * auto-fill the PO header from the first added PR — Supplier from a line's
+   * Preferred Supplier, and Expected Delivery from the PR's Required Date.
+   */
   async function applyPrSelection() {
     const added = modalChecked.filter((id) => !sourcePrIds.includes(id));
+    let firstPr: PurchaseRequisition | null = null;
     for (const id of added) {
       try {
-        await pullPrItems(id);
+        const { data } = await api.get<PurchaseRequisition>(`/accounting/purchase-requisitions/${id}`);
+        if (!firstPr) firstPr = data;
+        appendPrItems(data);
       } catch {
         toastError('Could not pull items for a selected PR.');
       }
     }
+
+    if (firstPr) {
+      // Supplier ← first line item that names a preferred supplier.
+      const preferred = firstPr.items.find((it) => it.preferred_supplier_id)?.preferred_supplier_id;
+      if (preferred && supplierId === '') {
+        setSupplierId(preferred);
+      }
+      // Expected Delivery ← PR's Required Date (only when still blank).
+      if (firstPr.required_date && !expectedDate) {
+        setExpectedDate(firstPr.required_date);
+      }
+    }
+
     setSourcePrIds(modalChecked);
     setPrModalOpen(false);
   }

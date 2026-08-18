@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client';
 import { toastError, toastSuccess } from '../lib/alerts';
 import { useIsMobile } from '../lib/useMediaQuery';
-import type { GoodsReceivedNote, GrnDraftLine, PurchaseOrder, PurchaseOrderRow } from '../types';
+import type { GoodsReceivedNote, GrnDraftLine, PurchaseOrder, PurchaseOrderRow, Supplier } from '../types';
 
 const CONDITIONS = ['Good', 'Damaged', 'Short Shipped'];
 const today = () => new Date().toISOString().slice(0, 10);
@@ -17,10 +17,12 @@ export default function GoodsReceivedNoteFormPage() {
   const editingId = id ? Number(id) : null;
 
   const [receivablePos, setReceivablePos] = useState<PurchaseOrderRow[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [grnNumber, setGrnNumber] = useState('');
   const [status, setStatus] = useState<GoodsReceivedNote['status']>('Draft');
   const [grnDate, setGrnDate] = useState(today());
   const [poId, setPoId] = useState<number | ''>('');
+  const [supplierId, setSupplierId] = useState<number | null>(null);
   const [deliveryNote, setDeliveryNote] = useState('');
   const [warehouse, setWarehouse] = useState('');
   const [lines, setLines] = useState<GrnDraftLine[]>([]);
@@ -34,7 +36,13 @@ export default function GoodsReceivedNoteFormPage() {
       .get<PurchaseOrderRow[]>('/accounting/purchase-orders')
       .then((res) => setReceivablePos(res.data.filter((p) => ['Approved', 'Sent to Supplier', 'Partially Received'].includes(p.status))))
       .catch(() => {});
+    api
+      .get<Supplier[]>('/accounting/suppliers')
+      .then((res) => setSuppliers(res.data))
+      .catch(() => {});
   }, []);
+
+  const supplierName = supplierId ? suppliers.find((s) => s.id === supplierId)?.name ?? '—' : '—';
 
   useEffect(() => {
     if (!editingId) return;
@@ -46,6 +54,7 @@ export default function GoodsReceivedNoteFormPage() {
         setStatus(grn.status);
         setGrnDate(grn.grn_date);
         setPoId(grn.po_id);
+        setSupplierId(grn.supplier_id ?? null);
         setDeliveryNote(grn.delivery_note_no ?? '');
         setWarehouse(grn.warehouse ?? '');
         setLines(
@@ -68,13 +77,21 @@ export default function GoodsReceivedNoteFormPage() {
       .finally(() => setLoading(false));
   }, [editingId]);
 
-  /** When a PO is chosen, pull its pending line items into the receipt grid. */
+  /** When a PO is chosen, pull its supplier + pending line items into the GRN. */
   async function onPickPo(newPoId: number | '') {
     setPoId(newPoId);
     setLines([]);
-    if (!newPoId) return;
+    if (!newPoId) {
+      setSupplierId(null);
+      return;
+    }
     try {
       const { data } = await api.get<PurchaseOrder>(`/accounting/purchase-orders/${newPoId}`);
+      // Auto-fill header details from the PO.
+      setSupplierId(data.supplier_id ?? null);
+      if (data.delivery_address) {
+        setWarehouse((prev) => prev || (data.delivery_address ?? ''));
+      }
       const pending = data.items
         .filter((it) => Number(it.quantity_pending) > 0)
         .map((it) => {
@@ -176,6 +193,10 @@ export default function GoodsReceivedNoteFormPage() {
               {receivablePos.map((p) => <option key={p.id} value={p.id}>{p.po_number} · {p.supplier_name ?? ''}</option>)}
               {editingId && !receivablePos.some((p) => p.id === poId) && poId !== '' && <option value={poId}>Current PO</option>}
             </select>
+          </div>
+          <div>
+            <label style={fieldLabel}>Supplier (from PO)</label>
+            <input className="sr-input" value={supplierName} readOnly disabled style={{ ...inputStyle, background: 'var(--row-border, #f3f4f6)', color: 'var(--muted)' }} />
           </div>
           <div>
             <label style={fieldLabel}>Delivery Note / Waybill No.</label>

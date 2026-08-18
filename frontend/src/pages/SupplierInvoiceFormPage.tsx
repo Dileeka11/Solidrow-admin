@@ -40,6 +40,8 @@ export default function SupplierInvoiceFormPage() {
   const [supplierInvoiceNo, setSupplierInvoiceNo] = useState('');
   const [poId, setPoId] = useState<number | ''>('');
   const [grnIds, setGrnIds] = useState<number[]>([]);
+  const [grnModalOpen, setGrnModalOpen] = useState(false);
+  const [grnModalChecked, setGrnModalChecked] = useState<number[]>([]);
   const [dueDate, setDueDate] = useState('');
   const [currency, setCurrency] = useState('LKR');
   const [attached, setAttached] = useState('');
@@ -187,17 +189,39 @@ export default function SupplierInvoiceFormPage() {
             <input className="sr-input" value={attached} onChange={(e) => setAttached(e.target.value)} style={inputStyle} disabled={readOnly} placeholder="File name / URL" />
           </div>
         </div>
-        {poId !== '' && poGrns.length > 0 && (
+        {poId !== '' && (
           <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--row-border)' }}>
             <label style={fieldLabel}>Reference GRN(s)</label>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-              {poGrns.map((g) => (
-                <label key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, background: 'var(--row-border, #f3f4f6)', padding: '5px 10px', borderRadius: 7, cursor: readOnly ? 'default' : 'pointer' }}>
-                  <input type="checkbox" disabled={readOnly} checked={grnIds.includes(g.id)} onChange={(e) => setGrnIds((prev) => (e.target.checked ? [...prev, g.id] : prev.filter((x) => x !== g.id)))} />
-                  {g.grn_number}
-                </label>
-              ))}
-            </div>
+            {readOnly ? (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {grnIds.length === 0 && <span style={{ fontSize: 13, color: 'var(--muted)' }}>None</span>}
+                {grnIds.map((gid) => (
+                  <span key={gid} style={{ fontSize: 13, fontWeight: 600, background: 'oklch(0.95 0.03 260)', color: 'var(--accent, #6366f1)', padding: '5px 10px', borderRadius: 7 }}>
+                    {poGrns.find((g) => g.id === gid)?.grn_number ?? `GRN #${gid}`}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGrnModalChecked([...grnIds]);
+                    setGrnModalOpen(true);
+                  }}
+                  style={{ padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, background: 'var(--row-border, #f3f4f6)', border: '1px solid var(--border)', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6 }}
+                >
+                  <PlusIcon /> Select GRN(s)
+                </button>
+                {grnIds.map((gid) => (
+                  <span key={gid} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, background: 'oklch(0.95 0.03 260)', color: 'var(--accent, #6366f1)', padding: '5px 10px', borderRadius: 7 }}>
+                    {poGrns.find((g) => g.id === gid)?.grn_number ?? `GRN #${gid}`}
+                    <button type="button" onClick={() => setGrnIds((prev) => prev.filter((x) => x !== gid))} title="Remove" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', fontSize: 15, lineHeight: 1, padding: 0 }}>×</button>
+                  </span>
+                ))}
+                {grnIds.length === 0 && <span style={{ fontSize: 13, color: 'var(--muted)' }}>None selected</span>}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -274,6 +298,44 @@ export default function SupplierInvoiceFormPage() {
           </button>
         )}
       </div>
+
+      {/* Reference GRN picker modal */}
+      {grnModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'oklch(0 0 0 / 0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }} onClick={() => setGrnModalOpen(false)}>
+          <div className="fade-in-xs" style={{ background: 'white', borderRadius: 14, width: 560, maxWidth: '92vw', maxHeight: '80vh', display: 'flex', flexDirection: 'column', padding: 24 }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>Select Goods Received Notes</div>
+            <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 16 }}>Confirmed GRNs against the selected purchase order.</div>
+
+            <div style={{ overflowY: 'auto', border: '1px solid var(--row-border)', borderRadius: 10 }}>
+              {poGrns.length === 0 && <div style={{ padding: '18px 16px', fontSize: 13, color: 'var(--muted)' }}>No GRNs recorded against this PO yet.</div>}
+              {poGrns.map((g) => {
+                const checked = grnModalChecked.includes(g.id);
+                return (
+                  <label key={g.id} style={{ display: 'grid', gridTemplateColumns: '28px 1fr auto', alignItems: 'center', gap: 10, padding: '11px 14px', borderBottom: '1px solid var(--row-border)', cursor: 'pointer', background: checked ? 'oklch(0.97 0.02 260)' : 'transparent' }}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={(e) => setGrnModalChecked((prev) => (e.target.checked ? [...prev, g.id] : prev.filter((x) => x !== g.id)))}
+                    />
+                    <div>
+                      <div style={{ fontWeight: 600, fontFamily: 'monospace' }}>{g.grn_number}</div>
+                      <div style={{ fontSize: 12, color: 'var(--muted)' }}>{g.grn_date} · {g.item_count} item{g.item_count === 1 ? '' : 's'}</div>
+                    </div>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>{g.status}</span>
+                  </label>
+                );
+              })}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 18 }}>
+              <button onClick={() => setGrnModalOpen(false)} style={{ padding: '10px 16px', borderRadius: 8, fontSize: 14, background: 'var(--row-border, #f3f4f6)', border: '1px solid var(--border)', cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+              <button className="sr-btn-primary" onClick={() => { setGrnIds(grnModalChecked); setGrnModalOpen(false); }} style={{ padding: '10px 18px', borderRadius: 8, fontSize: 14 }}>
+                Apply ({grnModalChecked.length})
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
