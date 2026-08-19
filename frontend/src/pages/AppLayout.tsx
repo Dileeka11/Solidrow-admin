@@ -56,6 +56,7 @@ const NAV: NavItem[] = [
       { to: '/accounting/departments', label: 'Department Master' },
       { to: '/accounting/suppliers', label: 'Supplier Master' },
       { to: '/accounting/item-categories', label: 'Category Master' },
+      { to: '/accounting/items', label: 'Item Master' },
       { to: '/accounting/banks', label: 'Bank & Branch Master' },
     ],
   },

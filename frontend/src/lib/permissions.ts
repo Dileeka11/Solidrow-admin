@@ -14,6 +14,7 @@ export const ROUTE_PERMISSION: Record<string, string> = {
   '/accounting/departments': 'accounting.view',
   '/accounting/suppliers': 'accounting.view',
   '/accounting/item-categories': 'accounting.view',
+  '/accounting/items': 'accounting.view',
   '/accounting/banks': 'accounting.view',
   '/accounting/pr': 'accounting.view',
   '/accounting/po': 'accounting.view',

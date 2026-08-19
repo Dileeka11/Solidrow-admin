@@ -13,6 +13,7 @@ import TrialBalancePage from './pages/TrialBalancePage';
 import DepartmentsPage from './pages/DepartmentsPage';
 import SuppliersPage from './pages/SuppliersPage';
 import ItemCategoriesPage from './pages/ItemCategoriesPage';
+import ItemsPage from './pages/ItemsPage';
 import BanksPage from './pages/BanksPage';
 import PurchaseRequisitionsPage from './pages/PurchaseRequisitionsPage';
 import PurchaseRequisitionFormPage from './pages/PurchaseRequisitionFormPage';
@@ -295,6 +296,14 @@ export default function App() {
           element={
             <RequirePermission permission="accounting.view">
               <ItemCategoriesPage />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="/accounting/items"
+          element={
+            <RequirePermission permission="accounting.view">
+              <ItemsPage />
             </RequirePermission>
           }
         />

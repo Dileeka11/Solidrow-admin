@@ -12,6 +12,7 @@ use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\GeneralLedgerController;
 use App\Http\Controllers\GoodsReceivedNoteController;
 use App\Http\Controllers\ItemCategoryController;
+use App\Http\Controllers\ItemController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\PurchaseRequisitionController;
 use App\Http\Controllers\SupplierController;
@@ -184,6 +185,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/accounting/item-categories', [ItemCategoryController::class, 'store']);
     Route::put('/accounting/item-categories/{itemCategory}', [ItemCategoryController::class, 'update']);
     Route::delete('/accounting/item-categories/{itemCategory}', [ItemCategoryController::class, 'destroy']);
+
+    Route::get('/accounting/items', [ItemController::class, 'index']);
+    Route::post('/accounting/items', [ItemController::class, 'store']);
+    Route::put('/accounting/items/{item}', [ItemController::class, 'update']);
+    Route::delete('/accounting/items/{item}', [ItemController::class, 'destroy']);
 
     // Purchase Requisition (PR)
     Route::get('/accounting/purchase-requisitions', [PurchaseRequisitionController::class, 'index']);

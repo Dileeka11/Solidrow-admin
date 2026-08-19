@@ -4,7 +4,7 @@ import { api } from '../api/client';
 import { PlusIcon, TrashIcon } from '../components/icons';
 import { toastError, toastSuccess } from '../lib/alerts';
 import { useIsMobile } from '../lib/useMediaQuery';
-import type { ItemCategory, PoDraftLine, PurchaseOrder, PurchaseRequisition, PurchaseRequisitionRow, Supplier } from '../types';
+import type { Item, ItemCategory, PoDraftLine, PurchaseOrder, PurchaseRequisition, PurchaseRequisitionRow, Supplier } from '../types';
 
 const UOMS = ['Pcs', 'Kg', 'Box', 'Litre', 'Set', 'Unit', 'Pack', 'Roll', 'Pair'];
 const PAYMENT_TERMS = ['Net 30', 'Net 15', 'Net 60', 'Advance', 'COD'];
@@ -33,6 +33,7 @@ export default function PurchaseOrderFormPage() {
 
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [categories, setCategories] = useState<ItemCategory[]>([]);
+  const [items, setItems] = useState<Item[]>([]);
   const [approvedPrs, setApprovedPrs] = useState<PurchaseRequisitionRow[]>([]);
 
   const [poNumber, setPoNumber] = useState('');
@@ -46,6 +47,9 @@ export default function PurchaseOrderFormPage() {
   const [sourcePrIds, setSourcePrIds] = useState<number[]>([]);
   const [prModalOpen, setPrModalOpen] = useState(false);
   const [modalChecked, setModalChecked] = useState<number[]>([]);
+  const [itemModalOpen, setItemModalOpen] = useState(false);
+  const [itemChecked, setItemChecked] = useState<number[]>([]);
+  const [itemSearch, setItemSearch] = useState('');
   const [lines, setLines] = useState<PoDraftLine[]>([emptyLine()]);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(Boolean(editingId));
@@ -57,11 +61,13 @@ export default function PurchaseOrderFormPage() {
       api.get<Supplier[]>('/accounting/suppliers'),
       api.get<ItemCategory[]>('/accounting/item-categories'),
       api.get<PurchaseRequisitionRow[]>('/accounting/purchase-requisitions'),
+      api.get<Item[]>('/accounting/items'),
     ])
-      .then(([s, c, prs]) => {
+      .then(([s, c, prs, its]) => {
         setSuppliers(s.data);
         setCategories(c.data);
         setApprovedPrs(prs.data.filter((p) => p.status === 'Approved'));
+        setItems(its.data.filter((it) => it.status === 'Active'));
       })
       .catch(() => {});
   }, []);
@@ -122,6 +128,25 @@ export default function PurchaseOrderFormPage() {
       const existing = prev.filter((l) => l.description.trim() || l.quantity_ordered);
       return [...existing, ...pulled];
     });
+  }
+
+  /** Append the ticked master items to the line grid as new rows. */
+  function applyItemSelection() {
+    const chosen = items.filter((it) => itemChecked.includes(it.id));
+    const pulled: PoDraftLine[] = chosen.map((it) => ({
+      description: it.name,
+      category_id: it.category_id ?? '',
+      quantity_ordered: '1',
+      uom: it.uom ?? '',
+      unit_price: String(Number(it.unit_price) || 0),
+      discount_pct: '',
+      tax_pct: '',
+    }));
+    setLines((prev) => {
+      const existing = prev.filter((l) => l.description.trim() || l.quantity_ordered);
+      return [...existing, ...pulled];
+    });
+    setItemModalOpen(false);
   }
 
   /**
@@ -293,7 +318,22 @@ export default function PurchaseOrderFormPage() {
 
       {/* Line items */}
       <div style={{ background: 'var(--card)', borderRadius: 12, boxShadow: 'var(--card-shadow)', overflow: 'hidden', marginBottom: 16 }}>
-        <div style={{ padding: '12px 20px', fontSize: 13, fontWeight: 700, borderBottom: '1px solid var(--row-border)' }}>Line Items</div>
+        <div style={{ padding: '12px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, borderBottom: '1px solid var(--row-border)' }}>
+          <span style={{ fontSize: 13, fontWeight: 700 }}>Line Items</span>
+          {!readOnly && (
+            <button
+              type="button"
+              onClick={() => {
+                setItemChecked([]);
+                setItemSearch('');
+                setItemModalOpen(true);
+              }}
+              style={{ padding: '7px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600, background: 'var(--row-border, #f3f4f6)', border: '1px solid var(--border)', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6 }}
+            >
+              <PlusIcon /> Add from Item Master
+            </button>
+          )}
+        </div>
         <div style={{ overflowX: 'auto' }}>
           <div style={{ minWidth: 980 }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1.7fr 1fr 70px 80px 110px 70px 70px 120px 40px', columnGap: 10, padding: '10px 20px', fontSize: 11, fontWeight: 700, color: 'var(--muted)', borderBottom: '1px solid var(--row-border)', textTransform: 'uppercase' }}>
@@ -342,6 +382,62 @@ export default function PurchaseOrderFormPage() {
           </button>
         )}
       </div>
+
+      {/* Item Master picker modal */}
+      {itemModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'oklch(0 0 0 / 0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }} onClick={() => setItemModalOpen(false)}>
+          <div className="fade-in-xs" style={{ background: 'white', borderRadius: 14, width: 640, maxWidth: '92vw', maxHeight: '80vh', display: 'flex', flexDirection: 'column', padding: 24 }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>Add from Item Master</div>
+            <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 14 }}>Ticked items are appended as new PO lines (qty defaults to 1).</div>
+
+            <input
+              className="sr-input"
+              value={itemSearch}
+              onChange={(e) => setItemSearch(e.target.value)}
+              placeholder="Search by name or code…"
+              style={{ padding: '9px 12px', borderRadius: 7, fontSize: 14, width: '100%', marginBottom: 12 }}
+            />
+
+            <div style={{ overflowY: 'auto', border: '1px solid var(--row-border)', borderRadius: 10 }}>
+              {items.length === 0 && <div style={{ padding: '18px 16px', fontSize: 13, color: 'var(--muted)' }}>No items in the master file yet.</div>}
+              {items
+                .filter((it) => {
+                  const q = itemSearch.trim().toLowerCase();
+                  if (!q) return true;
+                  return it.name.toLowerCase().includes(q) || (it.item_code ?? '').toLowerCase().includes(q);
+                })
+                .map((it) => {
+                  const checked = itemChecked.includes(it.id);
+                  return (
+                    <label key={it.id} style={{ display: 'grid', gridTemplateColumns: '28px 1fr auto', alignItems: 'center', gap: 10, padding: '11px 14px', borderBottom: '1px solid var(--row-border)', cursor: 'pointer', background: checked ? 'oklch(0.97 0.02 260)' : 'transparent' }}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(e) => setItemChecked((prev) => (e.target.checked ? [...prev, it.id] : prev.filter((x) => x !== it.id)))}
+                      />
+                      <div>
+                        <div style={{ fontWeight: 600 }}>{it.name}</div>
+                        <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+                          {it.item_code ? `${it.item_code} · ` : ''}
+                          {categories.find((c) => c.id === it.category_id)?.name ?? 'Uncategorised'}
+                          {it.uom ? ` · ${it.uom}` : ''}
+                        </div>
+                      </div>
+                      <div style={{ fontFamily: 'monospace', fontSize: 13, textAlign: 'right' }}>{money(Number(it.unit_price) || 0)}</div>
+                    </label>
+                  );
+                })}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 18 }}>
+              <button onClick={() => setItemModalOpen(false)} style={{ padding: '10px 16px', borderRadius: 8, fontSize: 14, background: 'var(--row-border, #f3f4f6)', border: '1px solid var(--border)', cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+              <button className="sr-btn-primary" onClick={applyItemSelection} disabled={itemChecked.length === 0} style={{ padding: '10px 18px', borderRadius: 8, fontSize: 14 }}>
+                Add ({itemChecked.length})
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Source PR picker modal */}
       {prModalOpen && (

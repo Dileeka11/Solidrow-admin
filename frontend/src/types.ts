@@ -429,6 +429,18 @@ export interface ItemCategory {
   description: string | null;
 }
 
+/** Item master file — catalogue of items pulled onto PR / PO lines. */
+export interface Item {
+  id: number;
+  item_code: string | null;
+  name: string;
+  category_id: number | null;
+  uom: string | null;
+  unit_price: string | number;
+  description: string | null;
+  status: 'Active' | 'Inactive';
+}
+
 export interface BankBranch {
   id: number;
   bank_id: number;
