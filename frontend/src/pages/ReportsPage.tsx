@@ -62,6 +62,10 @@ export default function ReportsPage() {
   const [from, setFrom] = useState(toISO(new Date(today.getFullYear(), today.getMonth(), 1)));
   const [to, setTo] = useState(toISO(today));
 
+  // Optional filters. '' = no filter (include all).
+  const [skillFilter, setSkillFilter] = useState<string>('');
+  const [jobCatFilter, setJobCatFilter] = useState<string>('');
+
   useEffect(() => {
     Promise.all([
       api.get<Candidate[]>('/candidates'),
@@ -78,17 +82,20 @@ export default function ReportsPage() {
   const jobCatName = (id: number | null) =>
     jobCategories.find((j) => j.id === id)?.name ?? '—';
 
-  // Candidates whose registration day falls within [from, to] (inclusive).
+  // Candidates whose registration day falls within [from, to] (inclusive)
+  // and that match the optional skill / job-category filters.
   const inRange = useMemo(() => {
     const rows = candidates.filter((c) => {
       const day = regDay(c);
       if (!day) return false;
       if (from && day < from) return false;
       if (to && day > to) return false;
+      if (skillFilter && c.candidate_skill !== skillFilter) return false;
+      if (jobCatFilter && String(c.job_category_id ?? '') !== jobCatFilter) return false;
       return true;
     });
     return rows.sort((a, b) => (regDay(a)! < regDay(b)! ? -1 : 1));
-  }, [candidates, from, to]);
+  }, [candidates, from, to, skillFilter, jobCatFilter]);
 
   // Ticked candidate ids. Empty = "print everything in range".
   const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -132,6 +139,10 @@ export default function ReportsPage() {
       return;
     }
     const printSummary = computeSummary(printRows);
+    const activeFilters = [
+      skillFilter ? SKILL_LABEL[skillFilter] : null,
+      jobCatFilter ? jobCatName(Number(jobCatFilter)) : null,
+    ].filter(Boolean);
     const w = window.open('', '_blank', 'width=900,height=1200');
     if (!w) return;
     const esc = (s: unknown) =>
@@ -193,6 +204,8 @@ export default function ReportsPage() {
         </div>
         <h1>Candidate Registration Summary</h1>
         <div class="sub">Period: <b>${esc(fmtDate(from))}</b> to <b>${esc(fmtDate(to))}</b>${
+          activeFilters.length ? ` &nbsp;·&nbsp; Filter: <b>${esc(activeFilters.join(' / '))}</b>` : ''
+        }${
           selected.size ? ` &nbsp;·&nbsp; ${printSummary.total} selected` : ''
         }</div>
 
@@ -234,6 +247,17 @@ export default function ReportsPage() {
     borderRadius: 12,
     padding: 20,
     boxShadow: 'var(--card-shadow)',
+  };
+
+  const filterSelectStyle: React.CSSProperties = {
+    padding: '9px 12px',
+    borderRadius: 8,
+    fontSize: 14,
+    minWidth: 180,
+    border: '1px solid var(--border-soft)',
+    background: 'var(--card)',
+    color: 'var(--label)',
+    cursor: 'pointer',
   };
 
   return (
@@ -284,6 +308,59 @@ export default function ReportsPage() {
           </label>
           <DatePicker value={to} onChange={setTo} />
         </div>
+        <div>
+          <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--muted)', marginBottom: 6 }}>
+            Skill Level
+          </label>
+          <select
+            value={skillFilter}
+            onChange={(e) => setSkillFilter(e.target.value)}
+            style={filterSelectStyle}
+          >
+            <option value="">All skill levels</option>
+            <option value="skill">Skilled</option>
+            <option value="unskill">Unskilled</option>
+            <option value="training">Trainee (Training)</option>
+          </select>
+        </div>
+        <div>
+          <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--muted)', marginBottom: 6 }}>
+            Job Category
+          </label>
+          <select
+            value={jobCatFilter}
+            onChange={(e) => setJobCatFilter(e.target.value)}
+            style={filterSelectStyle}
+          >
+            <option value="">All categories</option>
+            {jobCategories.map((j) => (
+              <option key={j.id} value={String(j.id)}>
+                {j.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        {(skillFilter || jobCatFilter) && (
+          <button
+            type="button"
+            onClick={() => {
+              setSkillFilter('');
+              setJobCatFilter('');
+            }}
+            style={{
+              padding: '9px 14px',
+              borderRadius: 8,
+              fontSize: 13,
+              fontWeight: 500,
+              border: '1px solid var(--border-soft)',
+              background: 'transparent',
+              color: 'var(--muted)',
+              cursor: 'pointer',
+            }}
+          >
+            Clear filters
+          </button>
+        )}
         {rangeInvalid && (
           <div style={{ fontSize: 13, color: 'oklch(0.55 0.18 25)', fontWeight: 500 }}>
             “From” date must be on or before “To” date.
