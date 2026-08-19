@@ -46,24 +46,28 @@ const NAV: NavItem[] = [
       { to: '/accounting/journal', label: 'Journal Entries' },
       { to: '/accounting/ledger', label: 'General Ledger' },
       { to: '/accounting/trial-balance', label: 'Trial Balance' },
-      {
-        label: 'Master',
-        children: [
-          { to: '/accounting/departments', label: 'Department Master' },
-          { to: '/accounting/suppliers', label: 'Supplier Master' },
-          { to: '/accounting/item-categories', label: 'Category Master' },
-          { to: '/accounting/banks', label: 'Bank & Branch Master' },
-        ],
-      },
-      {
-        label: 'Data Capture',
-        children: [
-          { to: '/accounting/pr', label: 'Purchase Requisition' },
-          { to: '/accounting/po', label: 'Purchase Order' },
-          { to: '/accounting/grn', label: 'Goods Received Note' },
-          { to: '/accounting/payment', label: 'Supplier Payment' },
-        ],
-      },
+    ],
+  },
+  {
+    label: 'Master',
+    icon: <AccountingIcon />,
+    permission: 'accounting.view',
+    children: [
+      { to: '/accounting/departments', label: 'Department Master' },
+      { to: '/accounting/suppliers', label: 'Supplier Master' },
+      { to: '/accounting/item-categories', label: 'Category Master' },
+      { to: '/accounting/banks', label: 'Bank & Branch Master' },
+    ],
+  },
+  {
+    label: 'Data Capture',
+    icon: <AccountingIcon />,
+    permission: 'accounting.view',
+    children: [
+      { to: '/accounting/pr', label: 'Purchase Requisition' },
+      { to: '/accounting/po', label: 'Purchase Order' },
+      { to: '/accounting/grn', label: 'Goods Received Note' },
+      { to: '/accounting/payment', label: 'Supplier Payment' },
     ],
   },
   { to: '/roles', label: 'Roles', icon: <PermissionsIcon />, permission: 'roles.view' },
