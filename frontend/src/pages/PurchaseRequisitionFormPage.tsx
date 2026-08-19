@@ -4,7 +4,7 @@ import { api } from '../api/client';
 import { PlusIcon, TrashIcon } from '../components/icons';
 import { toastError, toastSuccess } from '../lib/alerts';
 import { useIsMobile } from '../lib/useMediaQuery';
-import type { AccountRow, Department, ItemCategory, PrDraftLine, PrPriority, PurchaseRequisition, Supplier } from '../types';
+import type { AccountRow, Department, Item, ItemCategory, PrDraftLine, PrPriority, PurchaseRequisition, Supplier } from '../types';
 
 const UOMS = ['Pcs', 'Kg', 'Box', 'Litre', 'Set', 'Unit', 'Pack', 'Roll', 'Pair'];
 const today = () => new Date().toISOString().slice(0, 10);
@@ -27,6 +27,10 @@ export default function PurchaseRequisitionFormPage() {
   const [categories, setCategories] = useState<ItemCategory[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [accounts, setAccounts] = useState<AccountRow[]>([]);
+  const [items, setItems] = useState<Item[]>([]);
+  const [itemModalOpen, setItemModalOpen] = useState(false);
+  const [itemChecked, setItemChecked] = useState<number[]>([]);
+  const [itemSearch, setItemSearch] = useState('');
 
   const [prNumber, setPrNumber] = useState('');
   const [status, setStatus] = useState<PurchaseRequisition['status']>('Draft');
@@ -49,12 +53,14 @@ export default function PurchaseRequisitionFormPage() {
       api.get<ItemCategory[]>('/accounting/item-categories'),
       api.get<Supplier[]>('/accounting/suppliers'),
       api.get<AccountRow[]>('/accounting/accounts'),
+      api.get<Item[]>('/accounting/items'),
     ])
-      .then(([d, c, s, a]) => {
+      .then(([d, c, s, a, its]) => {
         setDepartments(d.data);
         setCategories(c.data);
         setSuppliers(s.data);
         setAccounts(a.data);
+        setItems(its.data.filter((it) => it.status === 'Active'));
       })
       .catch(() => {});
   }, []);
@@ -102,6 +108,25 @@ export default function PurchaseRequisitionFormPage() {
   }
   const addLine = () => setLines((prev) => [...prev, emptyLine()]);
   const removeLine = (i: number) => setLines((prev) => (prev.length <= 1 ? prev : prev.filter((_, idx) => idx !== i)));
+
+  /** Append the ticked master items to the line grid as new rows. */
+  function applyItemSelection() {
+    const chosen = items.filter((it) => itemChecked.includes(it.id));
+    const pulled: PrDraftLine[] = chosen.map((it) => ({
+      description: it.name,
+      category_id: it.category_id ?? '',
+      quantity: '1',
+      uom: it.uom ?? '',
+      est_unit_price: String(Number(it.unit_price) || 0),
+      preferred_supplier_id: '',
+      remarks: '',
+    }));
+    setLines((prev) => {
+      const existing = prev.filter((l) => l.description.trim() || l.quantity);
+      return [...existing, ...pulled];
+    });
+    setItemModalOpen(false);
+  }
 
   async function save() {
     const cleaned = lines
@@ -209,7 +234,22 @@ export default function PurchaseRequisitionFormPage() {
 
       {/* Line items */}
       <div style={{ background: 'var(--card)', borderRadius: 12, boxShadow: 'var(--card-shadow)', overflow: 'hidden', marginBottom: 16 }}>
-        <div style={{ padding: '12px 20px', fontSize: 13, fontWeight: 700, borderBottom: '1px solid var(--row-border)' }}>Line Items</div>
+        <div style={{ padding: '12px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, borderBottom: '1px solid var(--row-border)' }}>
+          <span style={{ fontSize: 13, fontWeight: 700 }}>Line Items</span>
+          {!readOnly && (
+            <button
+              type="button"
+              onClick={() => {
+                setItemChecked([]);
+                setItemSearch('');
+                setItemModalOpen(true);
+              }}
+              style={{ padding: '7px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600, background: 'var(--row-border, #f3f4f6)', border: '1px solid var(--border)', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6 }}
+            >
+              <PlusIcon /> Add from Item Master
+            </button>
+          )}
+        </div>
         <div style={{ overflowX: 'auto' }}>
           <div style={{ minWidth: 900 }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1.1fr 70px 90px 110px 120px 1.1fr 40px', columnGap: 10, padding: '10px 20px', fontSize: 11, fontWeight: 700, color: 'var(--muted)', borderBottom: '1px solid var(--row-border)', textTransform: 'uppercase' }}>
@@ -262,6 +302,62 @@ export default function PurchaseRequisitionFormPage() {
           </button>
         )}
       </div>
+
+      {/* Item Master picker modal */}
+      {itemModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'oklch(0 0 0 / 0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }} onClick={() => setItemModalOpen(false)}>
+          <div className="fade-in-xs" style={{ background: 'white', borderRadius: 14, width: 640, maxWidth: '92vw', maxHeight: '80vh', display: 'flex', flexDirection: 'column', padding: 24 }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>Add from Item Master</div>
+            <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 14 }}>Ticked items are appended as new requisition lines (qty defaults to 1).</div>
+
+            <input
+              className="sr-input"
+              value={itemSearch}
+              onChange={(e) => setItemSearch(e.target.value)}
+              placeholder="Search by name or code…"
+              style={{ padding: '9px 12px', borderRadius: 7, fontSize: 14, width: '100%', marginBottom: 12 }}
+            />
+
+            <div style={{ overflowY: 'auto', border: '1px solid var(--row-border)', borderRadius: 10 }}>
+              {items.length === 0 && <div style={{ padding: '18px 16px', fontSize: 13, color: 'var(--muted)' }}>No items in the master file yet.</div>}
+              {items
+                .filter((it) => {
+                  const q = itemSearch.trim().toLowerCase();
+                  if (!q) return true;
+                  return it.name.toLowerCase().includes(q) || (it.item_code ?? '').toLowerCase().includes(q);
+                })
+                .map((it) => {
+                  const checked = itemChecked.includes(it.id);
+                  return (
+                    <label key={it.id} style={{ display: 'grid', gridTemplateColumns: '28px 1fr auto', alignItems: 'center', gap: 10, padding: '11px 14px', borderBottom: '1px solid var(--row-border)', cursor: 'pointer', background: checked ? 'oklch(0.97 0.02 260)' : 'transparent' }}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(e) => setItemChecked((prev) => (e.target.checked ? [...prev, it.id] : prev.filter((x) => x !== it.id)))}
+                      />
+                      <div>
+                        <div style={{ fontWeight: 600 }}>{it.name}</div>
+                        <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+                          {it.item_code ? `${it.item_code} · ` : ''}
+                          {categories.find((c) => c.id === it.category_id)?.name ?? 'Uncategorised'}
+                          {it.uom ? ` · ${it.uom}` : ''}
+                        </div>
+                      </div>
+                      <div style={{ fontFamily: 'monospace', fontSize: 13, textAlign: 'right' }}>{money(Number(it.unit_price) || 0)}</div>
+                    </label>
+                  );
+                })}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 18 }}>
+              <button onClick={() => setItemModalOpen(false)} style={{ padding: '10px 16px', borderRadius: 8, fontSize: 14, background: 'var(--row-border, #f3f4f6)', border: '1px solid var(--border)', cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+              <button className="sr-btn-primary" onClick={applyItemSelection} disabled={itemChecked.length === 0} style={{ padding: '10px 18px', borderRadius: 8, fontSize: 14 }}>
+                Add ({itemChecked.length})
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
