@@ -464,6 +464,14 @@ export default function CandidateViewPage() {
               <Field label="Final Test Date" value={training.final_test_date} />
               <Field label="Result" value={training.final_test_result ? (training.final_test_result === 'pass' ? 'Pass' : 'Fail') : null} />
               <Field label="Agent" value={training.final_test_agent} />
+              <Field
+                label="Demand"
+                value={
+                  training.demand_id
+                    ? demands.find((d) => d.id === training.demand_id)?.name ?? '—'
+                    : null
+                }
+              />
             </div>
           </div>
         )}
@@ -482,14 +490,6 @@ export default function CandidateViewPage() {
             value={
               employee?.job_category_id
                 ? jobCategories.find((j) => j.id === employee.job_category_id)?.name ?? '—'
-                : null
-            }
-          />
-          <Field
-            label="Demand"
-            value={
-              employee?.demand_id
-                ? demands.find((d) => d.id === employee.demand_id)?.name ?? '—'
                 : null
             }
           />

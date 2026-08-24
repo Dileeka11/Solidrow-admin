@@ -146,6 +146,8 @@ export interface CandidateTraining {
   /** Unique test number issued for the final test (e.g. TI004). */
   final_test_number: string | null;
   final_test_agent: string | null;
+  /** The demand this candidate is assigned to (set once the final test is passed). */
+  demand_id: number | null;
 }
 
 /** A stored multi-file attachment entry. */
@@ -246,7 +248,6 @@ export interface CandidateEmployeeDetails {
   /** Defaults to the candidate reg no on the server but editable locally. */
   registration_number: string | null;
   job_category_id: number | null;
-  demand_id: number | null;
 }
 
 /** Demand-wise status breakdown for the dashboard bar chart. */

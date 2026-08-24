@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Candidate;
 use App\Models\CandidateDepartureDetail;
-use App\Models\CandidateEmployeeDetail;
+use App\Models\CandidateTraining;
 use App\Models\CandidateVisaDetail;
 use App\Models\Staff;
 use Illuminate\Http\Request;
@@ -126,7 +126,8 @@ class DashboardController extends Controller
      *   - canceled  → candidate's visa status is 'visa_cancel'
      *   - pending   → everyone else assigned to the demand
      *
-     * Candidates are linked to a demand through candidate_employee_details.
+     * Candidates are linked to a demand through candidate_training (the demand
+     * is set alongside the final-test details).
      */
     public function demandStatus(Request $request)
     {
@@ -136,7 +137,7 @@ class DashboardController extends Controller
             return response()->json(['departed' => 0, 'pending' => 0, 'canceled' => 0, 'total' => 0]);
         }
 
-        $candidateIds = CandidateEmployeeDetail::where('demand_id', $demandId)->pluck('candidate_id');
+        $candidateIds = CandidateTraining::where('demand_id', $demandId)->pluck('candidate_id');
         $total = $candidateIds->count();
 
         $canceledIds = CandidateVisaDetail::whereIn('candidate_id', $candidateIds)

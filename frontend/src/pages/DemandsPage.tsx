@@ -84,7 +84,7 @@ export default function DemandsPage() {
       <div style={{ marginBottom: 24 }}>
         <div style={{ fontSize: 24, fontWeight: 700, marginBottom: 2 }}>Demands</div>
         <div style={{ fontSize: 14, color: 'var(--muted)' }}>
-          {demands.length} demands · selected in Employee Details
+          {demands.length} demands · selected in Final Test details
         </div>
       </div>
 

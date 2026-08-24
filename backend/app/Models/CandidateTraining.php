@@ -20,6 +20,7 @@ class CandidateTraining extends Model
         'final_test_result',
         'final_test_number',
         'final_test_agent',
+        'demand_id',
     ];
 
     protected $casts = [
@@ -33,6 +34,11 @@ class CandidateTraining extends Model
     public function candidate()
     {
         return $this->belongsTo(Candidate::class);
+    }
+
+    public function demand()
+    {
+        return $this->belongsTo(Demand::class);
     }
 
     public function getTrainingBondUrlAttribute(): ?string

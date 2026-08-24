@@ -49,6 +49,7 @@ class CandidateTrainingController extends Controller
             'final_test_date'                                 => ['nullable', 'date'],
             'final_test_result'                               => ['nullable', 'in:pass,fail'],
             'final_test_agent'                                => ['nullable', 'string', 'max:191'],
+            'demand_id'                                       => ['nullable', 'integer', 'exists:demands,id'],
         ]);
 
         $data = [
@@ -59,6 +60,7 @@ class CandidateTrainingController extends Controller
             'final_test_date'               => $validated['final_test_date'] ?? null,
             'final_test_result'             => $validated['final_test_result'] ?? null,
             'final_test_agent'              => $validated['final_test_agent'] ?? null,
+            'demand_id'                     => $validated['demand_id'] ?? null,
         ];
 
         if ($request->hasFile('training_bond')) {
@@ -320,6 +322,7 @@ class CandidateTrainingController extends Controller
             'final_test_result'             => $t->final_test_result,
             'final_test_number'             => $t->final_test_number,
             'final_test_agent'              => $t->final_test_agent,
+            'demand_id'                     => $t->demand_id,
         ];
     }
 }

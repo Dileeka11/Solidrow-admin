@@ -293,6 +293,7 @@ export default function CandidateFormPage() {
     final_test_result: null,
     final_test_number: null,
     final_test_agent: null,
+    demand_id: null,
   };
   const [training, setTraining] = useState<CandidateTraining>(EMPTY_TRAINING);
   const [trainingSaving, setTrainingSaving] = useState(false);
@@ -350,7 +351,6 @@ export default function CandidateFormPage() {
   const EMPTY_EMPLOYEE: CandidateEmployeeDetails = {
     registration_number: null,
     job_category_id: null,
-    demand_id: null,
   };
   const [employee, setEmployee] = useState<CandidateEmployeeDetails>(EMPTY_EMPLOYEE);
   const [employeeSaving, setEmployeeSaving] = useState(false);
@@ -1255,6 +1255,7 @@ export default function CandidateFormPage() {
       fd.append('final_test_result', training.final_test_result ?? '');
       fd.append('final_test_number', training.final_test_number ?? '');
       fd.append('final_test_agent', training.final_test_agent ?? '');
+      fd.append('demand_id', training.demand_id ? String(training.demand_id) : '');
       if (trainingBondFile) fd.append('training_bond', trainingBondFile);
       const r = await api.post<CandidateTraining>(`/candidates/${id}/training`, fd);
       setTraining(withDefaultCycle(r.data));
@@ -1595,7 +1596,6 @@ export default function CandidateFormPage() {
       const r = await api.post<CandidateEmployeeDetails>(`/candidates/${id}/employee-details`, {
         registration_number: employee.registration_number ?? '',
         job_category_id: employee.job_category_id ?? '',
-        demand_id: employee.demand_id ?? '',
       });
       setEmployee(r.data);
       await markSectionComplete(3); // Employee Details is now Section 3 — completing it advances the workflow
@@ -2579,6 +2579,27 @@ export default function CandidateFormPage() {
                 />
               </div>
 
+              {/* Demand — the candidate is assigned to a demand once the final test is passed */}
+              <div style={{ marginTop: 14 }}>
+                <label style={labelStyle}>Demand</label>
+                <select
+                  className="sr-input"
+                  style={inputStyle}
+                  value={training.demand_id ?? ''}
+                  onChange={(e) =>
+                    setTraining((t) => ({ ...t, demand_id: e.target.value ? Number(e.target.value) : null }))
+                  }
+                >
+                  <option value="">-- Select Demand --</option>
+                  {demands.map((d) => (
+                    <option key={d.id} value={d.id}>{d.name}</option>
+                  ))}
+                </select>
+                <span style={{ display: 'block', fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
+                  Manage the list on the <strong>Demands</strong> page.
+                </span>
+              </div>
+
               {/* Print result sheet for the final test */}
               <div style={{ marginTop: 12 }}>
                 <button
@@ -2654,25 +2675,6 @@ export default function CandidateFormPage() {
               </span>
             </div>
 
-            <div>
-              <label style={labelStyle}>Demand</label>
-              <select
-                className="sr-input"
-                style={inputStyle}
-                value={employee.demand_id ?? ''}
-                onChange={(e) =>
-                  setEmployee((s) => ({ ...s, demand_id: e.target.value ? Number(e.target.value) : null }))
-                }
-              >
-                <option value="">-- Select Demand --</option>
-                {demands.map((d) => (
-                  <option key={d.id} value={d.id}>{d.name}</option>
-                ))}
-              </select>
-              <span style={{ display: 'block', fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
-                Manage the list on the <strong>Demands</strong> page.
-              </span>
-            </div>
           </div>
 
           <div style={{ marginTop: 24 }}>

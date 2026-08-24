@@ -32,13 +32,14 @@ $app = require $base . '/bootstrap/app.php';
 $kernel = $app->make(\Illuminate\Contracts\Console\Kernel::class);
 
 try {
-    // Run ONLY the Baddegama migration. A full `migrate` fails here because the
+    // Run ONLY the demand-move migration. A full `migrate` fails here because the
     // live DB was built from a SQL dump (schema is ahead of the migrations ledger),
     // so older "pending" migrations try to re-add columns that already exist.
-    echo "=== migrate (Baddegama only, via --path) ===\n";
+    // The migration is idempotent (hasColumn guards) so it's safe if re-run.
+    echo "=== migrate (move demand_id to candidate_training, via --path) ===\n";
     $kernel->call('migrate', [
         '--force' => true,
-        '--path' => 'database/migrations/2026_08_04_000001_create_baddegama_module.php',
+        '--path' => 'database/migrations/2026_08_24_000001_move_demand_id_to_candidate_training.php',
     ]);
     echo $kernel->output();
 
