@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\DB;
 
 class SectionAssignmentController extends Controller
 {
-    private const TOTAL_SECTIONS = 6;
+    private const TOTAL_SECTIONS = 7;
 
     /**
      * Return the current global staff mapping for all sections

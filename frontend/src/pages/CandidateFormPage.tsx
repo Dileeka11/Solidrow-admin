@@ -15,6 +15,7 @@ import type { Agent, Candidate, CandidateDatedFileField, CandidateDepartureDetai
 const SECTION_TITLES = [
   'Personal Details',
   'Training Details',
+  'Test Details',
   'Employee Details',
   'Document Attachment',
   'Job & Visa Processing',
@@ -297,6 +298,7 @@ export default function CandidateFormPage() {
   };
   const [training, setTraining] = useState<CandidateTraining>(EMPTY_TRAINING);
   const [trainingSaving, setTrainingSaving] = useState(false);
+  const [testSaving, setTestSaving] = useState(false);
   // Which test-number slot is currently generating (key: `cycle-<no>` or `final`).
   const [testNumSaving, setTestNumSaving] = useState<string | null>(null);
   // "Add date" pickers for attendance (per pre-test cycle + the final test).
@@ -1160,6 +1162,29 @@ export default function CandidateFormPage() {
   const section3Done = isSectionSubmitted(3);
   const section4Done = isSectionSubmitted(4);
   const section5Done = isSectionSubmitted(5);
+  const section6Done = isSectionSubmitted(6);
+
+  // Training Details only applies to "training" candidates; skill/unskill skip it.
+  const isTrainingCandidate = form.candidate_skill === 'training';
+  // Test Details opens straight after Personal Details for non-training candidates.
+  const testSectionOpen = section1Done && (section2Done || !isTrainingCandidate);
+
+  /**
+   * Skill / unskill candidates have no Training Details to fill in, so Section 2
+   * is auto-completed once Personal Details is in — that keeps the sequential
+   * hand-off (and the public progress tracker) moving on to Test Details.
+   */
+  const trainingSkipRef = useRef(false);
+  useEffect(() => {
+    if (isTrainingCandidate) {
+      trainingSkipRef.current = false; // switched back to training — Section 2 applies again
+      return;
+    }
+    if (!isEdit || !candidate || !section1Done || section2Done || trainingSkipRef.current) return;
+    trainingSkipRef.current = true;
+    void markSectionComplete(2);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEdit, candidate, section1Done, section2Done, isTrainingCandidate]);
 
   // Placeholder card shown while a section is still locked.
   const LockedSectionCard = ({ no, title, needNo }: { no: string; title: string; needNo: number }) => (
@@ -1241,10 +1266,15 @@ export default function CandidateFormPage() {
     }
   }
 
-  async function saveTraining() {
-    const ok = await confirmAction('Save the training details?', 'Save training', 'Yes, save');
+  /**
+   * Training Details (Section 2) and Test Details (Section 3) are two cards over
+   * the same training record, so both save through this one call and only differ
+   * in which section they mark complete.
+   */
+  async function persistTraining(sectionNo: 2 | 3, label: string) {
+    const ok = await confirmAction(`Save the ${label}?`, `Save ${label}`, 'Yes, save');
     if (!ok) return;
-    setTrainingSaving(true);
+    if (sectionNo === 2) setTrainingSaving(true); else setTestSaving(true);
     try {
       const fd = new FormData();
       fd.append('training_mode', 'both');
@@ -1260,15 +1290,18 @@ export default function CandidateFormPage() {
       const r = await api.post<CandidateTraining>(`/candidates/${id}/training`, fd);
       setTraining(withDefaultCycle(r.data));
       setTrainingBondFile(null);
-      await markSectionComplete(2); // completing Section 2 unlocks Section 3
-      toastSuccess('Training details saved');
+      await markSectionComplete(sectionNo); // completing this section unlocks the next
+      toastSuccess(`${label.charAt(0).toUpperCase()}${label.slice(1)} saved`);
       navigate('/candidates'); // save & exit back to the candidates list
     } catch {
-      toastError('Could not save training details.');
+      toastError(`Could not save ${label}.`);
     } finally {
-      setTrainingSaving(false);
+      if (sectionNo === 2) setTrainingSaving(false); else setTestSaving(false);
     }
   }
+
+  const saveTraining = () => persistTraining(2, 'training details');
+  const saveTests = () => persistTraining(3, 'test details');
 
   /**
    * Generate (or fetch) a unique test number for one slot — a specific pre-test
@@ -1472,7 +1505,7 @@ export default function CandidateFormPage() {
     w.document.close();
   }
 
-  // ── Section 3: Documents helpers ──────────────────────────────────────────
+  // ── Section 5: Documents helpers ──────────────────────────────────────────
 
   const setDocDate = (
     key: 'document_submission_date' | 'document_resubmission_date' | 'police_report_expire_date',
@@ -1545,7 +1578,7 @@ export default function CandidateFormPage() {
       setDocumentFiles({});
       setServiceLetterFiles([]);
       setDatedFiles({ police_certificate: [], certified_police_report: [] });
-      await markSectionComplete(4); // Document Attachment is Section 4 — completing it advances the workflow
+      await markSectionComplete(5); // Document Attachment is Section 5 — completing it advances the workflow
       toastSuccess('Documents saved');
       navigate('/candidates'); // save & exit back to the candidates list
     } catch {
@@ -1555,7 +1588,7 @@ export default function CandidateFormPage() {
     }
   }
 
-  // ── Section 4: Job & Visa Processing helpers ──────────────────────────────
+  // ── Section 6: Job & Visa Processing helpers ──────────────────────────────
 
   const setVisaField = <K extends keyof CandidateVisaDetails>(key: K, value: CandidateVisaDetails[K]) =>
     setVisa((v) => ({ ...v, [key]: value }));
@@ -1571,12 +1604,12 @@ export default function CandidateFormPage() {
     try {
       const r = await api.post<CandidateVisaDetails>(`/candidates/${id}/visa-details`, visa);
       setVisa(r.data);
-      await markSectionComplete(5); // Job & Visa Processing is Section 5 — completing it advances the workflow
+      await markSectionComplete(6); // Job & Visa Processing is Section 6 — completing it advances the workflow
       const statusMsg =
         r.data.visa_status === 'visa_received' ? ' — visa received SMS queued'
         : r.data.visa_status === 'visa_cancel' ? ' — visa cancelled SMS queued'
         : '';
-      toastSuccess(`Section 5 saved${statusMsg}`);
+      toastSuccess(`Section 6 saved${statusMsg}`);
       navigate('/candidates'); // save & exit back to the candidates list
     } catch {
       toastError('Could not save visa details.');
@@ -1585,7 +1618,7 @@ export default function CandidateFormPage() {
     }
   }
 
-  // ── Section 5: Employee Details helpers ───────────────────────────────────
+  // ── Section 4: Employee Details helpers ───────────────────────────────────
 
   async function saveEmployee() {
     if (!id) return;
@@ -1598,7 +1631,7 @@ export default function CandidateFormPage() {
         job_category_id: employee.job_category_id ?? '',
       });
       setEmployee(r.data);
-      await markSectionComplete(3); // Employee Details is now Section 3 — completing it advances the workflow
+      await markSectionComplete(4); // Employee Details is now Section 4 — completing it advances the workflow
       toastSuccess('Employee details saved');
       navigate('/candidates'); // save & exit back to the candidates list
     } catch {
@@ -1608,7 +1641,7 @@ export default function CandidateFormPage() {
     }
   }
 
-  // ── Section 6: Departure Details helpers ──────────────────────────────────
+  // ── Section 7: Departure Details helpers ──────────────────────────────────
 
   async function saveDeparture() {
     if (!id) return;
@@ -1624,7 +1657,7 @@ export default function CandidateFormPage() {
         departure_date: departure.departure_date ?? '',
       });
       setDeparture(r.data);
-      await markSectionComplete(6); // Departure Details is now Section 6 — the final section, finalising the workflow
+      await markSectionComplete(7); // Departure Details is now Section 7 — the final section, finalising the workflow
       toastSuccess('Departure details saved');
       navigate('/candidates'); // save & exit back to the candidates list
     } catch {
@@ -2150,11 +2183,11 @@ export default function CandidateFormPage() {
         </div>
       )}
 
-      {/* ── Section 2: Training Details ─────────────────────────────────── */}
-      {isEdit && candidate && !section1Done && (
+      {/* ── Section 2: Training Details (training candidates only) ───────── */}
+      {isEdit && candidate && isTrainingCandidate && !section1Done && (
         <LockedSectionCard no="02" title="Training Details" needNo={1} />
       )}
-      {isEdit && candidate && section1Done && (
+      {isEdit && candidate && isTrainingCandidate && section1Done && (
         <div style={cardStyle}>
           <div style={{ color: 'var(--accent, #6366f1)', fontWeight: 700, marginBottom: 4 }}>
             02. Training Details
@@ -2185,7 +2218,144 @@ export default function CandidateFormPage() {
             </div>
           </div>
 
-          {/* 2.1b Pre-Test Trade — the code drives every test number below. */}
+          {/* 2.2 Training attendance — one sheet per pre test cycle */}
+          <div style={{ marginBottom: 20 }}>
+            {training.pre_test_cycles.map((cycle) => {
+              const attendCount = cycle.attendance_records.length;
+              const canTest = attendCount >= PRE_TEST_MIN_ATTENDANCE;
+
+              return (
+                <div
+                  key={cycle.cycle_no}
+                  style={{
+                    border: '1.5px solid var(--border-soft)',
+                    borderRadius: 10,
+                    padding: '16px 20px',
+                    marginBottom: 16,
+                    background: 'var(--row-bg,#fafafa)',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+                    <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--accent,#6366f1)' }}>
+                      Training Attendance — Cycle {cycle.cycle_no}
+                    </span>
+                    <span style={{
+                      fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 20,
+                      background: canTest ? 'oklch(0.92 0.05 150)' : 'oklch(0.93 0.03 260)',
+                      color: canTest ? 'oklch(0.40 0.14 150)' : 'oklch(0.45 0.06 260)',
+                    }}>
+                      {attendCount} / {PRE_TEST_WINDOW_DAYS} days
+                    </span>
+                    {!canTest && (
+                      <span style={{ fontSize: 11, color: 'var(--muted)' }}>
+                        Need 80% of the first {PRE_TEST_WINDOW_DAYS} days to unlock this cycle&rsquo;s Pre Test
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Table */}
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginBottom: 10 }}>
+                    <thead>
+                      <tr style={{ background: 'var(--row-border,#f3f4f6)' }}>
+                        <th style={{ padding: '7px 12px', textAlign: 'left', fontWeight: 600, fontSize: 11, color: 'var(--label-2)', borderBottom: '1px solid var(--border-soft)', width: 36 }}>#</th>
+                        <th style={{ padding: '7px 12px', textAlign: 'left', fontWeight: 600, fontSize: 11, color: 'var(--label-2)', borderBottom: '1px solid var(--border-soft)' }}>Date &amp; Time</th>
+                        <th style={{ padding: '7px 12px', textAlign: 'left', fontWeight: 600, fontSize: 11, color: 'var(--label-2)', borderBottom: '1px solid var(--border-soft)', width: 110 }}>Status</th>
+                        <th style={{ padding: '7px 12px', textAlign: 'left', fontWeight: 600, fontSize: 11, color: 'var(--label-2)', borderBottom: '1px solid var(--border-soft)', width: 80 }}>Source</th>
+                        <th style={{ padding: '7px 12px', borderBottom: '1px solid var(--border-soft)', width: 40 }}></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[...cycle.attendance_records]
+                        .sort((a, b) => a.date.localeCompare(b.date))
+                        .map((rec, ri) => (
+                          <tr key={rec.date} style={{ borderBottom: '1px solid var(--border-soft)' }}>
+                            <td style={{ padding: '7px 12px', color: 'var(--muted)', fontSize: 12 }}>{ri + 1}</td>
+                            <td style={{ padding: '7px 12px' }}>
+                              <span style={{ fontWeight: 500 }}>{rec.date}</span>
+                              {rec.time && <span style={{ marginLeft: 10, color: 'var(--muted)', fontSize: 12 }}>{rec.time}</span>}
+                            </td>
+                            <td style={{ padding: '7px 12px' }}>
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap', fontSize: 11, fontWeight: 700, color: 'oklch(0.40 0.14 150)', background: 'oklch(0.92 0.05 150)', padding: '3px 10px', borderRadius: 20 }}>
+                                <span aria-hidden>✓</span> Present
+                              </span>
+                            </td>
+                            <td style={{ padding: '7px 12px' }}>
+                              {rec.source === 'qr'
+                                ? <span style={{ fontSize: 10, fontWeight: 600, color: 'oklch(0.45 0.12 260)', background: 'oklch(0.94 0.03 260)', padding: '2px 7px', borderRadius: 20 }}>QR Scan</span>
+                                : <span style={{ fontSize: 10, color: 'var(--muted)', background: 'oklch(0.95 0 0)', padding: '2px 7px', borderRadius: 20 }}>Manual</span>
+                              }
+                            </td>
+                            <td style={{ padding: '7px 12px', textAlign: 'right' }}>
+                              <button
+                                onClick={() => removeAttendanceRecord(cycle.cycle_no, rec.date)}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'oklch(0.55 0.16 25)', fontSize: 16, lineHeight: 1, padding: '0 4px' }}
+                                title="Remove"
+                              >×</button>
+                            </td>
+                          </tr>
+                        ))}
+                      {cycle.attendance_records.length === 0 && (
+                        <tr>
+                          <td colSpan={5} style={{ padding: '10px 12px', color: 'var(--muted)', fontSize: 12, textAlign: 'center' }}>
+                            No attendance yet — add manually or scan QR from mobile app
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+
+                  {/* Add date row */}
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <DatePicker
+                      style={{ ...inputStyle, width: 180 }}
+                      value={preAttDate[cycle.cycle_no] ?? ''}
+                      onChange={(iso) => setPreAttDate((m) => ({ ...m, [cycle.cycle_no]: iso }))}
+                    />
+                    <button
+                      className="sr-btn-primary"
+                      style={{ padding: '8px 14px', borderRadius: 7, fontSize: 12 }}
+                      onClick={async () => {
+                        const v = preAttDate[cycle.cycle_no];
+                        if (v) { await addAttendanceRecord(cycle.cycle_no, v); setPreAttDate((m) => ({ ...m, [cycle.cycle_no]: '' })); }
+                      }}
+                    >
+                      + Add Date
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+            <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+              The Pre Test for each cycle is entered in <strong>03. Test Details</strong> below.
+            </div>
+          </div>
+
+          {/* Save button */}
+          <div style={{ marginTop: 8 }}>
+            <button
+              className="sr-btn-primary"
+              onClick={saveTraining}
+              disabled={trainingSaving}
+              style={{ padding: '11px 22px', borderRadius: 8, fontSize: 14 }}
+            >
+              {trainingSaving ? 'Saving…' : 'Save Training Details'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Section 3: Test Details — Pre Test & Final Test, for everyone ── */}
+      {isEdit && candidate && !testSectionOpen && (
+        <LockedSectionCard no="03" title="Test Details" needNo={isTrainingCandidate ? 2 : 1} />
+      )}
+      {isEdit && candidate && testSectionOpen && (
+        <div style={cardStyle}>
+          <div style={{ color: 'var(--accent, #6366f1)', fontWeight: 700, marginBottom: 4 }}>
+            03. Test Details
+          </div>
+          <hr style={{ border: 'none', borderTop: '1px solid var(--border-soft)', margin: '10px 0 18px' }} />
+
+          {/* 3.1 Pre-Test Trade — the code drives every test number below. */}
           <div style={{ marginBottom: 24, border: '1px solid var(--border-soft)', borderRadius: 10, padding: '16px 20px', background: 'var(--row-bg,#fafafa)' }}>
             <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--accent,#6366f1)', marginBottom: 12 }}>Trade</div>
             <div style={{ maxWidth: 480 }}>
@@ -2212,429 +2382,342 @@ export default function CandidateFormPage() {
             )}
           </div>
 
-          {/* 2.2 Pre-Test Cycles — always shown */}
-          {(
-            <div style={{ marginBottom: 28 }}>
-              {training.pre_test_cycles.map((cycle, idx) => {
-                const attendCount = cycle.attendance_records.length;
-                // Only "training" candidates are gated; skill/unskill are already qualified.
-                const gatePreTest = form.candidate_skill === 'training';
-                const canTest = !gatePreTest || attendCount >= PRE_TEST_MIN_ATTENDANCE;
-                const isFail = cycle.test_result === 'fail';
-                const isPass = cycle.test_result === 'pass';
-                const isLast = idx === training.pre_test_cycles.length - 1;
+          {/* 3.2 Pre Test — one card per cycle */}
+          <div style={{ marginBottom: 28 }}>
+            {training.pre_test_cycles.map((cycle, idx) => {
+              const attendCount = cycle.attendance_records.length;
+              // Only "training" candidates are gated on attendance; skill/unskill are already qualified.
+              const gatePreTest = isTrainingCandidate;
+              const canTest = !gatePreTest || attendCount >= PRE_TEST_MIN_ATTENDANCE;
+              const isFail = cycle.test_result === 'fail';
+              const isPass = cycle.test_result === 'pass';
+              const isLast = idx === training.pre_test_cycles.length - 1;
 
-                return (
-                  <div
-                    key={cycle.cycle_no}
-                    style={{
-                      border: `1.5px solid ${isPass ? 'oklch(0.75 0.15 150)' : isFail ? 'oklch(0.75 0.18 25)' : 'var(--border-soft)'}`,
-                      borderRadius: 10,
-                      padding: '16px 20px',
-                      marginBottom: 16,
-                      background: isPass ? 'oklch(0.98 0.01 150)' : isFail ? 'oklch(0.99 0.01 25)' : 'var(--row-bg,#fafafa)',
-                    }}
-                  >
-                    {/* Header */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-                      <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--accent,#6366f1)' }}>
-                        Pre Test — Cycle {cycle.cycle_no}
-                      </span>
-                      {isPass && <span style={{ fontSize: 11, fontWeight: 700, color: 'oklch(0.42 0.14 150)', background: 'oklch(0.92 0.05 150)', padding: '2px 8px', borderRadius: 20 }}>✓ PASS</span>}
-                      {isFail && <span style={{ fontSize: 11, fontWeight: 700, color: 'oklch(0.42 0.16 25)', background: 'oklch(0.93 0.05 25)', padding: '2px 8px', borderRadius: 20 }}>✗ FAIL</span>}
-                    </div>
+              return (
+                <div
+                  key={cycle.cycle_no}
+                  style={{
+                    border: `1.5px solid ${isPass ? 'oklch(0.75 0.15 150)' : isFail ? 'oklch(0.75 0.18 25)' : 'var(--border-soft)'}`,
+                    borderRadius: 10,
+                    padding: '16px 20px',
+                    marginBottom: 16,
+                    background: isPass ? 'oklch(0.98 0.01 150)' : isFail ? 'oklch(0.99 0.01 25)' : 'var(--row-bg,#fafafa)',
+                  }}
+                >
+                  {/* Header */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                    <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--accent,#6366f1)' }}>
+                      Pre Test — Cycle {cycle.cycle_no}
+                    </span>
+                    {isPass && <span style={{ fontSize: 11, fontWeight: 700, color: 'oklch(0.42 0.14 150)', background: 'oklch(0.92 0.05 150)', padding: '2px 8px', borderRadius: 20 }}>✓ PASS</span>}
+                    {isFail && <span style={{ fontSize: 11, fontWeight: 700, color: 'oklch(0.42 0.16 25)', background: 'oklch(0.93 0.05 25)', padding: '2px 8px', borderRadius: 20 }}>✗ FAIL</span>}
+                  </div>
 
-                    {/* Test Number — one unique number per cycle, generated before the test */}
-                    <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-                      <label style={{ ...labelStyle, marginBottom: 0 }}>Test Number</label>
-                      {cycle.test_number ? (
-                        <>
-                          <span style={{ fontSize: 20, fontWeight: 800, letterSpacing: 1, color: '#16a34a' }}>{cycle.test_number}</span>
-                          <button
-                            type="button"
-                            className="sr-btn-primary"
-                            onClick={() => printTestId(cycle.test_number!)}
-                            style={{ padding: '7px 13px', borderRadius: 7, fontSize: 12 }}
-                          >
-                            Print Test ID (A4 ×2)
-                          </button>
-                        </>
-                      ) : (
+                  {/* Test Number — one unique number per cycle, generated before the test */}
+                  <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+                    <label style={{ ...labelStyle, marginBottom: 0 }}>Test Number</label>
+                    {cycle.test_number ? (
+                      <>
+                        <span style={{ fontSize: 20, fontWeight: 800, letterSpacing: 1, color: '#16a34a' }}>{cycle.test_number}</span>
                         <button
                           type="button"
                           className="sr-btn-primary"
-                          onClick={() => generateTestNumber('pre_test', cycle.cycle_no)}
-                          disabled={testNumSaving === `cycle-${cycle.cycle_no}` || !training.pre_test_job_category_id}
-                          style={{ padding: '8px 14px', borderRadius: 7, fontSize: 12 }}
+                          onClick={() => printTestId(cycle.test_number!)}
+                          style={{ padding: '7px 13px', borderRadius: 7, fontSize: 12 }}
                         >
-                          {testNumSaving === `cycle-${cycle.cycle_no}` ? 'Generating…' : 'Generate Number'}
+                          Print Test ID (A4 ×2)
                         </button>
-                      )}
-                    </div>
-
-                    {/* Attendance Sheet */}
-                    <div style={{ marginBottom: 16 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                        <label style={labelStyle}>Attendance Sheet</label>
-                        <span style={{
-                          fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 20,
-                          background: canTest ? 'oklch(0.92 0.05 150)' : 'oklch(0.93 0.03 260)',
-                          color: canTest ? 'oklch(0.40 0.14 150)' : 'oklch(0.45 0.06 260)',
-                        }}>
-                          {gatePreTest
-                            ? `${attendCount} / ${PRE_TEST_WINDOW_DAYS} days`
-                            : `${attendCount} ${attendCount === 1 ? 'day' : 'days'}`}
-                        </span>
-                        {gatePreTest && !canTest && (
-                          <span style={{ fontSize: 11, color: 'var(--muted)' }}>
-                            Need 80% of the first {PRE_TEST_WINDOW_DAYS} days to unlock Pre Test
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Table */}
-                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginBottom: 10 }}>
-                        <thead>
-                          <tr style={{ background: 'var(--row-border,#f3f4f6)' }}>
-                            <th style={{ padding: '7px 12px', textAlign: 'left', fontWeight: 600, fontSize: 11, color: 'var(--label-2)', borderBottom: '1px solid var(--border-soft)', width: 36 }}>#</th>
-                            <th style={{ padding: '7px 12px', textAlign: 'left', fontWeight: 600, fontSize: 11, color: 'var(--label-2)', borderBottom: '1px solid var(--border-soft)' }}>Date &amp; Time</th>
-                            <th style={{ padding: '7px 12px', textAlign: 'left', fontWeight: 600, fontSize: 11, color: 'var(--label-2)', borderBottom: '1px solid var(--border-soft)', width: 110 }}>Status</th>
-                            <th style={{ padding: '7px 12px', textAlign: 'left', fontWeight: 600, fontSize: 11, color: 'var(--label-2)', borderBottom: '1px solid var(--border-soft)', width: 80 }}>Source</th>
-                            <th style={{ padding: '7px 12px', borderBottom: '1px solid var(--border-soft)', width: 40 }}></th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {[...cycle.attendance_records]
-                            .sort((a, b) => a.date.localeCompare(b.date))
-                            .map((rec, ri) => (
-                              <tr key={rec.date} style={{ borderBottom: '1px solid var(--border-soft)' }}>
-                                <td style={{ padding: '7px 12px', color: 'var(--muted)', fontSize: 12 }}>{ri + 1}</td>
-                                <td style={{ padding: '7px 12px' }}>
-                                  <span style={{ fontWeight: 500 }}>{rec.date}</span>
-                                  {rec.time && <span style={{ marginLeft: 10, color: 'var(--muted)', fontSize: 12 }}>{rec.time}</span>}
-                                </td>
-                                <td style={{ padding: '7px 12px' }}>
-                                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap', fontSize: 11, fontWeight: 700, color: 'oklch(0.40 0.14 150)', background: 'oklch(0.92 0.05 150)', padding: '3px 10px', borderRadius: 20 }}>
-                                    <span aria-hidden>✓</span> Present
-                                  </span>
-                                </td>
-                                <td style={{ padding: '7px 12px' }}>
-                                  {rec.source === 'qr'
-                                    ? <span style={{ fontSize: 10, fontWeight: 600, color: 'oklch(0.45 0.12 260)', background: 'oklch(0.94 0.03 260)', padding: '2px 7px', borderRadius: 20 }}>QR Scan</span>
-                                    : <span style={{ fontSize: 10, color: 'var(--muted)', background: 'oklch(0.95 0 0)', padding: '2px 7px', borderRadius: 20 }}>Manual</span>
-                                  }
-                                </td>
-                                <td style={{ padding: '7px 12px', textAlign: 'right' }}>
-                                  <button
-                                    onClick={() => removeAttendanceRecord(cycle.cycle_no, rec.date)}
-                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'oklch(0.55 0.16 25)', fontSize: 16, lineHeight: 1, padding: '0 4px' }}
-                                    title="Remove"
-                                  >×</button>
-                                </td>
-                              </tr>
-                            ))}
-                          {cycle.attendance_records.length === 0 && (
-                            <tr>
-                              <td colSpan={5} style={{ padding: '10px 12px', color: 'var(--muted)', fontSize: 12, textAlign: 'center' }}>
-                                No attendance yet — add manually or scan QR from mobile app
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
-
-                      {/* Add date row */}
-                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                        <DatePicker
-                          style={{ ...inputStyle, width: 180 }}
-                          value={preAttDate[cycle.cycle_no] ?? ''}
-                          onChange={(iso) => setPreAttDate((m) => ({ ...m, [cycle.cycle_no]: iso }))}
-                        />
-                        <button
-                          className="sr-btn-primary"
-                          style={{ padding: '8px 14px', borderRadius: 7, fontSize: 12 }}
-                          onClick={async () => {
-                            const v = preAttDate[cycle.cycle_no];
-                            if (v) { await addAttendanceRecord(cycle.cycle_no, v); setPreAttDate((m) => ({ ...m, [cycle.cycle_no]: '' })); }
-                          }}
-                        >
-                          + Add Date
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Pre-Test date + result */}
-                    <div className="sr-grid-2" style={{ gap: 14 }}>
-                      <div>
-                        <label style={labelStyle}>Pre Test Date</label>
-                        <DatePicker
-                          style={{ ...inputStyle, opacity: canTest ? 1 : 0.45 }}
-                          disabled={!canTest}
-                          value={cycle.test_date ?? ''}
-                          onChange={(iso) => updateCycle(cycle.cycle_no, { test_date: iso || null })}
-                          title={!canTest ? 'Pre Test unlocks at 80% attendance of the first 7 days' : ''}
-                        />
-                      </div>
-                      <div>
-                        <label style={labelStyle}>Result</label>
-                        <select
-                          className="sr-input"
-                          style={{ ...inputStyle, opacity: canTest ? 1 : 0.45 }}
-                          disabled={!canTest}
-                          value={cycle.test_result ?? ''}
-                          onChange={(e) => updateCycle(cycle.cycle_no, { test_result: (e.target.value || null) as 'pass' | 'fail' | null })}
-                        >
-                          <option value="">-- Select Result --</option>
-                          <option value="pass">Pass</option>
-                          <option value="fail">Fail</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    {/* Agent — manually entered, per cycle */}
-                    <div style={{ marginTop: 14 }}>
-                      <label style={labelStyle}>Agent</label>
-                      <input
-                        className="sr-input"
-                        style={inputStyle}
-                        value={cycle.test_agent ?? ''}
-                        onChange={(e) => updateCycle(cycle.cycle_no, { test_agent: e.target.value || null })}
-                        placeholder="Who conducted the pre test"
-                      />
-                    </div>
-
-                    {/* Print result sheet for this cycle */}
-                    <div style={{ marginTop: 12 }}>
+                      </>
+                    ) : (
                       <button
                         type="button"
-                        onClick={() => printResultSheet({ testLabel: `Pre Test — Cycle ${cycle.cycle_no}`, result: cycle.test_result, testDate: cycle.test_date, testNo: cycle.test_number })}
-                        style={{ padding: '8px 14px', borderRadius: 7, fontSize: 12, background: 'var(--row-border,#f3f4f6)', border: '1px solid var(--border)', cursor: 'pointer', fontFamily: 'inherit' }}
+                        className="sr-btn-primary"
+                        onClick={() => generateTestNumber('pre_test', cycle.cycle_no)}
+                        disabled={testNumSaving === `cycle-${cycle.cycle_no}` || !training.pre_test_job_category_id}
+                        style={{ padding: '8px 14px', borderRadius: 7, fontSize: 12 }}
                       >
-                        🖨 Print Result Sheet
+                        {testNumSaving === `cycle-${cycle.cycle_no}` ? 'Generating…' : 'Generate Number'}
                       </button>
-                    </div>
-
-                    {/* Add next cycle */}
-                    {isFail && isLast && (
-                      <div style={{ marginTop: 14 }}>
-                        <button
-                          className="sr-btn-primary"
-                          style={{ padding: '8px 16px', borderRadius: 7, fontSize: 13 }}
-                          onClick={addNextCycle}
-                        >
-                          + Add Cycle {cycle.cycle_no + 1}
-                        </button>
-                        <span style={{ marginLeft: 10, fontSize: 12, color: 'var(--muted)' }}>
-                          Add another pre test cycle for the candidate.
-                        </span>
-                      </div>
                     )}
                   </div>
-                );
-              })}
-            </div>
-          )}
 
-          {/* 2.3 Final Test — always shown */}
-          {(
-            <div
-              style={{
-                border: '1.5px solid oklch(0.78 0.14 260)',
-                borderRadius: 10,
-                padding: '16px 20px',
-                background: 'oklch(0.985 0.008 260)',
-                marginBottom: 20,
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-                <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--accent,#6366f1)' }}>Final Test</span>
-                {training.final_test_result === 'pass' && <span style={{ fontSize: 11, fontWeight: 700, color: 'oklch(0.42 0.14 150)', background: 'oklch(0.92 0.05 150)', padding: '2px 8px', borderRadius: 20 }}>✓ PASS</span>}
-                {training.final_test_result === 'fail' && <span style={{ fontSize: 11, fontWeight: 700, color: 'oklch(0.42 0.16 25)', background: 'oklch(0.93 0.05 25)', padding: '2px 8px', borderRadius: 20 }}>✗ FAIL</span>}
-              </div>
+                  {/* Attendance gate notice — the sheet itself lives in Section 02 */}
+                  {gatePreTest && !canTest && (
+                    <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 14 }}>
+                      Locked — {attendCount} / {PRE_TEST_WINDOW_DAYS} attendance days recorded. Add attendance in{' '}
+                      <strong>02. Training Details</strong> (80% needed) to unlock this pre test.
+                    </div>
+                  )}
 
-              {/* Test Number — unique number for the final test */}
-              <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-                <label style={{ ...labelStyle, marginBottom: 0 }}>Test Number</label>
-                {training.final_test_number ? (
-                  <>
-                    <span style={{ fontSize: 20, fontWeight: 800, letterSpacing: 1, color: '#16a34a' }}>{training.final_test_number}</span>
+                  {/* Pre-Test date + result */}
+                  <div className="sr-grid-2" style={{ gap: 14 }}>
+                    <div>
+                      <label style={labelStyle}>Pre Test Date</label>
+                      <DatePicker
+                        style={{ ...inputStyle, opacity: canTest ? 1 : 0.45 }}
+                        disabled={!canTest}
+                        value={cycle.test_date ?? ''}
+                        onChange={(iso) => updateCycle(cycle.cycle_no, { test_date: iso || null })}
+                        title={!canTest ? 'Pre Test unlocks at 80% attendance of the first 7 days' : ''}
+                      />
+                    </div>
+                    <div>
+                      <label style={labelStyle}>Result</label>
+                      <select
+                        className="sr-input"
+                        style={{ ...inputStyle, opacity: canTest ? 1 : 0.45 }}
+                        disabled={!canTest}
+                        value={cycle.test_result ?? ''}
+                        onChange={(e) => updateCycle(cycle.cycle_no, { test_result: (e.target.value || null) as 'pass' | 'fail' | null })}
+                      >
+                        <option value="">-- Select Result --</option>
+                        <option value="pass">Pass</option>
+                        <option value="fail">Fail</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Agent — manually entered, per cycle */}
+                  <div style={{ marginTop: 14 }}>
+                    <label style={labelStyle}>Agent</label>
+                    <input
+                      className="sr-input"
+                      style={inputStyle}
+                      value={cycle.test_agent ?? ''}
+                      onChange={(e) => updateCycle(cycle.cycle_no, { test_agent: e.target.value || null })}
+                      placeholder="Who conducted the pre test"
+                    />
+                  </div>
+
+                  {/* Print result sheet for this cycle */}
+                  <div style={{ marginTop: 12 }}>
                     <button
                       type="button"
-                      className="sr-btn-primary"
-                      onClick={() => printTestId(training.final_test_number!)}
-                      style={{ padding: '7px 13px', borderRadius: 7, fontSize: 12 }}
+                      onClick={() => printResultSheet({ testLabel: `Pre Test — Cycle ${cycle.cycle_no}`, result: cycle.test_result, testDate: cycle.test_date, testNo: cycle.test_number })}
+                      style={{ padding: '8px 14px', borderRadius: 7, fontSize: 12, background: 'var(--row-border,#f3f4f6)', border: '1px solid var(--border)', cursor: 'pointer', fontFamily: 'inherit' }}
                     >
-                      Print Test ID (A4 ×2)
+                      🖨 Print Result Sheet
                     </button>
-                  </>
-                ) : (
+                  </div>
+
+                  {/* Add next cycle */}
+                  {isFail && isLast && (
+                    <div style={{ marginTop: 14 }}>
+                      <button
+                        className="sr-btn-primary"
+                        style={{ padding: '8px 16px', borderRadius: 7, fontSize: 13 }}
+                        onClick={addNextCycle}
+                      >
+                        + Add Cycle {cycle.cycle_no + 1}
+                      </button>
+                      <span style={{ marginLeft: 10, fontSize: 12, color: 'var(--muted)' }}>
+                        Add another pre test cycle for the candidate.
+                      </span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* 3.3 Final Test */}
+          <div
+            style={{
+              border: '1.5px solid oklch(0.78 0.14 260)',
+              borderRadius: 10,
+              padding: '16px 20px',
+              background: 'oklch(0.985 0.008 260)',
+              marginBottom: 20,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+              <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--accent,#6366f1)' }}>Final Test</span>
+              {training.final_test_result === 'pass' && <span style={{ fontSize: 11, fontWeight: 700, color: 'oklch(0.42 0.14 150)', background: 'oklch(0.92 0.05 150)', padding: '2px 8px', borderRadius: 20 }}>✓ PASS</span>}
+              {training.final_test_result === 'fail' && <span style={{ fontSize: 11, fontWeight: 700, color: 'oklch(0.42 0.16 25)', background: 'oklch(0.93 0.05 25)', padding: '2px 8px', borderRadius: 20 }}>✗ FAIL</span>}
+            </div>
+
+            {/* Test Number — unique number for the final test */}
+            <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+              <label style={{ ...labelStyle, marginBottom: 0 }}>Test Number</label>
+              {training.final_test_number ? (
+                <>
+                  <span style={{ fontSize: 20, fontWeight: 800, letterSpacing: 1, color: '#16a34a' }}>{training.final_test_number}</span>
                   <button
                     type="button"
                     className="sr-btn-primary"
-                    onClick={() => generateTestNumber('final_test')}
-                    disabled={testNumSaving === 'final' || !training.pre_test_job_category_id}
-                    style={{ padding: '8px 14px', borderRadius: 7, fontSize: 12 }}
+                    onClick={() => printTestId(training.final_test_number!)}
+                    style={{ padding: '7px 13px', borderRadius: 7, fontSize: 12 }}
                   >
-                    {testNumSaving === 'final' ? 'Generating…' : 'Generate Number'}
+                    Print Test ID (A4 ×2)
                   </button>
-                )}
-              </div>
-
-              {/* Attendance table */}
-              <div style={{ marginBottom: 16 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                  <label style={labelStyle}>Attendance Sheet</label>
-                  <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 20, background: 'oklch(0.96 0.02 260)', color: 'var(--muted)' }}>
-                    {training.final_test_attendance_records.length} days (optional)
-                  </span>
-                </div>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginBottom: 10 }}>
-                  <thead>
-                    <tr style={{ background: 'var(--row-border,#f3f4f6)' }}>
-                      <th style={{ padding: '7px 12px', textAlign: 'left', fontWeight: 600, fontSize: 11, color: 'var(--label-2)', borderBottom: '1px solid var(--border-soft)', width: 40 }}>#</th>
-                      <th style={{ padding: '7px 12px', textAlign: 'left', fontWeight: 600, fontSize: 11, color: 'var(--label-2)', borderBottom: '1px solid var(--border-soft)' }}>Date &amp; Time</th>
-                      <th style={{ padding: '7px 12px', textAlign: 'right', fontWeight: 600, fontSize: 11, color: 'var(--label-2)', borderBottom: '1px solid var(--border-soft)', width: 60 }}></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[...training.final_test_attendance_records]
-                      .sort((a, b) => a.date.localeCompare(b.date))
-                      .map((rec, ri) => (
-                        <tr key={rec.date} style={{ borderBottom: '1px solid var(--border-soft)' }}>
-                          <td style={{ padding: '7px 12px', color: 'var(--muted)', fontSize: 12 }}>{ri + 1}</td>
-                          <td style={{ padding: '7px 12px' }}>
-                            <span style={{ fontWeight: 500 }}>{rec.date}</span>
-                            {rec.time && <span style={{ marginLeft: 10, color: 'var(--muted)', fontSize: 12 }}>{rec.time}</span>}
-                          </td>
-                          <td style={{ padding: '7px 12px', textAlign: 'right' }}>
-                            <button
-                              onClick={() => removeAttendanceRecord('final', rec.date)}
-                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'oklch(0.55 0.16 25)', fontSize: 16, lineHeight: 1, padding: '0 4px' }}
-                              title="Remove"
-                            >×</button>
-                          </td>
-                        </tr>
-                      ))}
-                    {training.final_test_attendance_records.length === 0 && (
-                      <tr>
-                        <td colSpan={5} style={{ padding: '10px 12px', color: 'var(--muted)', fontSize: 12, textAlign: 'center' }}>
-                          No attendance yet — optional for final test
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <DatePicker
-                    style={{ ...inputStyle, width: 180 }}
-                    value={finalAttDate}
-                    onChange={setFinalAttDate}
-                  />
-                  <button
-                    className="sr-btn-primary"
-                    style={{ padding: '8px 14px', borderRadius: 7, fontSize: 12 }}
-                    onClick={async () => {
-                      if (finalAttDate) { await addAttendanceRecord('final', finalAttDate); setFinalAttDate(''); }
-                    }}
-                  >
-                    + Add Date
-                  </button>
-                </div>
-              </div>
-
-              {/* Final test date + result */}
-              <div className="sr-grid-2" style={{ gap: 14 }}>
-                <div>
-                  <label style={labelStyle}>Final Test Date</label>
-                  <DatePicker
-                    style={inputStyle}
-                    value={training.final_test_date ?? ''}
-                    onChange={(iso) => setTraining((t) => ({ ...t, final_test_date: iso || null }))}
-                  />
-                </div>
-                <div>
-                  <label style={labelStyle}>Result</label>
-                  <select
-                    className="sr-input"
-                    style={inputStyle}
-                    value={training.final_test_result ?? ''}
-                    onChange={(e) => setTraining((t) => ({ ...t, final_test_result: (e.target.value || null) as 'pass' | 'fail' | null }))}
-                  >
-                    <option value="">-- Select Result --</option>
-                    <option value="pass">Pass</option>
-                    <option value="fail">Fail</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Agent — manually entered */}
-              <div style={{ marginTop: 14 }}>
-                <label style={labelStyle}>Agent</label>
-                <input
-                  className="sr-input"
-                  style={inputStyle}
-                  value={training.final_test_agent ?? ''}
-                  onChange={(e) => setTraining((t) => ({ ...t, final_test_agent: e.target.value || null }))}
-                  placeholder="Who conducted the final test"
-                />
-              </div>
-
-              {/* Demand — the candidate is assigned to a demand once the final test is passed */}
-              <div style={{ marginTop: 14 }}>
-                <label style={labelStyle}>Demand</label>
-                <select
-                  className="sr-input"
-                  style={inputStyle}
-                  value={training.demand_id ?? ''}
-                  onChange={(e) =>
-                    setTraining((t) => ({ ...t, demand_id: e.target.value ? Number(e.target.value) : null }))
-                  }
-                >
-                  <option value="">-- Select Demand --</option>
-                  {demands.map((d) => (
-                    <option key={d.id} value={d.id}>{d.name}</option>
-                  ))}
-                </select>
-                <span style={{ display: 'block', fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
-                  Manage the list on the <strong>Demands</strong> page.
-                </span>
-              </div>
-
-              {/* Print result sheet for the final test */}
-              <div style={{ marginTop: 12 }}>
+                </>
+              ) : (
                 <button
                   type="button"
-                  onClick={() => printResultSheet({ testLabel: 'Final Test', result: training.final_test_result, testDate: training.final_test_date, testNo: training.final_test_number })}
-                  style={{ padding: '8px 14px', borderRadius: 7, fontSize: 12, background: 'var(--row-border,#f3f4f6)', border: '1px solid var(--border)', cursor: 'pointer', fontFamily: 'inherit' }}
+                  className="sr-btn-primary"
+                  onClick={() => generateTestNumber('final_test')}
+                  disabled={testNumSaving === 'final' || !training.pre_test_job_category_id}
+                  style={{ padding: '8px 14px', borderRadius: 7, fontSize: 12 }}
                 >
-                  🖨 Print Result Sheet
+                  {testNumSaving === 'final' ? 'Generating…' : 'Generate Number'}
+                </button>
+              )}
+            </div>
+
+            {/* Attendance table */}
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                <label style={labelStyle}>Attendance Sheet</label>
+                <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 20, background: 'oklch(0.96 0.02 260)', color: 'var(--muted)' }}>
+                  {training.final_test_attendance_records.length} days (optional)
+                </span>
+              </div>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginBottom: 10 }}>
+                <thead>
+                  <tr style={{ background: 'var(--row-border,#f3f4f6)' }}>
+                    <th style={{ padding: '7px 12px', textAlign: 'left', fontWeight: 600, fontSize: 11, color: 'var(--label-2)', borderBottom: '1px solid var(--border-soft)', width: 40 }}>#</th>
+                    <th style={{ padding: '7px 12px', textAlign: 'left', fontWeight: 600, fontSize: 11, color: 'var(--label-2)', borderBottom: '1px solid var(--border-soft)' }}>Date &amp; Time</th>
+                    <th style={{ padding: '7px 12px', textAlign: 'right', fontWeight: 600, fontSize: 11, color: 'var(--label-2)', borderBottom: '1px solid var(--border-soft)', width: 60 }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...training.final_test_attendance_records]
+                    .sort((a, b) => a.date.localeCompare(b.date))
+                    .map((rec, ri) => (
+                      <tr key={rec.date} style={{ borderBottom: '1px solid var(--border-soft)' }}>
+                        <td style={{ padding: '7px 12px', color: 'var(--muted)', fontSize: 12 }}>{ri + 1}</td>
+                        <td style={{ padding: '7px 12px' }}>
+                          <span style={{ fontWeight: 500 }}>{rec.date}</span>
+                          {rec.time && <span style={{ marginLeft: 10, color: 'var(--muted)', fontSize: 12 }}>{rec.time}</span>}
+                        </td>
+                        <td style={{ padding: '7px 12px', textAlign: 'right' }}>
+                          <button
+                            onClick={() => removeAttendanceRecord('final', rec.date)}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'oklch(0.55 0.16 25)', fontSize: 16, lineHeight: 1, padding: '0 4px' }}
+                            title="Remove"
+                          >×</button>
+                        </td>
+                      </tr>
+                    ))}
+                  {training.final_test_attendance_records.length === 0 && (
+                    <tr>
+                      <td colSpan={3} style={{ padding: '10px 12px', color: 'var(--muted)', fontSize: 12, textAlign: 'center' }}>
+                        No attendance yet — optional for final test
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <DatePicker
+                  style={{ ...inputStyle, width: 180 }}
+                  value={finalAttDate}
+                  onChange={setFinalAttDate}
+                />
+                <button
+                  className="sr-btn-primary"
+                  style={{ padding: '8px 14px', borderRadius: 7, fontSize: 12 }}
+                  onClick={async () => {
+                    if (finalAttDate) { await addAttendanceRecord('final', finalAttDate); setFinalAttDate(''); }
+                  }}
+                >
+                  + Add Date
                 </button>
               </div>
             </div>
-          )}
+
+            {/* Final test date + result */}
+            <div className="sr-grid-2" style={{ gap: 14 }}>
+              <div>
+                <label style={labelStyle}>Final Test Date</label>
+                <DatePicker
+                  style={inputStyle}
+                  value={training.final_test_date ?? ''}
+                  onChange={(iso) => setTraining((t) => ({ ...t, final_test_date: iso || null }))}
+                />
+              </div>
+              <div>
+                <label style={labelStyle}>Result</label>
+                <select
+                  className="sr-input"
+                  style={inputStyle}
+                  value={training.final_test_result ?? ''}
+                  onChange={(e) => setTraining((t) => ({ ...t, final_test_result: (e.target.value || null) as 'pass' | 'fail' | null }))}
+                >
+                  <option value="">-- Select Result --</option>
+                  <option value="pass">Pass</option>
+                  <option value="fail">Fail</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Agent — manually entered */}
+            <div style={{ marginTop: 14 }}>
+              <label style={labelStyle}>Agent</label>
+              <input
+                className="sr-input"
+                style={inputStyle}
+                value={training.final_test_agent ?? ''}
+                onChange={(e) => setTraining((t) => ({ ...t, final_test_agent: e.target.value || null }))}
+                placeholder="Who conducted the final test"
+              />
+            </div>
+
+            {/* Demand — the candidate is assigned to a demand once the final test is passed */}
+            <div style={{ marginTop: 14 }}>
+              <label style={labelStyle}>Demand</label>
+              <select
+                className="sr-input"
+                style={inputStyle}
+                value={training.demand_id ?? ''}
+                onChange={(e) =>
+                  setTraining((t) => ({ ...t, demand_id: e.target.value ? Number(e.target.value) : null }))
+                }
+              >
+                <option value="">-- Select Demand --</option>
+                {demands.map((d) => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </select>
+              <span style={{ display: 'block', fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
+                Manage the list on the <strong>Demands</strong> page.
+              </span>
+            </div>
+
+            {/* Print result sheet for the final test */}
+            <div style={{ marginTop: 12 }}>
+              <button
+                type="button"
+                onClick={() => printResultSheet({ testLabel: 'Final Test', result: training.final_test_result, testDate: training.final_test_date, testNo: training.final_test_number })}
+                style={{ padding: '8px 14px', borderRadius: 7, fontSize: 12, background: 'var(--row-border,#f3f4f6)', border: '1px solid var(--border)', cursor: 'pointer', fontFamily: 'inherit' }}
+              >
+                🖨 Print Result Sheet
+              </button>
+            </div>
+          </div>
 
           {/* Save button */}
           <div style={{ marginTop: 8 }}>
             <button
               className="sr-btn-primary"
-              onClick={saveTraining}
-              disabled={trainingSaving}
+              onClick={saveTests}
+              disabled={testSaving}
               style={{ padding: '11px 22px', borderRadius: 8, fontSize: 14 }}
             >
-              {trainingSaving ? 'Saving…' : 'Save Training Details'}
+              {testSaving ? 'Saving…' : 'Save Test Details'}
             </button>
           </div>
         </div>
       )}
 
-      {/* ── Section 3: Employee Details ───────────────────────────────────── */}
-      {isEdit && candidate && !section2Done && (
-        <LockedSectionCard no="03" title="Employee Details" needNo={2} />
+      {/* ── Section 4: Employee Details ───────────────────────────────────── */}
+      {isEdit && candidate && !section3Done && (
+        <LockedSectionCard no="04" title="Employee Details" needNo={3} />
       )}
-      {isEdit && candidate && section2Done && (
+      {isEdit && candidate && section3Done && (
         <div style={cardStyle}>
           <div style={{ color: 'var(--accent, #6366f1)', fontWeight: 700, marginBottom: 4 }}>
-            03. Employee Details
+            04. Employee Details
           </div>
           <hr style={{ border: 'none', borderTop: '1px solid var(--border-soft)', margin: '10px 0 18px' }} />
 
@@ -2684,20 +2767,20 @@ export default function CandidateFormPage() {
               disabled={employeeSaving}
               style={{ padding: '11px 22px', borderRadius: 8, fontSize: 14 }}
             >
-              {employeeSaving ? 'Saving…' : 'Save Section 3'}
+              {employeeSaving ? 'Saving…' : 'Save Section 4'}
             </button>
           </div>
         </div>
       )}
 
-      {/* ── Section 4: Document Attachment ────────────────────────────────── */}
-      {isEdit && candidate && !section3Done && (
-        <LockedSectionCard no="04" title="Document Attachment" needNo={3} />
+      {/* ── Section 5: Document Attachment ────────────────────────────────── */}
+      {isEdit && candidate && !section4Done && (
+        <LockedSectionCard no="05" title="Document Attachment" needNo={4} />
       )}
-      {isEdit && candidate && section3Done && (
+      {isEdit && candidate && section4Done && (
         <div style={cardStyle}>
           <div style={{ color: 'var(--accent, #6366f1)', fontWeight: 700, marginBottom: 4 }}>
-            04. Document Attachment
+            05. Document Attachment
           </div>
           <hr style={{ border: 'none', borderTop: '1px solid var(--border-soft)', margin: '10px 0 18px' }} />
 
@@ -2899,14 +2982,14 @@ export default function CandidateFormPage() {
         </div>
       )}
 
-      {/* ── Section 4: Job & Visa Processing (country-scoped) ─────────────── */}
-      {isEdit && candidate && !section4Done && (
-        <LockedSectionCard no="05" title="Job & Visa Processing" needNo={4} />
+      {/* ── Section 6: Job & Visa Processing (country-scoped) ─────────────── */}
+      {isEdit && candidate && !section5Done && (
+        <LockedSectionCard no="06" title="Job & Visa Processing" needNo={5} />
       )}
-      {isEdit && candidate && section4Done && (
+      {isEdit && candidate && section5Done && (
         <div style={cardStyle}>
           <div style={{ color: 'var(--accent, #6366f1)', fontWeight: 700, marginBottom: 4 }}>
-            05. Job &amp; Visa Processing
+            06. Job &amp; Visa Processing
           </div>
           <hr style={{ border: 'none', borderTop: '1px solid var(--border-soft)', margin: '10px 0 18px' }} />
 
@@ -2989,14 +3072,14 @@ export default function CandidateFormPage() {
         </div>
       )}
 
-      {/* ── Section 5: Departure Details ──────────────────────────────────── */}
-      {isEdit && candidate && !section5Done && (
-        <LockedSectionCard no="06" title="Departure Details" needNo={5} />
+      {/* ── Section 7: Departure Details ──────────────────────────────────── */}
+      {isEdit && candidate && !section6Done && (
+        <LockedSectionCard no="07" title="Departure Details" needNo={6} />
       )}
-      {isEdit && candidate && section5Done && (
+      {isEdit && candidate && section6Done && (
         <div style={cardStyle}>
           <div style={{ color: 'var(--accent, #6366f1)', fontWeight: 700, marginBottom: 4 }}>
-            06. Departure Details
+            07. Departure Details
           </div>
           <hr style={{ border: 'none', borderTop: '1px solid var(--border-soft)', margin: '10px 0 18px' }} />
 
@@ -3060,7 +3143,7 @@ export default function CandidateFormPage() {
               disabled={departureSaving}
               style={{ padding: '11px 22px', borderRadius: 8, fontSize: 14 }}
             >
-              {departureSaving ? 'Saving…' : 'Save Section 6'}
+              {departureSaving ? 'Saving…' : 'Save Section 7'}
             </button>
           </div>
         </div>

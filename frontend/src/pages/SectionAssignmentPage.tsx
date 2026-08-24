@@ -9,6 +9,7 @@ import type { Staff } from '../types';
 const SECTION_TITLES = [
   'Personal Details',
   'Training Details',
+  'Test Details',
   'Employee Details',
   'Document Attachment',
   'Job & Visa Processing',

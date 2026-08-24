@@ -39,9 +39,30 @@ return new class extends Migration
                 );
             }
 
+            // Some environments (a locally-migrated DB) did get a real FK on the
+            // column; MariaDB refuses to drop the column while it stands.
+            $this->dropForeignKeys('candidate_employee_details', 'demand_id');
+
             Schema::table('candidate_employee_details', function (Blueprint $table) {
                 $table->dropColumn('demand_id');
             });
+        }
+    }
+
+    /**
+     * Drop every foreign key defined on one column, if any exist.
+     */
+    private function dropForeignKeys(string $table, string $column): void
+    {
+        $names = DB::table('information_schema.KEY_COLUMN_USAGE')
+            ->where('TABLE_SCHEMA', DB::getDatabaseName())
+            ->where('TABLE_NAME', $table)
+            ->where('COLUMN_NAME', $column)
+            ->whereNotNull('REFERENCED_TABLE_NAME')
+            ->pluck('CONSTRAINT_NAME');
+
+        foreach ($names as $name) {
+            DB::statement("ALTER TABLE `{$table}` DROP FOREIGN KEY `{$name}`");
         }
     }
 

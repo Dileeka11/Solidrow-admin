@@ -14,11 +14,12 @@ use Illuminate\Validation\Rule;
 
 class CandidateController extends Controller
 {
-    private const TOTAL_SECTIONS = 6;
+    private const TOTAL_SECTIONS = 7;
 
     private const SECTION_TITLES = [
         'Personal Details',
         'Training Details',
+        'Test Details',
         'Employee Details',
         'Document Attachment',
         'Job & Visa Processing',

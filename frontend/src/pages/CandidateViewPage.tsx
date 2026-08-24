@@ -418,12 +418,32 @@ export default function CandidateViewPage() {
         </div>
       </SectionCard>
 
-      {/* Section 2: Training Details */}
-      <SectionCard title="02. Training Details" complete={isDone(2)}>
-        <div className="sr-grid-2" style={gridMb20}>
-          <FileField label="Training Bond" url={training?.training_bond_url} />
-        </div>
+      {/* Section 2: Training Details — training candidates only */}
+      {c.candidate_skill === 'training' && (
+        <SectionCard title="02. Training Details" complete={isDone(2)}>
+          <div className="sr-grid-2" style={gridMb20}>
+            <FileField label="Training Bond" url={training?.training_bond_url} />
+          </div>
 
+          {(training?.pre_test_cycles?.length ?? 0) > 0
+            ? training!.pre_test_cycles.map((cycle) => (
+              <div
+                key={cycle.cycle_no}
+                style={{ border: '1px solid var(--border-soft)', borderRadius: 10, padding: '16px 20px', marginBottom: 16, background: 'var(--row-bg,#fafafa)' }}
+              >
+                <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--accent,#6366f1)', marginBottom: 14 }}>
+                  Training Attendance — Cycle {cycle.cycle_no}
+                </div>
+                <div style={labelStyle}>Attendance ({cycle.attendance_records.length} days)</div>
+                <AttendanceList records={cycle.attendance_records} />
+              </div>
+            ))
+            : <div style={{ fontSize: 13, color: 'var(--muted)' }}>No training attendance recorded yet.</div>}
+        </SectionCard>
+      )}
+
+      {/* Section 3: Test Details — Pre Test & Final Test, for every candidate */}
+      <SectionCard title="03. Test Details" complete={isDone(3)}>
         {(training?.pre_test_cycles?.length ?? 0) > 0 &&
           training!.pre_test_cycles.map((cycle) => (
             <div
@@ -435,10 +455,6 @@ export default function CandidateViewPage() {
                   Pre Test — Cycle {cycle.cycle_no}
                 </span>
                 <ResultBadge result={cycle.test_result} />
-              </div>
-              <div style={{ marginBottom: 14 }}>
-                <div style={labelStyle}>Attendance ({cycle.attendance_records.length} days)</div>
-                <AttendanceList records={cycle.attendance_records} />
               </div>
               <div className="sr-grid-2">
                 <Field label="Test Number" value={cycle.test_number} />
@@ -477,12 +493,12 @@ export default function CandidateViewPage() {
         )}
 
         {!training && (
-          <div style={{ fontSize: 13, color: 'var(--muted)' }}>No training details recorded yet.</div>
+          <div style={{ fontSize: 13, color: 'var(--muted)' }}>No test details recorded yet.</div>
         )}
       </SectionCard>
 
-      {/* Section 3: Employee Details */}
-      <SectionCard title="03. Employee Details" complete={isDone(3)}>
+      {/* Section 4: Employee Details */}
+      <SectionCard title="04. Employee Details" complete={isDone(4)}>
         <div className="sr-grid-2">
           <Field label="Registration Number" value={employee?.registration_number} />
           <Field
@@ -496,8 +512,8 @@ export default function CandidateViewPage() {
         </div>
       </SectionCard>
 
-      {/* Section 4: Document Attachment */}
-      <SectionCard title="04. Document Attachment" complete={isDone(4)}>
+      {/* Section 5: Document Attachment */}
+      <SectionCard title="05. Document Attachment" complete={isDone(5)}>
         <div className="sr-grid-2">
           <FileField label="Passport Size Photo" url={documents?.passport_size_photo_url} />
           <FileField label="NIC Color Copy" url={documents?.nic_color_copy_url} />
@@ -513,8 +529,8 @@ export default function CandidateViewPage() {
         </div>
       </SectionCard>
 
-      {/* Section 5: Job & Visa Processing */}
-      <SectionCard title="05. Job & Visa Processing" complete={isDone(5)}>
+      {/* Section 6: Job & Visa Processing */}
+      <SectionCard title="06. Job & Visa Processing" complete={isDone(6)}>
         {c.country === 'Romania' && (
           <div className="sr-grid-3" style={gridMb16}>
             <Field label="Offer Letter Date" value={visa?.offer_letter_date} />
@@ -542,8 +558,8 @@ export default function CandidateViewPage() {
         </div>
       </SectionCard>
 
-      {/* Section 6: Departure Details */}
-      <SectionCard title="06. Departure Details" complete={isDone(6)}>
+      {/* Section 7: Departure Details */}
+      <SectionCard title="07. Departure Details" complete={isDone(7)}>
         <div className="sr-grid-3">
           <Field label="Final Approval Date" value={departure?.final_approval_date} />
           <Field label="Receipt Number" value={departure?.receipt_number} />
@@ -559,7 +575,7 @@ export default function CandidateViewPage() {
           <div style={sectionTitleStyle}>Sections Progress</div>
           <hr style={hrStyle} />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {['Personal Details', 'Training Details', 'Employee Details', 'Document Attachment', 'Job & Visa Processing', 'Departure Details'].map((title, i) => {
+            {['Personal Details', 'Training Details', 'Test Details', 'Employee Details', 'Document Attachment', 'Job & Visa Processing', 'Departure Details'].map((title, i) => {
               const n = i + 1;
               const sec = c.sections?.find((s) => s.section_no === n);
               const submitted = sec?.status === 'submitted';
