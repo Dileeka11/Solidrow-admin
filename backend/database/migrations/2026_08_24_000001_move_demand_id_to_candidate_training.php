@@ -19,8 +19,10 @@ return new class extends Migration
     public function up(): void
     {
         if (! Schema::hasColumn('candidate_training', 'demand_id')) {
+            // No ->after(): the live table (built from a SQL dump) may not have
+            // the column we'd anchor to, and column position is cosmetic anyway.
             Schema::table('candidate_training', function (Blueprint $table) {
-                $table->unsignedBigInteger('demand_id')->nullable()->after('final_test_agent');
+                $table->unsignedBigInteger('demand_id')->nullable();
             });
         }
 
@@ -47,7 +49,7 @@ return new class extends Migration
     {
         if (! Schema::hasColumn('candidate_employee_details', 'demand_id')) {
             Schema::table('candidate_employee_details', function (Blueprint $table) {
-                $table->unsignedBigInteger('demand_id')->nullable()->after('job_category_id');
+                $table->unsignedBigInteger('demand_id')->nullable();
             });
         }
 
