@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Where ota_update stores the downloaded APK before handing it to the
+     Android installer via its FileProvider. -->
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <files-path name="internal_apk_storage" path="ota_update/"/>
+</paths>

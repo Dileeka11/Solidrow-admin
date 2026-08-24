@@ -18,11 +18,11 @@
 
 return [
     // Human-readable version shown in the update dialog, e.g. "1.1.0".
-    'latest_version' => env('APP_LATEST_VERSION', '1.0.3'),
+    'latest_version' => env('APP_LATEST_VERSION', '1.0.5'),
 
     // Integer build number — the source of truth for "is an update needed?".
     // Must match the `+N` suffix in the Flutter pubspec version (1.0.0+N).
-    'latest_build' => (int) env('APP_LATEST_BUILD', 4),
+    'latest_build' => (int) env('APP_LATEST_BUILD', 6),
 
     // APK location under the public/ web root. Served as a static file.
     'apk_path' => env('APP_APK_PATH', 'app/solidrow-staff.apk'),
