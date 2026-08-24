@@ -3,6 +3,8 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <!-- Internet for API calls -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Allow the in-app updater to launch the Android package installer -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- Camera hardware feature -->
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 

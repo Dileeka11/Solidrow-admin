@@ -158,7 +158,13 @@ class _ProgressCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (result.candidatePhoto != null &&
+                  result.candidatePhoto!.isNotEmpty) ...[
+                _CandidatePhoto(url: result.candidatePhoto!),
+                const SizedBox(width: 14),
+              ],
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -224,6 +230,47 @@ class _ProgressCard extends StatelessWidget {
           const SizedBox(height: 20),
           ...result.sections.map((s) => _SectionRow(section: s)),
         ],
+      ),
+    );
+  }
+}
+
+/// Candidate passport-size photo shown in the progress card header.
+class _CandidatePhoto extends StatelessWidget {
+  final String url;
+  const _CandidatePhoto({required this.url});
+
+  // Passport aspect ratio (35:45), sized a touch larger for visibility.
+  static const double _width = 76;
+  static const double _height = 98;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        width: _width,
+        height: _height,
+        color: AppColors.navyLight,
+        child: Image.network(
+          url,
+          fit: BoxFit.cover,
+          loadingBuilder: (context, child, progress) {
+            if (progress == null) return child;
+            return const Center(
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                    strokeWidth: 2.2, color: AppColors.textSecondary),
+              ),
+            );
+          },
+          errorBuilder: (_, __, ___) => const Center(
+            child: Icon(Icons.person_rounded,
+                size: 34, color: AppColors.textSecondary),
+          ),
+        ),
       ),
     );
   }
@@ -311,6 +358,7 @@ class _ErrorBox extends StatelessWidget {
 class _ProgressResult {
   final String fullName;
   final String registrationNo;
+  final String? candidatePhoto;
   final int totalSections;
   final bool isCompleted;
   final List<_SectionStatus> sections;
@@ -318,6 +366,7 @@ class _ProgressResult {
   _ProgressResult({
     required this.fullName,
     required this.registrationNo,
+    required this.candidatePhoto,
     required this.totalSections,
     required this.isCompleted,
     required this.sections,
@@ -327,6 +376,7 @@ class _ProgressResult {
     return _ProgressResult(
       fullName: (json['full_name'] ?? '—').toString(),
       registrationNo: (json['registration_no'] ?? '—').toString(),
+      candidatePhoto: (json['candidate_photo'] as String?)?.trim(),
       totalSections: (json['total_sections'] as num?)?.toInt() ?? 0,
       isCompleted: json['is_completed'] == true,
       sections: ((json['sections'] as List?) ?? [])

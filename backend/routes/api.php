@@ -5,6 +5,7 @@ use App\Http\Controllers\AccountController;
 use App\Http\Controllers\AccountGroupController;
 use App\Http\Controllers\AccountingStatsController;
 use App\Http\Controllers\AgentController;
+use App\Http\Controllers\AppVersionController;
 use App\Http\Controllers\AttendanceScanController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BankController;
@@ -43,6 +44,9 @@ Route::post('/login', [AuthController::class, 'login']);
 
 // Public — candidate self-service progress lookup (passport / mobile / NIC)
 Route::get('/progress', [CandidateController::class, 'publicProgress']);
+
+// Public — mobile app version check (drives the in-app update flow)
+Route::get('/app-version', [AppVersionController::class, 'show']);
 
 // Public — Baddegama registration form (master data + OTP + sign-up)
 Route::get('/baddegama/provinces', [BaddegamaPublicController::class, 'provinces']);

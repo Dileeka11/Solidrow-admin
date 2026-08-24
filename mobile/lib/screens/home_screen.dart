@@ -1,15 +1,36 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../core/update_service.dart';
 import '../main.dart';
 import 'progress_screen.dart';
+import 'update_dialog.dart';
 
 /// Public landing screen shown when the app opens (no login required).
 ///
 /// Anyone can look up a candidate's registration progress here. Staff can tap
 /// "Staff Login" in the top-right to access the attendance dashboard.
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // On launch, ask the backend whether a newer build exists and, if so,
+    // present the (forced) update dialog.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkForUpdate());
+  }
+
+  Future<void> _checkForUpdate() async {
+    final info = await AppUpdateService.check();
+    if (!mounted || info == null) return;
+    await UpdateDialog.show(context, info);
+  }
 
   @override
   Widget build(BuildContext context) {

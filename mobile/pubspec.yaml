@@ -1,7 +1,7 @@
 name: solidrow_staff_app
 description: "Solidrow Staff Attendance Scanner App"
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.2+3
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -33,6 +33,12 @@ dependencies:
 
   # Icons
   cupertino_icons: ^1.0.8
+
+  # Read the installed app version/build for the update check
+  package_info_plus: ^8.1.2
+
+  # Self-hosted OTA: download the new APK and launch the Android installer
+  ota_update: ^7.1.0
 
 dev_dependencies:
   flutter_test:
