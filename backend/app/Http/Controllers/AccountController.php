@@ -6,12 +6,13 @@ use App\Models\Account;
 use App\Models\AccountGroup;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
 
 /**
- * Individual GL accounts — the "Chart of Accounts" screen. Each account is
- * joined up to its group, category and statement type. When the code is left
- * blank on create it is auto-generated from the group.
+ * Individual GL accounts — the "Chart of Accounts" screen. The chart is a tree:
+ * a top-level account belongs to a group (parent_id NULL); a sub-account nests
+ * under another account and inherits its group. Codes are always system
+ * generated (never user-editable). An account that has children is a "header"
+ * and is not postable — only leaf accounts may be used in journal entries.
  */
 class AccountController extends Controller
 {
@@ -30,15 +31,20 @@ class AccountController extends Controller
                 'accounts.is_default',
                 'accounts.created_by',
                 'accounts.group_id',
+                'accounts.parent_id',
                 'g.name as group_name',
                 'g.code as group_code',
                 'c.id as category_id',
                 'c.name as category_name',
                 'c.statement_type as type',
+                // has_children drives the header/postable distinction on the client.
+                DB::raw('EXISTS(SELECT 1 FROM accounts AS ch WHERE ch.parent_id = accounts.id) AS has_children'),
             ])
             ->map(function ($r) {
                 $r->is_active = (bool) $r->is_active;
                 $r->is_default = (bool) $r->is_default;
+                $r->has_children = (bool) $r->has_children;
+                $r->is_postable = ! $r->has_children; // only leaves can be posted to
                 return $r;
             });
     }
@@ -46,17 +52,33 @@ class AccountController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate([
-            'group_id' => ['required', 'integer', 'exists:account_groups,id'],
+            'group_id' => ['nullable', 'integer', 'exists:account_groups,id'],
+            'parent_id' => ['nullable', 'integer', 'exists:accounts,id'],
             'name' => ['required', 'string', 'max:150'],
-            'code' => ['nullable', 'string', 'max:20', Rule::unique('accounts', 'code')],
             'is_active' => ['nullable', 'boolean'],
         ]);
 
-        $group = AccountGroup::findOrFail($data['group_id']);
+        // A sub-account inherits its parent's group and gets a parent-derived code.
+        // A top-level account needs a group and gets a group-derived code.
+        if (! empty($data['parent_id'])) {
+            $parent = Account::findOrFail($data['parent_id']);
+            $groupId = $parent->group_id;
+            $code = $this->nextChildCode($parent);
+            $parentId = $parent->id;
+        } else {
+            if (empty($data['group_id'])) {
+                return response()->json(['message' => 'A group is required for a top-level account.'], 422);
+            }
+            $group = AccountGroup::findOrFail($data['group_id']);
+            $groupId = $group->id;
+            $code = $this->nextAccountCode($group);
+            $parentId = null;
+        }
 
         $account = Account::create([
-            'group_id' => $group->id,
-            'code' => $data['code'] ?? $this->nextAccountCode($group),
+            'group_id' => $groupId,
+            'parent_id' => $parentId,
+            'code' => $code,
             'name' => $data['name'],
             'is_active' => $data['is_active'] ?? true,
             'is_default' => false,
@@ -66,18 +88,18 @@ class AccountController extends Controller
         return response()->json($account, 201);
     }
 
+    /**
+     * Only the name and active flag are editable. Codes are system-generated and
+     * locked; group/parent moves are out of scope so the tree stays consistent.
+     */
     public function update(Request $request, Account $account)
     {
         $data = $request->validate([
-            'group_id' => ['required', 'integer', 'exists:account_groups,id'],
             'name' => ['required', 'string', 'max:150'],
-            'code' => ['required', 'string', 'max:20', Rule::unique('accounts', 'code')->ignore($account->id)],
             'is_active' => ['nullable', 'boolean'],
         ]);
 
         $account->update([
-            'group_id' => $data['group_id'],
-            'code' => $data['code'],
             'name' => $data['name'],
             'is_active' => $data['is_active'] ?? $account->is_active,
         ]);
@@ -87,6 +109,13 @@ class AccountController extends Controller
 
     public function destroy(Account $account)
     {
+        // A header account owns sub-accounts; deleting it would orphan them.
+        if ($account->children()->exists()) {
+            return response()->json([
+                'message' => 'Cannot delete: this account has sub-accounts. Remove those first.',
+            ], 409);
+        }
+
         // journal_lines has no DB cascade. Block deletion of any account that
         // has been posted to; the user should deactivate it instead.
         if ($account->lines()->exists()) {
@@ -110,12 +139,35 @@ class AccountController extends Controller
         $base = (int) $group->code * 100;
 
         $current = (int) Account::where('group_id', $group->id)
+            ->whereNull('parent_id')
             ->max(DB::raw('CAST(code AS UNSIGNED)'));
 
         $next = $current >= $base ? $current + 100 : $base;
 
         while (Account::where('code', (string) $next)->exists()) {
             $next += 100;
+        }
+
+        return (string) $next;
+    }
+
+    /**
+     * Next free code for a sub-account, derived from the parent's code by
+     * appending a running sequence. e.g. parent 1130 -> 1131, 1132; parent
+     * 110100 -> 110101, 110102. Steps until the code is unique chart-wide.
+     */
+    private function nextChildCode(Account $parent): string
+    {
+        $base = (int) $parent->code;
+
+        // Highest existing child code (children live just above the parent code).
+        $current = (int) Account::where('parent_id', $parent->id)
+            ->max(DB::raw('CAST(code AS UNSIGNED)'));
+
+        $next = $current >= $base ? $current + 1 : $base + 1;
+
+        while (Account::where('code', (string) $next)->exists()) {
+            $next += 1;
         }
 
         return (string) $next;

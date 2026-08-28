@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS `account_groups` (
 CREATE TABLE IF NOT EXISTS `accounts` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `group_id` bigint(20) unsigned NOT NULL,
+  `parent_id` bigint(20) unsigned DEFAULT NULL,
   `code` varchar(20) NOT NULL,
   `name` varchar(150) NOT NULL,
   `is_active` tinyint(1) NOT NULL DEFAULT 1,
@@ -46,8 +47,18 @@ CREATE TABLE IF NOT EXISTS `accounts` (
   `updated_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `accounts_code_unique` (`code`),
-  KEY `accounts_group_id_index` (`group_id`)
+  KEY `accounts_group_id_index` (`group_id`),
+  KEY `accounts_parent_id_index` (`parent_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Existing installs: add the tree column + index if they aren't there yet.
+-- (Guarded so it's safe on MySQL, which lacks ADD COLUMN IF NOT EXISTS.)
+SET @has_parent := (SELECT COUNT(*) FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'accounts' AND COLUMN_NAME = 'parent_id');
+SET @sql := IF(@has_parent = 0,
+  'ALTER TABLE `accounts` ADD COLUMN `parent_id` bigint(20) unsigned DEFAULT NULL AFTER `group_id`, ADD KEY `accounts_parent_id_index` (`parent_id`)',
+  'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 CREATE TABLE IF NOT EXISTS `journal_entries` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -131,4 +142,10 @@ INSERT INTO `migrations` (`migration`,`batch`)
 SELECT '2026_08_18_000001_create_accounting_tables', 17
 WHERE NOT EXISTS (
   SELECT 1 FROM `migrations` WHERE `migration` = '2026_08_18_000001_create_accounting_tables'
+);
+
+INSERT INTO `migrations` (`migration`,`batch`)
+SELECT '2026_08_28_000001_add_parent_to_accounts', 17
+WHERE NOT EXISTS (
+  SELECT 1 FROM `migrations` WHERE `migration` = '2026_08_28_000001_add_parent_to_accounts'
 );

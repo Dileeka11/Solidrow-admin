@@ -1,12 +1,21 @@
 import { useEffect, useState } from 'react';
 import type { AccountRow, ChartCategory } from '../../types';
 
+export interface AccountSaveData {
+  group_id?: number;
+  parent_id?: number;
+  name: string;
+  is_active: boolean;
+}
+
 interface Props {
   open: boolean;
   editing: AccountRow | null;
+  /** When set, we're adding a sub-account under this row (group is inherited). */
+  parent: AccountRow | null;
   chart: ChartCategory[];
   onClose: () => void;
-  onSave: (data: { group_id: number; name: string; code: string; is_active: boolean }) => Promise<void>;
+  onSave: (data: AccountSaveData) => Promise<void>;
 }
 
 const fieldLabel: React.CSSProperties = {
@@ -17,28 +26,40 @@ const fieldLabel: React.CSSProperties = {
   color: 'var(--label-2)',
 };
 const inputStyle: React.CSSProperties = { padding: '10px 12px', borderRadius: 7, fontSize: 14 };
+const readonlyBox: React.CSSProperties = {
+  ...inputStyle,
+  background: 'var(--row-border, #f3f4f6)',
+  border: '1px solid var(--border)',
+  color: 'var(--muted)',
+  fontFamily: 'monospace',
+};
 
-export default function AccountModal({ open, editing, chart, onClose, onSave }: Props) {
+export default function AccountModal({ open, editing, parent, chart, onClose, onSave }: Props) {
   const [groupId, setGroupId] = useState<number | ''>('');
   const [name, setName] = useState('');
-  const [code, setCode] = useState('');
   const [isActive, setIsActive] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+
+  // A sub-account inherits its group from the parent; only a top-level account
+  // (no parent, not editing an existing sub-account) needs the group selector.
+  const isSubAccount = !editing && !!parent;
+  const showGroupSelector = !editing && !parent;
 
   useEffect(() => {
     if (!open) return;
     setError('');
     setGroupId(editing?.group_id ?? '');
     setName(editing?.name ?? '');
-    setCode(editing?.code ?? '');
     setIsActive(editing ? editing.is_active : true);
-  }, [open, editing]);
+  }, [open, editing, parent]);
 
   if (!open) return null;
 
+  const title = editing ? 'Edit Account' : isSubAccount ? 'Add Sub-account' : 'Add Account';
+
   async function handleSave() {
-    if (!groupId) {
+    if (showGroupSelector && !groupId) {
       setError('Please select a group.');
       return;
     }
@@ -46,20 +67,18 @@ export default function AccountModal({ open, editing, chart, onClose, onSave }: 
       setError('Account name is required.');
       return;
     }
-    // Code is auto-generated on create when blank, but required when editing.
-    if (editing && !code.trim()) {
-      setError('Account code cannot be blank.');
-      return;
-    }
     setBusy(true);
     setError('');
     try {
-      await onSave({ group_id: Number(groupId), name: name.trim(), code: code.trim(), is_active: isActive });
+      const data: AccountSaveData = { name: name.trim(), is_active: isActive };
+      if (isSubAccount && parent) data.parent_id = parent.id;
+      else if (showGroupSelector) data.group_id = Number(groupId);
+      await onSave(data);
     } catch (err: unknown) {
-      const data = (err as { response?: { data?: { message?: string; errors?: Record<string, string[]> } } })
+      const resp = (err as { response?: { data?: { message?: string; errors?: Record<string, string[]> } } })
         ?.response?.data;
-      const firstFieldError = data?.errors ? Object.values(data.errors)[0]?.[0] : undefined;
-      setError(firstFieldError ?? data?.message ?? 'Could not save. Please check the fields.');
+      const firstFieldError = resp?.errors ? Object.values(resp.errors)[0]?.[0] : undefined;
+      setError(firstFieldError ?? resp?.message ?? 'Could not save. Please check the fields.');
     } finally {
       setBusy(false);
     }
@@ -83,32 +102,51 @@ export default function AccountModal({ open, editing, chart, onClose, onSave }: 
         style={{ background: 'white', borderRadius: 14, width: 460, maxWidth: '90vw', padding: 28 }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 20 }}>
-          {editing ? 'Edit Account' : 'Add Account'}
-        </div>
+        <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 20 }}>{title}</div>
 
-        <div style={{ marginBottom: 14 }}>
-          <label style={fieldLabel}>Group</label>
-          <select
-            className="sr-input"
-            value={groupId}
-            onChange={(e) => setGroupId(e.target.value ? Number(e.target.value) : '')}
-            style={inputStyle}
-          >
-            <option value="" disabled>
-              Select a group…
-            </option>
-            {chart.map((cat) => (
-              <optgroup key={cat.id} label={`${cat.code} · ${cat.name}`}>
-                {cat.groups.map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {g.code} · {g.name}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
-        </div>
+        {/* Sub-account: parent shown read-only (group is inherited). */}
+        {isSubAccount && parent && (
+          <div style={{ marginBottom: 14 }}>
+            <label style={fieldLabel}>Under</label>
+            <div style={readonlyBox}>
+              {parent.code} · {parent.name}
+            </div>
+          </div>
+        )}
+
+        {/* Top-level account: pick the group it rolls up to. */}
+        {showGroupSelector && (
+          <div style={{ marginBottom: 14 }}>
+            <label style={fieldLabel}>Group</label>
+            <select
+              className="sr-input"
+              value={groupId}
+              onChange={(e) => setGroupId(e.target.value ? Number(e.target.value) : '')}
+              style={inputStyle}
+            >
+              <option value="" disabled>
+                Select a group…
+              </option>
+              {chart.map((cat) => (
+                <optgroup key={cat.id} label={`${cat.code} · ${cat.name}`}>
+                  {cat.groups.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.code} · {g.name}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {/* Editing: show the (locked) code + group for context. */}
+        {editing && (
+          <div style={{ marginBottom: 14 }}>
+            <label style={fieldLabel}>Code (auto-generated · locked)</label>
+            <div style={readonlyBox}>{editing.code}</div>
+          </div>
+        )}
 
         <div style={{ marginBottom: 14 }}>
           <label style={fieldLabel}>Account Name</label>
@@ -121,24 +159,18 @@ export default function AccountModal({ open, editing, chart, onClose, onSave }: 
           />
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: error ? 12 : 22, alignItems: 'end' }}>
-          <div>
-            <label style={fieldLabel}>
-              Code {!editing && <span style={{ fontWeight: 400, color: 'var(--muted)' }}>(auto if blank)</span>}
-            </label>
-            <input
-              className="sr-input"
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              placeholder={editing ? '' : 'Leave blank to auto-generate'}
-              style={inputStyle}
-            />
-          </div>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, paddingBottom: 10 }}>
+        <div style={{ marginBottom: error ? 12 : 22 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14 }}>
             <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
             Active
           </label>
         </div>
+
+        {!editing && (
+          <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: error ? 12 : 20 }}>
+            The account code is generated automatically.
+          </div>
+        )}
 
         {error && <div style={{ color: 'oklch(0.55 0.16 25)', fontSize: 13, marginBottom: 14 }}>{error}</div>}
 

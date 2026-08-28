@@ -28,7 +28,8 @@ export default function ManualJournalEntryPage() {
   useEffect(() => {
     api
       .get<AccountRow[]>('/accounting/accounts')
-      .then((res) => setAccounts(res.data.filter((a) => a.is_active)))
+      // Only leaf (postable) accounts — header accounts roll up their children.
+      .then((res) => setAccounts(res.data.filter((a) => a.is_active && a.is_postable)))
       .catch(() => setAccounts([]));
   }, []);
 

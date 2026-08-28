@@ -222,7 +222,7 @@ export default function PurchaseRequisitionFormPage() {
             <label style={fieldLabel}>Budget Code / Cost Center</label>
             <select className="sr-input" value={budgetAccountId} onChange={(e) => setBudgetAccountId(e.target.value ? Number(e.target.value) : '')} style={inputStyle} disabled={readOnly}>
               <option value="">None</option>
-              {accounts.map((a) => <option key={a.id} value={a.id}>{a.code} · {a.name}</option>)}
+              {accounts.filter((a) => a.is_postable).map((a) => <option key={a.id} value={a.id}>{a.code} · {a.name}</option>)}
             </select>
           </div>
           <div style={{ gridColumn: isMobile ? 'auto' : '1 / -1' }}>

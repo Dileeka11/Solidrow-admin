@@ -332,11 +332,16 @@ export interface AccountRow {
   is_default: boolean;
   created_by: string;
   group_id: number;
+  parent_id: number | null;
   group_name: string;
   group_code: string;
   category_id: number;
   category_name: string;
   type: StatementType;
+  /** True when the account has sub-accounts (a "header", not postable). */
+  has_children: boolean;
+  /** True when the account is a leaf and may be posted to in journal entries. */
+  is_postable: boolean;
 }
 
 export interface JournalLine {
