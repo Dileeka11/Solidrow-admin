@@ -51,7 +51,8 @@
       "Bash(rm -f ../backend/public/assets/index-BPiSH8cg.js)",
       "Bash(cmd //c \"dir C:\\\\xampp\\\\htdocs\\\\solidrow-admin\")",
       "Bash(cat \"C:\\\\Users\\\\ASUS\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--My-Projects-Solidrow-admin\\\\64701cde-b5ba-4960-a6a3-fb6a26062980\\\\tasks\\\\b9d329mss.output\" 2>/dev/null *)",
-      "Read(//c/xampp/apache/conf/extra/**)"
+      "Read(//c/xampp/apache/conf/extra/**)",
+      "Bash(grep -iE \"deploy|lftp|\\\\.sh$|\\\\.yml$|\\\\.yaml$\")"
     ],
     "additionalDirectories": [
       "\\tmp"

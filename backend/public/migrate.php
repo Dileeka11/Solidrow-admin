@@ -32,22 +32,19 @@ $app = require $base . '/bootstrap/app.php';
 $kernel = $app->make(\Illuminate\Contracts\Console\Kernel::class);
 
 try {
-    // Run ONLY the demand-move migration. A full `migrate` fails here because the
-    // live DB was built from a SQL dump (schema is ahead of the migrations ledger),
-    // so older "pending" migrations try to re-add columns that already exist.
-    // The migration is idempotent (hasColumn guards) so it's safe if re-run.
-    echo "=== migrate (move demand_id to candidate_training, via --path) ===\n";
+    // Run ONLY the accounts parent_id migration, via --path. A full `migrate`
+    // fails here because the live DB was built from a SQL dump (schema is ahead
+    // of the migrations ledger), so older "pending" migrations try to re-add
+    // columns that already exist. This migration just ADDs a nullable column +
+    // index, so it's safe (and re-running it is a harmless no-op once applied).
+    echo "=== migrate (add parent_id to accounts, via --path) ===\n";
     $kernel->call('migrate', [
         '--force' => true,
-        '--path' => 'database/migrations/2026_08_24_000001_move_demand_id_to_candidate_training.php',
+        '--path' => 'database/migrations/2026_08_28_000001_add_parent_to_accounts.php',
     ]);
     echo $kernel->output();
 
-    echo "\n=== db:seed --force (roles/permissions incl. Baddegama) ===\n";
-    $kernel->call('db:seed', ['--force' => true]);
-    echo $kernel->output();
-
-    echo "\n=== clearing stale caches ===\n";
+    echo "\n=== clearing stale caches (so new routes/controllers take effect) ===\n";
     $kernel->call('optimize:clear');
     echo $kernel->output();
 
