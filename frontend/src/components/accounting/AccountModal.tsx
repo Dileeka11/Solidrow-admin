@@ -14,6 +14,8 @@ interface Props {
   /** When set, we're adding a sub-account under this row (group is inherited). */
   parent: AccountRow | null;
   chart: ChartCategory[];
+  /** Full accounts list used to populate the optional parent dropdown. */
+  accounts: AccountRow[];
   onClose: () => void;
   onSave: (data: AccountSaveData) => Promise<void>;
 }
@@ -34,29 +36,33 @@ const readonlyBox: React.CSSProperties = {
   fontFamily: 'monospace',
 };
 
-export default function AccountModal({ open, editing, parent, chart, onClose, onSave }: Props) {
+export default function AccountModal({ open, editing, parent, chart, accounts, onClose, onSave }: Props) {
   const [groupId, setGroupId] = useState<number | ''>('');
+  const [selectedParentId, setSelectedParentId] = useState<number | ''>('');
   const [name, setName] = useState('');
   const [isActive, setIsActive] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  // A sub-account inherits its group from the parent; only a top-level account
-  // (no parent, not editing an existing sub-account) needs the group selector.
+  // A sub-account inherits its group from the parent prop (via the table "+" button).
+  // When adding top-level, the user may optionally pick a parent from the dropdown.
   const isSubAccount = !editing && !!parent;
-  const showGroupSelector = !editing && !parent;
+  const showGroupSelector = !editing && !parent && !selectedParentId;
+  // The parent selected via the dropdown (when using "+ New Account").
+  const chosenParent = selectedParentId ? accounts.find((a) => a.id === Number(selectedParentId)) : null;
 
   useEffect(() => {
     if (!open) return;
     setError('');
     setGroupId(editing?.group_id ?? '');
+    setSelectedParentId('');
     setName(editing?.name ?? '');
     setIsActive(editing ? editing.is_active : true);
   }, [open, editing, parent]);
 
   if (!open) return null;
 
-  const title = editing ? 'Edit Account' : isSubAccount ? 'Add Sub-account' : 'Add Account';
+  const title = editing ? 'Edit Account' : isSubAccount || selectedParentId ? 'Add Sub-account' : 'Add Account';
 
   async function handleSave() {
     if (showGroupSelector && !groupId) {
@@ -72,6 +78,7 @@ export default function AccountModal({ open, editing, parent, chart, onClose, on
     try {
       const data: AccountSaveData = { name: name.trim(), is_active: isActive };
       if (isSubAccount && parent) data.parent_id = parent.id;
+      else if (selectedParentId) data.parent_id = Number(selectedParentId);
       else if (showGroupSelector) data.group_id = Number(groupId);
       await onSave(data);
     } catch (err: unknown) {
@@ -114,7 +121,38 @@ export default function AccountModal({ open, editing, parent, chart, onClose, on
           </div>
         )}
 
-        {/* Top-level account: pick the group it rolls up to. */}
+        {/* Top-level new account: optional parent account selector. */}
+        {!editing && !parent && (
+          <div style={{ marginBottom: 14 }}>
+            <label style={fieldLabel}>Parent Account <span style={{ fontWeight: 400, color: 'var(--muted)' }}>(optional)</span></label>
+            <select
+              className="sr-input"
+              value={selectedParentId}
+              onChange={(e) => {
+                const val = e.target.value ? Number(e.target.value) : '';
+                setSelectedParentId(val);
+                setGroupId('');
+              }}
+              style={inputStyle}
+            >
+              <option value="">None (top-level account)</option>
+              {accounts
+                .filter((a) => a.is_active)
+                .map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.code} · {a.name}
+                  </option>
+                ))}
+            </select>
+            {chosenParent && (
+              <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
+                Group: {chosenParent.group_code} · {chosenParent.group_name}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Top-level account: pick the group it rolls up to (only when no parent selected). */}
         {showGroupSelector && (
           <div style={{ marginBottom: 14 }}>
             <label style={fieldLabel}>Group</label>

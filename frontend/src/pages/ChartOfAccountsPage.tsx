@@ -362,6 +362,7 @@ export default function ChartOfAccountsPage() {
         editing={editing}
         parent={parentFor}
         chart={chart}
+        accounts={accounts}
         onClose={() => setModalOpen(false)}
         onSave={handleSave}
       />
