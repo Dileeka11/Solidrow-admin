@@ -113,11 +113,6 @@ export default function ChartOfAccountsPage() {
     });
   }
 
-  function openCreate() {
-    setEditing(null);
-    setParentFor(null);
-    setModalOpen(true);
-  }
 
   function openAddChild(row: AccountRow) {
     setEditing(null);
@@ -238,6 +233,7 @@ export default function ChartOfAccountsPage() {
           </div>
         )}
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          {/* Add sub-account — always available */}
           <button
             onClick={() => openAddChild(a)}
             title="Add sub-account"
@@ -245,10 +241,32 @@ export default function ChartOfAccountsPage() {
           >
             <PlusIcon />
           </button>
-          <button onClick={() => openEdit(a)} title="Edit" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 4 }}>
+          {/* Edit — disabled for system-default accounts */}
+          <button
+            onClick={() => !a.is_default && openEdit(a)}
+            title={a.is_default ? 'System account — cannot edit' : 'Edit'}
+            disabled={a.is_default}
+            style={{
+              background: 'none', border: 'none',
+              cursor: a.is_default ? 'not-allowed' : 'pointer',
+              color: a.is_default ? 'oklch(0.8 0 0)' : 'var(--muted)',
+              padding: 4,
+            }}
+          >
             <EditIcon />
           </button>
-          <button onClick={() => handleDelete(a)} title="Delete" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'oklch(0.55 0.16 25)', padding: 4 }}>
+          {/* Delete — disabled for system-default accounts */}
+          <button
+            onClick={() => !a.is_default && handleDelete(a)}
+            title={a.is_default ? 'System account — cannot delete' : 'Delete'}
+            disabled={a.is_default}
+            style={{
+              background: 'none', border: 'none',
+              cursor: a.is_default ? 'not-allowed' : 'pointer',
+              color: a.is_default ? 'oklch(0.8 0 0)' : 'oklch(0.55 0.16 25)',
+              padding: 4,
+            }}
+          >
             <TrashIcon />
           </button>
         </div>
@@ -258,21 +276,16 @@ export default function ChartOfAccountsPage() {
 
   return (
     <div className="fade-in-s">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 24, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 24, flexWrap: 'wrap' }}>
         <div>
           <div style={{ fontSize: 24, fontWeight: 700, marginBottom: 2 }}>Chart of Accounts</div>
           <div style={{ fontSize: 14, color: 'var(--muted)' }}>
             {accounts.length} ledger accounts across {chart.length} categories
           </div>
+          <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
+            Use the <strong>+</strong> button on any account to add a sub-account under it.
+          </div>
         </div>
-        <button
-          className="sr-btn-primary"
-          onClick={openCreate}
-          style={{ padding: '10px 16px', borderRadius: 8, fontSize: 14, display: 'flex', alignItems: 'center', gap: 8 }}
-        >
-          <PlusIcon />
-          New Account
-        </button>
       </div>
 
       {/* Filters */}

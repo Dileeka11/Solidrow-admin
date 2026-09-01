@@ -357,14 +357,49 @@ export interface JournalLine {
 
 export interface JournalEntry {
   id: number;
+  financial_year_id: number | null;
   entry_date: string;
   posting_date: string | null;
   reference: string | null;
+  invoice_number: string | null;
+  customer_name: string | null;
+  payment_method: 'cash_in_hand' | 'bank' | null;
+  payment_account_id: number | null;
   currency: string;
   branch: string | null;
   memo: string | null;
   created_at: string;
   lines: JournalLine[];
+}
+
+// ── Financial Year + Opening Balances ────────────────────────────────────
+
+export interface FinancialYear {
+  id: number;
+  year_name: string;
+  start_date: string;
+  end_date: string;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface OpeningBalanceAccount {
+  account_id: number;
+  account_code: string;
+  account_name: string;
+  group_id: number;
+  group_name: string | null;
+  category_name: string | null;
+  parent_id: number | null;
+  financial_year_id: number;
+  debit: string;
+  credit: string;
+}
+
+export interface OpeningBalancesResponse {
+  financial_year: FinancialYear;
+  accounts: OpeningBalanceAccount[];
 }
 
 /** One editable row in the Manual Journal Entry grid. */
@@ -421,13 +456,70 @@ export interface Department {
 
 export interface Supplier {
   id: number;
+  supplier_code: string | null;
   name: string;
   contact_person: string | null;
   phone: string | null;
   email: string | null;
   address: string | null;
+  payment_terms: 'immediate' | '30_days' | '60_days' | '90_days' | null;
+  bank_name: string | null;
+  bank_branch: string | null;
+  bank_account_no: string | null;
+  notes: string | null;
   status: 'Active' | 'Inactive';
 }
+
+// ── Sales Invoice (customer-facing / income) ──────────────────────────────
+
+export type SalesInvoiceStatus = 'Draft' | 'Issued' | 'Paid' | 'Cancelled';
+
+export interface SalesInvoiceItem {
+  id?: number;
+  invoice_id?: number;
+  description: string;
+  quantity: string | number;
+  uom: string | null;
+  unit_price: string | number;
+  tax_pct: string | number;
+  line_total: string | number;
+}
+
+export interface SalesInvoiceRow {
+  id: number;
+  invoice_number: string;
+  financial_year_id: number | null;
+  invoice_date: string;
+  due_date: string | null;
+  customer_name: string;
+  payment_method: 'cash_in_hand' | 'bank';
+  payment_account_id: number | null;
+  subtotal: number;
+  tax_amount: number;
+  total: number;
+  currency: string;
+  status: SalesInvoiceStatus;
+}
+
+export interface SalesInvoice extends SalesInvoiceRow {
+  customer_phone: string | null;
+  customer_address: string | null;
+  notes: string | null;
+  journal_entry_id: number | null;
+  items: SalesInvoiceItem[];
+  payment_account?: { id: number; name: string } | null;
+}
+
+/** One editable line in the Sales Invoice form. */
+export interface SalesInvoiceDraftLine {
+  description: string;
+  quantity: string;
+  uom: string;
+  unit_price: string;
+  tax_pct: string;
+  line_total: string;
+}
+
 
 export interface ItemCategory {
   id: number;

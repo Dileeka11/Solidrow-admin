@@ -10,14 +10,17 @@ use App\Http\Controllers\AttendanceScanController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BankController;
 use App\Http\Controllers\DepartmentController;
+use App\Http\Controllers\FinancialYearController;
 use App\Http\Controllers\GeneralLedgerController;
 use App\Http\Controllers\GoodsReceivedNoteController;
 use App\Http\Controllers\ItemCategoryController;
 use App\Http\Controllers\ItemController;
+use App\Http\Controllers\OpeningBalanceController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\PurchaseRequisitionController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\SupplierInvoiceController;
+use App\Http\Controllers\SalesInvoiceController;
 use App\Http\Controllers\JournalEntryController;
 use App\Http\Controllers\TrialBalanceController;
 use App\Http\Controllers\BaddegamaLocationController;
@@ -174,6 +177,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/accounting/general-ledger', [GeneralLedgerController::class, 'index']);
     Route::get('/accounting/trial-balance', [TrialBalanceController::class, 'index']);
 
+    // ── Financial Years + Opening Balances ────────────────────────────────
+    Route::get('/accounting/financial-years', [FinancialYearController::class, 'index']);
+    Route::post('/accounting/financial-years', [FinancialYearController::class, 'store']);
+    Route::put('/accounting/financial-years/{financialYear}', [FinancialYearController::class, 'update']);
+    Route::delete('/accounting/financial-years/{financialYear}', [FinancialYearController::class, 'destroy']);
+    Route::post('/accounting/financial-years/{financialYear}/set-active', [FinancialYearController::class, 'setActive']);
+
+    Route::get('/accounting/financial-years/{financialYear}/opening-balances', [OpeningBalanceController::class, 'index']);
+    Route::post('/accounting/financial-years/{financialYear}/opening-balances', [OpeningBalanceController::class, 'store']);
+
     // ── Procurement master files (Stage 01) ──────────────────────────────
     Route::get('/accounting/departments', [DepartmentController::class, 'index']);
     Route::post('/accounting/departments', [DepartmentController::class, 'store']);
@@ -184,6 +197,14 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/accounting/suppliers', [SupplierController::class, 'store']);
     Route::put('/accounting/suppliers/{supplier}', [SupplierController::class, 'update']);
     Route::delete('/accounting/suppliers/{supplier}', [SupplierController::class, 'destroy']);
+
+    // Sales Invoices (customer-facing / income side)
+    Route::get('/accounting/sales-invoices', [SalesInvoiceController::class, 'index']);
+    Route::get('/accounting/sales-invoices/{salesInvoice}', [SalesInvoiceController::class, 'show']);
+    Route::post('/accounting/sales-invoices', [SalesInvoiceController::class, 'store']);
+    Route::put('/accounting/sales-invoices/{salesInvoice}', [SalesInvoiceController::class, 'update']);
+    Route::delete('/accounting/sales-invoices/{salesInvoice}', [SalesInvoiceController::class, 'destroy']);
+    Route::post('/accounting/sales-invoices/{salesInvoice}/mark-paid', [SalesInvoiceController::class, 'markPaid']);
 
     Route::get('/accounting/item-categories', [ItemCategoryController::class, 'index']);
     Route::post('/accounting/item-categories', [ItemCategoryController::class, 'store']);

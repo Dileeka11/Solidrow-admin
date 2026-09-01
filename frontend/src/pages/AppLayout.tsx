@@ -41,9 +41,11 @@ const NAV: NavItem[] = [
     icon: <AccountingIcon />,
     permission: 'accounting.view',
     children: [
+      { to: '/accounting/financial-year', label: 'Financial Year' },
       { to: '/accounting/accounts', label: 'Chart of Accounts' },
       { to: '/accounting/groups', label: 'Account Groups' },
       { to: '/accounting/journal', label: 'Journal Entries' },
+      { to: '/accounting/sales-invoices', label: 'Sales Invoices' },
       { to: '/accounting/ledger', label: 'General Ledger' },
       { to: '/accounting/trial-balance', label: 'Trial Balance' },
     ],

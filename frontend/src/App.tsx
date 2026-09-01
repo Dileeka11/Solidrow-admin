@@ -6,10 +6,13 @@ import { can, firstAllowedRoute } from './lib/permissions';
 import AppLayout from './pages/AppLayout';
 import ChartOfAccountsPage from './pages/ChartOfAccountsPage';
 import AccountGroupsPage from './pages/AccountGroupsPage';
+import FinancialYearPage from './pages/FinancialYearPage';
 import JournalEntriesPage from './pages/JournalEntriesPage';
 import ManualJournalEntryPage from './pages/ManualJournalEntryPage';
 import GeneralLedgerPage from './pages/GeneralLedgerPage';
 import TrialBalancePage from './pages/TrialBalancePage';
+import SalesInvoicesPage from './pages/SalesInvoicesPage';
+import SalesInvoiceFormPage from './pages/SalesInvoiceFormPage';
 import DepartmentsPage from './pages/DepartmentsPage';
 import SuppliersPage from './pages/SuppliersPage';
 import ItemCategoriesPage from './pages/ItemCategoriesPage';
@@ -228,6 +231,14 @@ export default function App() {
           }
         />
         <Route
+          path="/accounting/financial-year"
+          element={
+            <RequirePermission permission="accounting.view">
+              <FinancialYearPage />
+            </RequirePermission>
+          }
+        />
+        <Route
           path="/accounting/accounts"
           element={
             <RequirePermission permission="accounting.view">
@@ -275,6 +286,31 @@ export default function App() {
             </RequirePermission>
           }
         />
+        <Route
+          path="/accounting/sales-invoices"
+          element={
+            <RequirePermission permission="accounting.view">
+              <SalesInvoicesPage />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="/accounting/sales-invoices/new"
+          element={
+            <RequirePermission permission="accounting.view">
+              <SalesInvoiceFormPage />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="/accounting/sales-invoices/:id"
+          element={
+            <RequirePermission permission="accounting.view">
+              <SalesInvoiceFormPage />
+            </RequirePermission>
+          }
+        />
+
         <Route
           path="/accounting/departments"
           element={
