@@ -20,11 +20,11 @@ return new class extends Migration
     {
         Schema::table('journal_entries', function (Blueprint $table) {
             // Insert financial_year_id after the primary key.
-            $table->unsignedBigInteger('financial_year_id')->nullable()->after('id')->index();
-            $table->string('invoice_number', 30)->nullable()->after('reference');
-            $table->string('customer_name', 150)->nullable()->after('invoice_number');
-            $table->string('payment_method', 20)->nullable()->after('customer_name');
-            $table->unsignedBigInteger('payment_account_id')->nullable()->after('payment_method')->index();
+            $table->unsignedBigInteger('financial_year_id')->nullable()->index();
+            $table->string('invoice_number', 30)->nullable();
+            $table->string('customer_name', 150)->nullable();
+            $table->string('payment_method', 20)->nullable();
+            $table->unsignedBigInteger('payment_account_id')->nullable()->index();
         });
     }
 
