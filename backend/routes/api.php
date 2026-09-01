@@ -46,11 +46,24 @@ use Illuminate\Support\Facades\Route;
 // ── Temporary Route for Live Server Migrations ────────────────────────────
 Route::get('/run-migrations', function () {
     try {
-        Artisan::call('migrate', ['--force' => true]);
+        $paths = [
+            'database/migrations/2026_09_01_000001_create_financial_years_table.php',
+            'database/migrations/2026_09_01_000002_create_opening_balances_table.php',
+            'database/migrations/2026_09_01_000003_extend_journal_entries_for_sales.php',
+            'database/migrations/2026_09_01_000004_extend_suppliers_table.php',
+            'database/migrations/2026_09_01_000005_create_sales_invoices_table.php',
+        ];
+        
+        $output = '';
+        foreach ($paths as $path) {
+            Artisan::call('migrate', ['--path' => $path, '--force' => true]);
+            $output .= Artisan::output() . "\n";
+        }
+        
         return response()->json([
             'status' => 'success',
-            'message' => 'Migrations executed successfully!',
-            'output' => Artisan::output()
+            'message' => 'Specific migrations executed successfully!',
+            'output' => $output
         ]);
     } catch (\Exception $e) {
         return response()->json([
