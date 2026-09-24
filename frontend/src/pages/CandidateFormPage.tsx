@@ -2168,16 +2168,17 @@ export default function CandidateFormPage() {
             <div>
               <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 4 }}>Encodes Candidate Reg. No</div>
               <div style={{ fontWeight: 600, marginBottom: 14 }}>{candidateRegNo}</div>
-              {form.passport_retention === 'yes' && (
-                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                  <button className="sr-btn-primary" onClick={printPassportDocs} style={{ padding: '10px 18px', borderRadius: 8, fontSize: 14 }}>
-                    Print Passport Card
-                  </button>
-                  <button className="sr-btn-primary" onClick={printPassportSticker} style={{ padding: '10px 18px', borderRadius: 8, fontSize: 14 }}>
-                    Print Sticker
-                  </button>
-                </div>
-              )}
+              {/* Print options are mandatory for EVERY candidate — the QR / passport
+                  sticker / ID card must always be printable, so this is no longer
+                  gated on passport_retention === 'yes'. */}
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <button className="sr-btn-primary" onClick={printPassportDocs} style={{ padding: '10px 18px', borderRadius: 8, fontSize: 14 }}>
+                  Print Passport Card
+                </button>
+                <button className="sr-btn-primary" onClick={printPassportSticker} style={{ padding: '10px 18px', borderRadius: 8, fontSize: 14 }}>
+                  Print Sticker
+                </button>
+              </div>
             </div>
           </div>
         </div>
