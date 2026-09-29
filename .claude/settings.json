@@ -58,7 +58,8 @@
       "Bash(php -l app/Models/CandidateRemark.php)",
       "Bash(php -l app/Models/Candidate.php)",
       "Bash(php -l database/migrations/2026_09_29_000001_create_candidate_remarks_table.php)",
-      "Bash(php -l database/migrations/2026_09_29_000002_add_progress_status_to_candidates.php)"
+      "Bash(php -l database/migrations/2026_09_29_000002_add_progress_status_to_candidates.php)",
+      "Bash(php -l app/Http/Controllers/AttendanceScanController.php)"
     ],
     "additionalDirectories": [
       "\\tmp"

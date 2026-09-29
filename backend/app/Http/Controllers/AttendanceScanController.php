@@ -33,6 +33,7 @@ class AttendanceScanController extends Controller
             'date'       => $date,
             'time'       => $time,
             'source'     => 'qr',
+            'status'     => 'present',
             'staff_id'   => $staff->id,
             'staff_name' => $staff->name,
         ];

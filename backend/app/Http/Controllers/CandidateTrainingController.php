@@ -86,6 +86,7 @@ class CandidateTrainingController extends Controller
             'cycle_no'   => ['nullable', 'integer', 'min:1'],
             'date'       => ['required', 'date'],
             'time'       => ['nullable', 'string', 'max:20'],
+            'status'     => ['nullable', 'in:present,absent'],
         ]);
 
         $training = CandidateTraining::firstOrCreate(
@@ -93,17 +94,28 @@ class CandidateTrainingController extends Controller
             ['pre_test_cycles' => [], 'final_test_attendance_records' => []]
         );
 
+        $status = $validated['status'] ?? 'present';
         $record = [
             'date'   => $validated['date'],
             'time'   => $validated['time'] ?? null,
             'source' => 'manual',
+            'status' => $status,
         ];
 
-        if ($validated['slot'] === 'final_test') {
-            $records = $training->final_test_attendance_records ?? [];
-            if (! collect($records)->contains('date', $record['date'])) {
+        // Add the date, or — when it already exists — just update its present/absent
+        // status (the date is added first, then marked attended or not separately).
+        $upsert = function (array $records) use ($record, $status): array {
+            $idx = collect($records)->search(fn ($r) => ($r['date'] ?? '') === $record['date']);
+            if ($idx === false) {
                 $records[] = $record;
+            } else {
+                $records[$idx]['status'] = $status;
             }
+            return $records;
+        };
+
+        if ($validated['slot'] === 'final_test') {
+            $records = $upsert($training->final_test_attendance_records ?? []);
             $training->update(['final_test_attendance_records' => $records]);
         } else {
             $cycleNo = (int) ($validated['cycle_no'] ?? 1);
@@ -120,11 +132,7 @@ class CandidateTrainingController extends Controller
                     'test_number'        => null,
                 ];
             } else {
-                $existing = $cycles[$idx]['attendance_records'] ?? [];
-                if (! collect($existing)->contains('date', $record['date'])) {
-                    $existing[] = $record;
-                }
-                $cycles[$idx]['attendance_records'] = $existing;
+                $cycles[$idx]['attendance_records'] = $upsert($cycles[$idx]['attendance_records'] ?? []);
             }
             $training->update(['pre_test_cycles' => $cycles]);
         }

@@ -10,7 +10,7 @@ import { DatePicker } from '../components/DatePicker';
 import { confirmAction, toastError, toastSuccess } from '../lib/alerts';
 import { useAuth } from '../auth/AuthContext';
 import { useIsMobile } from '../lib/useMediaQuery';
-import type { Agent, Candidate, CandidateDatedFileField, CandidateDepartureDetails, CandidateDocumentFileField, CandidateDocuments, CandidateEmployeeDetails, CandidateSection, CandidateTraining, CandidateVisaDetails, Demand, JobCategory, PibaSubmissionStatus, PreTestCycle, Staff, VisaStatus } from '../types';
+import type { Agent, AttendanceRecord, Candidate, CandidateDatedFileField, CandidateDepartureDetails, CandidateDocumentFileField, CandidateDocuments, CandidateEmployeeDetails, CandidateSection, CandidateTraining, CandidateVisaDetails, Demand, JobCategory, PibaSubmissionStatus, PreTestCycle, Staff, VisaStatus } from '../types';
 
 const SECTION_TITLES = [
   'Personal Details',
@@ -157,6 +157,38 @@ function passportError(raw: string): string | null {
     return 'Passport අංකයේ ආකෘතිය වැරදියි. ඉංග්‍රීසි අකුර 1ක් + ඉලක්කම් 7ක් තිබිය යුතුය (උදා: N1234567).';
   }
   return null;
+}
+
+/** Present / Absent toggle for one attendance day. */
+function StatusToggle({
+  status,
+  onChange,
+}: {
+  status: 'present' | 'absent';
+  onChange: (s: 'present' | 'absent') => void;
+}) {
+  const present = status === 'present';
+  const btn = (active: boolean, activeBg: string, activeColor: string): React.CSSProperties => ({
+    border: 'none',
+    cursor: 'pointer',
+    fontSize: 11,
+    fontWeight: 700,
+    padding: '3px 10px',
+    fontFamily: 'inherit',
+    whiteSpace: 'nowrap',
+    background: active ? activeBg : 'transparent',
+    color: active ? activeColor : 'var(--muted)',
+  });
+  return (
+    <div style={{ display: 'inline-flex', borderRadius: 20, overflow: 'hidden', border: '1px solid var(--border-soft)' }}>
+      <button type="button" onClick={() => onChange('present')} style={btn(present, 'oklch(0.92 0.05 150)', 'oklch(0.40 0.14 150)')}>
+        ✓ Present
+      </button>
+      <button type="button" onClick={() => onChange('absent')} style={btn(!present, 'oklch(0.93 0.05 25)', 'oklch(0.42 0.16 25)')}>
+        ✗ Absent
+      </button>
+    </div>
+  );
 }
 
 interface Loc {
@@ -1243,18 +1275,29 @@ export default function CandidateFormPage() {
     });
   }
 
-  async function addAttendanceRecord(slot: number | 'final', dateStr: string) {
+  async function addAttendanceRecord(
+    slot: number | 'final',
+    dateStr: string,
+    status?: 'present' | 'absent',
+  ) {
     if (!dateStr || !id) return;
     try {
-      const body = slot === 'final'
+      const base = slot === 'final'
         ? { slot: 'final_test', date: dateStr }
         : { slot: 'pre_test', cycle_no: slot, date: dateStr };
+      // The add endpoint is an upsert: passing a status for an existing date just
+      // flips it present/absent without duplicating the row.
+      const body = status ? { ...base, status } : base;
       const r = await api.post<CandidateTraining>(`/candidates/${id}/training/attendance/add`, body);
       setTraining(withDefaultCycle(r.data));
     } catch {
-      toastError('Could not add attendance.');
+      toastError('Could not save attendance.');
     }
   }
+
+  /** Count only the days the candidate was actually present (absent/legacy-missing handled). */
+  const presentDays = (records: AttendanceRecord[]) =>
+    records.filter((r) => (r.status ?? 'present') === 'present').length;
 
   async function removeAttendanceRecord(slot: number | 'final', dateStr: string) {
     if (!id) return;
@@ -2235,7 +2278,7 @@ export default function CandidateFormPage() {
           {/* 2.2 Training attendance — one sheet per pre test cycle */}
           <div style={{ marginBottom: 20 }}>
             {training.pre_test_cycles.map((cycle) => {
-              const attendCount = cycle.attendance_records.length;
+              const attendCount = presentDays(cycle.attendance_records);
               const canTest = attendCount >= PRE_TEST_MIN_ATTENDANCE;
 
               return (
@@ -2289,9 +2332,10 @@ export default function CandidateFormPage() {
                               {rec.time && <span style={{ marginLeft: 10, color: 'var(--muted)', fontSize: 12 }}>{rec.time}</span>}
                             </td>
                             <td style={{ padding: '7px 12px' }}>
-                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap', fontSize: 11, fontWeight: 700, color: 'oklch(0.40 0.14 150)', background: 'oklch(0.92 0.05 150)', padding: '3px 10px', borderRadius: 20 }}>
-                                <span aria-hidden>✓</span> Present
-                              </span>
+                              <StatusToggle
+                                status={rec.status ?? 'present'}
+                                onChange={(s) => addAttendanceRecord(cycle.cycle_no, rec.date, s)}
+                              />
                             </td>
                             <td style={{ padding: '7px 12px' }}>
                               {rec.source === 'qr'
@@ -2399,7 +2443,7 @@ export default function CandidateFormPage() {
           {/* 3.2 Pre Test — one card per cycle */}
           <div style={{ marginBottom: 28 }}>
             {training.pre_test_cycles.map((cycle, idx) => {
-              const attendCount = cycle.attendance_records.length;
+              const attendCount = presentDays(cycle.attendance_records);
               // Only "training" candidates are gated on attendance; skill/unskill are already qualified.
               const gatePreTest = isTrainingCandidate;
               const canTest = !gatePreTest || attendCount >= PRE_TEST_MIN_ATTENDANCE;
@@ -2474,6 +2518,7 @@ export default function CandidateFormPage() {
                         <tr style={{ background: 'var(--row-border,#f3f4f6)' }}>
                           <th style={{ padding: '7px 12px', textAlign: 'left', fontWeight: 600, fontSize: 11, color: 'var(--label-2)', borderBottom: '1px solid var(--border-soft)', width: 36 }}>#</th>
                           <th style={{ padding: '7px 12px', textAlign: 'left', fontWeight: 600, fontSize: 11, color: 'var(--label-2)', borderBottom: '1px solid var(--border-soft)' }}>Date &amp; Time</th>
+                          <th style={{ padding: '7px 12px', textAlign: 'left', fontWeight: 600, fontSize: 11, color: 'var(--label-2)', borderBottom: '1px solid var(--border-soft)', width: 150 }}>Attendance</th>
                           <th style={{ padding: '7px 12px', textAlign: 'left', fontWeight: 600, fontSize: 11, color: 'var(--label-2)', borderBottom: '1px solid var(--border-soft)', width: 80 }}>Source</th>
                           <th style={{ padding: '7px 12px', borderBottom: '1px solid var(--border-soft)', width: 40 }}></th>
                         </tr>
@@ -2487,6 +2532,12 @@ export default function CandidateFormPage() {
                               <td style={{ padding: '7px 12px' }}>
                                 <span style={{ fontWeight: 500 }}>{rec.date}</span>
                                 {rec.time && <span style={{ marginLeft: 10, color: 'var(--muted)', fontSize: 12 }}>{rec.time}</span>}
+                              </td>
+                              <td style={{ padding: '7px 12px' }}>
+                                <StatusToggle
+                                  status={rec.status ?? 'present'}
+                                  onChange={(s) => addAttendanceRecord(cycle.cycle_no, rec.date, s)}
+                                />
                               </td>
                               <td style={{ padding: '7px 12px' }}>
                                 {rec.source === 'qr'
@@ -2505,7 +2556,7 @@ export default function CandidateFormPage() {
                           ))}
                         {cycle.attendance_records.length === 0 && (
                           <tr>
-                            <td colSpan={4} style={{ padding: '10px 12px', color: 'var(--muted)', fontSize: 12, textAlign: 'center' }}>
+                            <td colSpan={5} style={{ padding: '10px 12px', color: 'var(--muted)', fontSize: 12, textAlign: 'center' }}>
                               No attendance yet — add manually or scan QR from mobile app
                             </td>
                           </tr>
@@ -2674,7 +2725,7 @@ export default function CandidateFormPage() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
                 <label style={labelStyle}>Attendance Sheet</label>
                 <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 20, background: 'oklch(0.96 0.02 260)', color: 'var(--muted)' }}>
-                  {training.final_test_attendance_records.length} days (optional)
+                  {presentDays(training.final_test_attendance_records)} days (optional)
                 </span>
               </div>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginBottom: 10 }}>
@@ -2682,6 +2733,7 @@ export default function CandidateFormPage() {
                   <tr style={{ background: 'var(--row-border,#f3f4f6)' }}>
                     <th style={{ padding: '7px 12px', textAlign: 'left', fontWeight: 600, fontSize: 11, color: 'var(--label-2)', borderBottom: '1px solid var(--border-soft)', width: 40 }}>#</th>
                     <th style={{ padding: '7px 12px', textAlign: 'left', fontWeight: 600, fontSize: 11, color: 'var(--label-2)', borderBottom: '1px solid var(--border-soft)' }}>Date &amp; Time</th>
+                    <th style={{ padding: '7px 12px', textAlign: 'left', fontWeight: 600, fontSize: 11, color: 'var(--label-2)', borderBottom: '1px solid var(--border-soft)', width: 150 }}>Attendance</th>
                     <th style={{ padding: '7px 12px', textAlign: 'right', fontWeight: 600, fontSize: 11, color: 'var(--label-2)', borderBottom: '1px solid var(--border-soft)', width: 60 }}></th>
                   </tr>
                 </thead>
@@ -2695,6 +2747,12 @@ export default function CandidateFormPage() {
                           <span style={{ fontWeight: 500 }}>{rec.date}</span>
                           {rec.time && <span style={{ marginLeft: 10, color: 'var(--muted)', fontSize: 12 }}>{rec.time}</span>}
                         </td>
+                        <td style={{ padding: '7px 12px' }}>
+                          <StatusToggle
+                            status={rec.status ?? 'present'}
+                            onChange={(s) => addAttendanceRecord('final', rec.date, s)}
+                          />
+                        </td>
                         <td style={{ padding: '7px 12px', textAlign: 'right' }}>
                           <button
                             onClick={() => removeAttendanceRecord('final', rec.date)}
@@ -2706,7 +2764,7 @@ export default function CandidateFormPage() {
                     ))}
                   {training.final_test_attendance_records.length === 0 && (
                     <tr>
-                      <td colSpan={3} style={{ padding: '10px 12px', color: 'var(--muted)', fontSize: 12, textAlign: 'center' }}>
+                      <td colSpan={4} style={{ padding: '10px 12px', color: 'var(--muted)', fontSize: 12, textAlign: 'center' }}>
                         No attendance yet — optional for final test
                       </td>
                     </tr>

@@ -140,6 +140,8 @@ export interface AttendanceRecord {
   date: string;           // "2026-07-07"
   time: string | null;    // "17:46:16"
   source?: 'qr' | 'manual'; // how it was added
+  /** Whether the candidate actually attended on that date. Missing = present (legacy). */
+  status?: 'present' | 'absent';
 }
 
 export interface PreTestCycle {

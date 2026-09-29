@@ -179,24 +179,35 @@ function AttendanceList({ records }: { records: AttendanceRecord[] }) {
         <tr style={{ background: 'var(--row-border,#f3f4f6)' }}>
           <th style={{ padding: '7px 12px', textAlign: 'left', fontWeight: 600, fontSize: 11, color: 'var(--label-2)', width: 40 }}>#</th>
           <th style={{ padding: '7px 12px', textAlign: 'left', fontWeight: 600, fontSize: 11, color: 'var(--label-2)' }}>Date &amp; Time</th>
+          <th style={{ padding: '7px 12px', textAlign: 'left', fontWeight: 600, fontSize: 11, color: 'var(--label-2)', width: 90 }}>Attendance</th>
           <th style={{ padding: '7px 12px', textAlign: 'left', fontWeight: 600, fontSize: 11, color: 'var(--label-2)', width: 90 }}>Source</th>
         </tr>
       </thead>
       <tbody>
         {[...records]
           .sort((a, b) => a.date.localeCompare(b.date))
-          .map((rec, ri) => (
+          .map((rec, ri) => {
+            const absent = rec.status === 'absent';
+            return (
             <tr key={rec.date} style={{ borderBottom: '1px solid var(--border-soft)' }}>
               <td style={{ padding: '7px 12px', color: 'var(--muted)', fontSize: 12 }}>{ri + 1}</td>
               <td style={{ padding: '7px 12px' }}>
                 <span style={{ fontWeight: 500 }}>{rec.date}</span>
                 {rec.time && <span style={{ marginLeft: 10, color: 'var(--muted)', fontSize: 12 }}>{rec.time}</span>}
               </td>
+              <td style={{ padding: '7px 12px' }}>
+                <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 20, ...(absent
+                  ? { color: 'oklch(0.42 0.16 25)', background: 'oklch(0.93 0.05 25)' }
+                  : { color: 'oklch(0.40 0.14 150)', background: 'oklch(0.92 0.05 150)' }) }}>
+                  {absent ? '✗ Absent' : '✓ Present'}
+                </span>
+              </td>
               <td style={{ padding: '7px 12px', fontSize: 12, color: 'var(--muted)' }}>
                 {rec.source === 'qr' ? 'QR Scan' : 'Manual'}
               </td>
             </tr>
-          ))}
+            );
+          })}
       </tbody>
     </table>
   );
