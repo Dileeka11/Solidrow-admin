@@ -38,6 +38,8 @@ class Candidate extends Model
         'registration_date',
         'current_section',
         'is_completed',
+        'progress_status',
+        'status_changed_at',
         'created_by',
     ];
 
@@ -47,6 +49,7 @@ class Candidate extends Model
         'registration_date' => 'date',
         'passport_collected_date' => 'date',
         'passport_return_date' => 'date',
+        'status_changed_at' => 'datetime',
     ];
 
     protected $appends = ['passport_image_url'];
@@ -54,6 +57,18 @@ class Candidate extends Model
     public function sections()
     {
         return $this->hasMany(CandidateSection::class)->orderBy('section_no');
+    }
+
+    /** Drop-off / progress remark history, newest first. */
+    public function remarks()
+    {
+        return $this->hasMany(CandidateRemark::class)->latest();
+    }
+
+    /** Most recent remark — used for the list-view status chip. */
+    public function latestRemark()
+    {
+        return $this->hasOne(CandidateRemark::class)->latestOfMany();
     }
 
     /** Public URL for the uploaded passport photo, if any. */

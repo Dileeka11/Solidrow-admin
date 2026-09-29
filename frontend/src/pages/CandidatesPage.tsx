@@ -15,6 +15,13 @@ const SKILL_LABEL: Record<string, string> = {
   training: 'Training',
 };
 
+/** Progress-status chip styles. `active` is the default and shows no chip. */
+const STATUS_CHIP: Record<string, { label: string; bg: string; color: string }> = {
+  on_hold: { label: 'On Hold', bg: 'oklch(0.94 0.06 90)', color: 'oklch(0.45 0.12 75)' },
+  dropped: { label: 'Dropped', bg: 'oklch(0.93 0.05 25)', color: 'oklch(0.45 0.16 25)' },
+  completed: { label: 'Completed', bg: 'oklch(0.92 0.06 150)', color: 'oklch(0.4 0.12 150)' },
+};
+
 const PAGE_SIZES = [10, 25, 50, 100];
 
 type SortKey = 'registration_no' | 'candidate_reg_no' | 'registration_date' | 'full_name' | 'country' | 'candidate_skill';
@@ -320,7 +327,7 @@ export default function CandidatesPage() {
             <div style={{ color: 'var(--label-2)' }}>
               {c.candidate_skill ? SKILL_LABEL[c.candidate_skill] : '—'}
             </div>
-            <div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
               <span
                 style={{
                   fontSize: 11,
@@ -333,6 +340,22 @@ export default function CandidatesPage() {
               >
                 {submittedCount(c)}/6
               </span>
+              {STATUS_CHIP[c.progress_status] && (
+                <span
+                  title={c.latest_remark?.reason ?? undefined}
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 600,
+                    padding: '2px 8px',
+                    borderRadius: 999,
+                    background: STATUS_CHIP[c.progress_status].bg,
+                    color: STATUS_CHIP[c.progress_status].color,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {STATUS_CHIP[c.progress_status].label}
+                </span>
+              )}
             </div>
             <div style={{ display: 'flex', gap: 6 }}>
               <button

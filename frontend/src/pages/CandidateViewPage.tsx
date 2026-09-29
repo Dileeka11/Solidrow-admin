@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client';
-import { toastError } from '../lib/alerts';
+import { toastError, toastSuccess } from '../lib/alerts';
 import { useAuth } from '../auth/AuthContext';
 import { can } from '../lib/permissions';
 import type {
@@ -10,9 +10,11 @@ import type {
   CandidateDepartureDetails,
   CandidateDocuments,
   CandidateEmployeeDetails,
+  CandidateRemark,
   CandidateTraining,
   CandidateVisaDetails,
   JobCategory,
+  RemarkStatus,
   Demand,
 } from '../types';
 
@@ -275,6 +277,210 @@ function SectionCard({
   );
 }
 
+const REMARK_STATUS_META: Record<RemarkStatus, { label: string; bg: string; color: string }> = {
+  on_hold: { label: 'On Hold', bg: 'oklch(0.94 0.06 90)', color: 'oklch(0.45 0.12 75)' },
+  dropped: { label: 'Dropped', bg: 'oklch(0.93 0.05 25)', color: 'oklch(0.45 0.16 25)' },
+  resumed: { label: 'Resumed', bg: 'oklch(0.92 0.06 150)', color: 'oklch(0.4 0.12 150)' },
+};
+
+const PROGRESS_STATUS_META: Record<string, { label: string; bg: string; color: string }> = {
+  active: { label: 'Active', bg: 'oklch(0.93 0.03 250)', color: 'oklch(0.45 0.05 250)' },
+  on_hold: REMARK_STATUS_META.on_hold,
+  dropped: REMARK_STATUS_META.dropped,
+  completed: { label: 'Completed', bg: 'oklch(0.92 0.06 150)', color: 'oklch(0.4 0.12 150)' },
+};
+
+const SECTION_NAMES = [
+  'Personal Details',
+  'Training Details',
+  'Test Details',
+  'Employee Details',
+  'Document Attachment',
+  'Job & Visa Processing',
+  'Departure Details',
+];
+
+/** A small coloured status pill. */
+function StatusPill({ meta, small }: { meta: { label: string; bg: string; color: string }; small?: boolean }) {
+  return (
+    <span
+      style={{
+        fontSize: small ? 10 : 11,
+        fontWeight: 600,
+        padding: small ? '2px 8px' : '3px 10px',
+        borderRadius: 999,
+        background: meta.bg,
+        color: meta.color,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {meta.label}
+    </span>
+  );
+}
+
+/**
+ * Drop-off / progress remarks. Shows the full history (newest first) and,
+ * for editors, a form to add a new remark. Records are never deleted so a
+ * returning candidate's past reasons stay visible.
+ */
+function RemarksHistory({
+  candidateId,
+  currentSection,
+  canEdit,
+  onStatusChange,
+}: {
+  candidateId: number;
+  currentSection: number;
+  canEdit: boolean;
+  onStatusChange: (status: string) => void;
+}) {
+  const [remarks, setRemarks] = useState<CandidateRemark[]>([]);
+  const [status, setStatus] = useState<RemarkStatus>('dropped');
+  const [reason, setReason] = useState('');
+  const [sectionNo, setSectionNo] = useState<number>(currentSection || 1);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    api
+      .get<CandidateRemark[]>(`/candidates/${candidateId}/remarks`)
+      .then((r) => alive && setRemarks(r.data))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [candidateId]);
+
+  async function submit() {
+    if (!reason.trim()) {
+      toastError('Please enter a reason.');
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await api.post<CandidateRemark>(`/candidates/${candidateId}/remarks`, {
+        status,
+        reason: reason.trim(),
+        section_no: sectionNo,
+      });
+      setRemarks((prev) => [res.data, ...prev]);
+      setReason('');
+      onStatusChange(status === 'resumed' ? 'active' : status);
+      toastSuccess('Remark added.');
+    } catch {
+      toastError('Could not save remark.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const fmt = (d: string) => {
+    const dt = new Date(d);
+    return Number.isNaN(dt.getTime())
+      ? d
+      : dt.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  };
+
+  const inputStyle: React.CSSProperties = {
+    padding: '9px 12px',
+    borderRadius: 8,
+    border: '1px solid var(--border-soft)',
+    background: 'var(--card)',
+    fontSize: 14,
+    fontFamily: 'inherit',
+    outline: 'none',
+    width: '100%',
+  };
+
+  return (
+    <div style={cardStyle}>
+      <div style={sectionTitleStyle}>Remarks &amp; History</div>
+      <hr style={hrStyle} />
+
+      {canEdit && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: remarks.length ? 24 : 0 }}>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ minWidth: 160 }}>
+              <div style={labelStyle}>Status</div>
+              <select value={status} onChange={(e) => setStatus(e.target.value as RemarkStatus)} style={inputStyle}>
+                <option value="dropped">Dropped (not proceeding)</option>
+                <option value="on_hold">On Hold (paused)</option>
+                <option value="resumed">Resumed (back in process)</option>
+              </select>
+            </div>
+            <div style={{ minWidth: 200, flex: 1 }}>
+              <div style={labelStyle}>Stalled at section</div>
+              <select value={sectionNo} onChange={(e) => setSectionNo(Number(e.target.value))} style={inputStyle}>
+                {SECTION_NAMES.map((name, i) => (
+                  <option key={i + 1} value={i + 1}>
+                    {i + 1}. {name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div>
+            <div style={labelStyle}>Reason</div>
+            <textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              rows={3}
+              placeholder="Why is this candidate not proceeding? (e.g. not interested, financial, medical…)"
+              style={{ ...inputStyle, resize: 'vertical' }}
+            />
+          </div>
+          <div>
+            <button
+              className="sr-btn-primary"
+              onClick={submit}
+              disabled={saving}
+              style={{ padding: '9px 18px', borderRadius: 8, fontSize: 14, opacity: saving ? 0.6 : 1 }}
+            >
+              {saving ? 'Saving…' : 'Add Remark'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {remarks.length === 0 ? (
+        <div style={{ fontSize: 13, color: 'var(--muted)' }}>No remarks recorded.</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {remarks.map((r) => (
+            <div
+              key={r.id}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 6,
+                padding: '12px 14px',
+                borderRadius: 10,
+                background: 'var(--row-bg, #fafafa)',
+                border: '1px solid var(--border-soft)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <StatusPill meta={REMARK_STATUS_META[r.status]} small />
+                {r.section_no && (
+                  <span style={{ fontSize: 12, color: 'var(--muted)' }}>
+                    at {r.section_no}. {SECTION_NAMES[r.section_no - 1] ?? ''}
+                  </span>
+                )}
+                <span style={{ fontSize: 12, color: 'var(--muted)', marginLeft: 'auto' }}>{fmt(r.created_at)}</span>
+              </div>
+              <div style={{ fontSize: 14, fontWeight: 500, whiteSpace: 'pre-wrap' }}>{r.reason}</div>
+              {r.created_by_name && (
+                <div style={{ fontSize: 12, color: 'var(--muted)' }}>by {r.created_by_name}</div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function CandidateViewPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -358,7 +564,12 @@ export default function CandidateViewPage() {
           >
             ← Back to candidates
           </button>
-          <div style={{ fontSize: 24, fontWeight: 700 }}>{c.full_name || 'Candidate'}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ fontSize: 24, fontWeight: 700 }}>{c.full_name || 'Candidate'}</div>
+            {PROGRESS_STATUS_META[c.progress_status] && c.progress_status !== 'active' && (
+              <StatusPill meta={PROGRESS_STATUS_META[c.progress_status]} />
+            )}
+          </div>
           <div style={{ fontSize: 13, color: 'var(--muted)' }}>{c.registration_no}</div>
         </div>
         {canEdit && (
@@ -455,6 +666,10 @@ export default function CandidateViewPage() {
                   Pre Test — Cycle {cycle.cycle_no}
                 </span>
                 <ResultBadge result={cycle.test_result} />
+              </div>
+              <div style={{ marginBottom: 14 }}>
+                <div style={labelStyle}>Attendance ({cycle.attendance_records.length} days)</div>
+                <AttendanceList records={cycle.attendance_records} />
               </div>
               <div className="sr-grid-2">
                 <Field label="Test Number" value={cycle.test_number} />
@@ -595,6 +810,16 @@ export default function CandidateViewPage() {
           </div>
         </div>
       )}
+
+      {/* Drop-off / progress remarks — history retained across the pipeline */}
+      <RemarksHistory
+        candidateId={c.id}
+        currentSection={c.current_section}
+        canEdit={canEdit}
+        onStatusChange={(status) =>
+          setCandidate((prev) => (prev ? { ...prev, progress_status: status as Candidate['progress_status'] } : prev))
+        }
+      />
     </div>
   );
 }

@@ -27,6 +27,7 @@ use App\Http\Controllers\BaddegamaLocationController;
 use App\Http\Controllers\BaddegamaPublicController;
 use App\Http\Controllers\BaddegamaRegistrationController;
 use App\Http\Controllers\CandidateController;
+use App\Http\Controllers\CandidateRemarkController;
 use App\Http\Controllers\CandidateDepartureDetailController;
 use App\Http\Controllers\CandidateDocumentController;
 use App\Http\Controllers\CandidateTrainingController;
@@ -124,6 +125,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/candidates/next-registration-no', [CandidateController::class, 'nextRegistrationNo']);
     Route::post('/candidates/{candidate}/submit-section', [CandidateController::class, 'submitSection']);
+    // Drop-off / progress remarks (history retained per candidate)
+    Route::get('/candidates/{candidate}/remarks', [CandidateRemarkController::class, 'index']);
+    Route::post('/candidates/{candidate}/remarks', [CandidateRemarkController::class, 'store']);
     Route::apiResource('candidates', CandidateController::class);
 
     // Section 2 — Training Details

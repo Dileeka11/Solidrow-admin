@@ -31,7 +31,7 @@ class CandidateController extends Controller
      */
     public function index()
     {
-        return Candidate::with('sections')->orderByDesc('id')->get();
+        return Candidate::with(['sections', 'latestRemark'])->orderByDesc('id')->get();
     }
 
     /**

@@ -75,6 +75,24 @@ export interface CandidateSection {
   submitted_at: string | null;
 }
 
+export type CandidateProgressStatus = 'active' | 'on_hold' | 'dropped' | 'completed';
+
+/** The status a remark applies. `resumed` puts the candidate back to active. */
+export type RemarkStatus = 'on_hold' | 'dropped' | 'resumed';
+
+/** A drop-off / progress remark. Retained as history — never deleted. */
+export interface CandidateRemark {
+  id: number;
+  candidate_id: number;
+  section_no: number | null;
+  status: RemarkStatus;
+  reason: string;
+  created_by: number | null;
+  created_by_name: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Candidate {
   id: number;
   registration_no: string;
@@ -109,7 +127,10 @@ export interface Candidate {
   registration_date: string | null;
   current_section: number;
   is_completed: boolean;
+  progress_status: CandidateProgressStatus;
+  status_changed_at: string | null;
   sections?: CandidateSection[];
+  latest_remark?: CandidateRemark | null;
 }
 
 export type TrainingMode = 'pre_test' | 'final_test' | 'both';

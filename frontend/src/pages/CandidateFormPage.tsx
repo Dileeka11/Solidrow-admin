@@ -303,6 +303,9 @@ export default function CandidateFormPage() {
   const [testNumSaving, setTestNumSaving] = useState<string | null>(null);
   // "Add date" pickers for attendance (per pre-test cycle + the final test).
   const [preAttDate, setPreAttDate] = useState<Record<number, string>>({});
+  // Separate "Add date" picker for the Pre Test attendance shown in Test Details
+  // (Section 3), so it doesn't share the scratch value with the Section 2 picker.
+  const [testPreAttDate, setTestPreAttDate] = useState<Record<number, string>>({});
   const [finalAttDate, setFinalAttDate] = useState('');
 
   // Section 3 — Personal Details (Attachment)
@@ -1271,7 +1274,12 @@ export default function CandidateFormPage() {
    * the same training record, so both save through this one call and only differ
    * in which section they mark complete.
    */
-  async function persistTraining(sectionNo: 2 | 3, label: string) {
+  async function persistTraining(
+    sectionNo: 2 | 3,
+    label: string,
+    opts: { markComplete?: boolean; exit?: boolean } = {},
+  ) {
+    const { markComplete = true, exit = true } = opts;
     const ok = await confirmAction(`Save the ${label}?`, `Save ${label}`, 'Yes, save');
     if (!ok) return;
     if (sectionNo === 2) setTrainingSaving(true); else setTestSaving(true);
@@ -1290,9 +1298,11 @@ export default function CandidateFormPage() {
       const r = await api.post<CandidateTraining>(`/candidates/${id}/training`, fd);
       setTraining(withDefaultCycle(r.data));
       setTrainingBondFile(null);
-      await markSectionComplete(sectionNo); // completing this section unlocks the next
+      // Only the final "Save Test Details" completes the section (unlocking the next)
+      // and exits; the standalone "Save Pre Test" just persists and stays on the page.
+      if (markComplete) await markSectionComplete(sectionNo);
       toastSuccess(`${label.charAt(0).toUpperCase()}${label.slice(1)} saved`);
-      navigate('/candidates'); // save & exit back to the candidates list
+      if (exit) navigate('/candidates'); // save & exit back to the candidates list
     } catch {
       toastError(`Could not save ${label}.`);
     } finally {
@@ -1302,6 +1312,9 @@ export default function CandidateFormPage() {
 
   const saveTraining = () => persistTraining(2, 'training details');
   const saveTests = () => persistTraining(3, 'test details');
+  // Pre Test lives in the same training record, so it persists everything but
+  // stays on the page (doesn't submit Section 3) so the final test can follow.
+  const savePreTest = () => persistTraining(3, 'pre test details', { markComplete: false, exit: false });
 
   /**
    * Generate (or fetch) a unique test number for one slot — a specific pre-test
@@ -2442,11 +2455,87 @@ export default function CandidateFormPage() {
                     )}
                   </div>
 
-                  {/* Attendance gate notice — the sheet itself lives in Section 02 */}
+                  {/* Attendance sheet — record the pre test day(s) for this cycle.
+                      Available for every candidate (skill / unskill / training); a
+                      pre test held more than once is captured as multiple dates. */}
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, flexWrap: 'wrap' }}>
+                      <label style={{ ...labelStyle, marginBottom: 0 }}>Attendance Sheet</label>
+                      <span style={{
+                        fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 20,
+                        background: canTest ? 'oklch(0.92 0.05 150)' : 'oklch(0.93 0.03 260)',
+                        color: canTest ? 'oklch(0.40 0.14 150)' : 'oklch(0.45 0.06 260)',
+                      }}>
+                        {gatePreTest ? `${attendCount} / ${PRE_TEST_WINDOW_DAYS} days` : `${attendCount} days`}
+                      </span>
+                    </div>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginBottom: 10 }}>
+                      <thead>
+                        <tr style={{ background: 'var(--row-border,#f3f4f6)' }}>
+                          <th style={{ padding: '7px 12px', textAlign: 'left', fontWeight: 600, fontSize: 11, color: 'var(--label-2)', borderBottom: '1px solid var(--border-soft)', width: 36 }}>#</th>
+                          <th style={{ padding: '7px 12px', textAlign: 'left', fontWeight: 600, fontSize: 11, color: 'var(--label-2)', borderBottom: '1px solid var(--border-soft)' }}>Date &amp; Time</th>
+                          <th style={{ padding: '7px 12px', textAlign: 'left', fontWeight: 600, fontSize: 11, color: 'var(--label-2)', borderBottom: '1px solid var(--border-soft)', width: 80 }}>Source</th>
+                          <th style={{ padding: '7px 12px', borderBottom: '1px solid var(--border-soft)', width: 40 }}></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[...cycle.attendance_records]
+                          .sort((a, b) => a.date.localeCompare(b.date))
+                          .map((rec, ri) => (
+                            <tr key={rec.date} style={{ borderBottom: '1px solid var(--border-soft)' }}>
+                              <td style={{ padding: '7px 12px', color: 'var(--muted)', fontSize: 12 }}>{ri + 1}</td>
+                              <td style={{ padding: '7px 12px' }}>
+                                <span style={{ fontWeight: 500 }}>{rec.date}</span>
+                                {rec.time && <span style={{ marginLeft: 10, color: 'var(--muted)', fontSize: 12 }}>{rec.time}</span>}
+                              </td>
+                              <td style={{ padding: '7px 12px' }}>
+                                {rec.source === 'qr'
+                                  ? <span style={{ fontSize: 10, fontWeight: 600, color: 'oklch(0.45 0.12 260)', background: 'oklch(0.94 0.03 260)', padding: '2px 7px', borderRadius: 20 }}>QR Scan</span>
+                                  : <span style={{ fontSize: 10, color: 'var(--muted)', background: 'oklch(0.95 0 0)', padding: '2px 7px', borderRadius: 20 }}>Manual</span>
+                                }
+                              </td>
+                              <td style={{ padding: '7px 12px', textAlign: 'right' }}>
+                                <button
+                                  onClick={() => removeAttendanceRecord(cycle.cycle_no, rec.date)}
+                                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'oklch(0.55 0.16 25)', fontSize: 16, lineHeight: 1, padding: '0 4px' }}
+                                  title="Remove"
+                                >×</button>
+                              </td>
+                            </tr>
+                          ))}
+                        {cycle.attendance_records.length === 0 && (
+                          <tr>
+                            <td colSpan={4} style={{ padding: '10px 12px', color: 'var(--muted)', fontSize: 12, textAlign: 'center' }}>
+                              No attendance yet — add manually or scan QR from mobile app
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <DatePicker
+                        style={{ ...inputStyle, width: 180 }}
+                        value={testPreAttDate[cycle.cycle_no] ?? ''}
+                        onChange={(iso) => setTestPreAttDate((m) => ({ ...m, [cycle.cycle_no]: iso }))}
+                      />
+                      <button
+                        className="sr-btn-primary"
+                        style={{ padding: '8px 14px', borderRadius: 7, fontSize: 12 }}
+                        onClick={async () => {
+                          const v = testPreAttDate[cycle.cycle_no];
+                          if (v) { await addAttendanceRecord(cycle.cycle_no, v); setTestPreAttDate((m) => ({ ...m, [cycle.cycle_no]: '' })); }
+                        }}
+                      >
+                        + Add Date
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Attendance gate notice — training candidates unlock the result at 80% */}
                   {gatePreTest && !canTest && (
                     <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 14 }}>
-                      Locked — {attendCount} / {PRE_TEST_WINDOW_DAYS} attendance days recorded. Add attendance in{' '}
-                      <strong>02. Training Details</strong> (80% needed) to unlock this pre test.
+                      Locked — {attendCount} / {PRE_TEST_WINDOW_DAYS} attendance days recorded.
+                      Add attendance above (80% needed) to unlock this pre test.
                     </div>
                   )}
 
@@ -2519,6 +2608,21 @@ export default function CandidateFormPage() {
                 </div>
               );
             })}
+
+            {/* Save just the Pre Test details (stays on the page for the final test). */}
+            <div style={{ marginTop: 4 }}>
+              <button
+                className="sr-btn-primary"
+                onClick={savePreTest}
+                disabled={testSaving}
+                style={{ padding: '10px 20px', borderRadius: 8, fontSize: 14 }}
+              >
+                {testSaving ? 'Saving…' : 'Save Pre Test'}
+              </button>
+              <span style={{ marginLeft: 10, fontSize: 12, color: 'var(--muted)' }}>
+                Saves the pre test details without finishing the section.
+              </span>
+            </div>
           </div>
 
           {/* 3.3 Final Test */}
@@ -2697,7 +2801,7 @@ export default function CandidateFormPage() {
             </div>
           </div>
 
-          {/* Save button */}
+          {/* Save button — completes Section 3 (Test Details) and exits. */}
           <div style={{ marginTop: 8 }}>
             <button
               className="sr-btn-primary"
@@ -2705,8 +2809,11 @@ export default function CandidateFormPage() {
               disabled={testSaving}
               style={{ padding: '11px 22px', borderRadius: 8, fontSize: 14 }}
             >
-              {testSaving ? 'Saving…' : 'Save Test Details'}
+              {testSaving ? 'Saving…' : 'Save Test Details (Finish)'}
             </button>
+            <span style={{ marginLeft: 10, fontSize: 12, color: 'var(--muted)' }}>
+              Saves the final test and marks Test Details complete.
+            </span>
           </div>
         </div>
       )}
