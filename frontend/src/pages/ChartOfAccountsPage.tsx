@@ -120,6 +120,12 @@ export default function ChartOfAccountsPage() {
     setModalOpen(true);
   }
 
+  function openAddRoot() {
+    setEditing(null);
+    setParentFor(null);
+    setModalOpen(true);
+  }
+
   function openEdit(a: AccountRow) {
     setEditing(a);
     setParentFor(null);
@@ -286,6 +292,13 @@ export default function ChartOfAccountsPage() {
             Use the <strong>+</strong> button on any account to add a sub-account under it.
           </div>
         </div>
+        <button
+          className="sr-btn-primary"
+          onClick={openAddRoot}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 16px', borderRadius: 8, fontSize: 14 }}
+        >
+          <PlusIcon /> Add Account
+        </button>
       </div>
 
       {/* Filters */}
