@@ -331,6 +331,7 @@ class CandidateController extends Controller
             'candidate_skill' => ['nullable', Rule::in(['skill', 'unskill', 'training'])],
             'job_category_id' => ['nullable', 'integer', Rule::exists('job_categories', 'id')],
             'registration_date' => ['nullable', 'date'],
+            'journey_status' => ['nullable', Rule::in(['in_process', 'departed', 'cancelled'])],
             'passport_image' => ['nullable', 'image', 'max:20480'], // up to 20MB
         ], [
             'nic.unique' => 'This NIC number is already registered for another candidate.',

@@ -10,6 +10,7 @@ import { DatePicker } from '../components/DatePicker';
 import { confirmAction, toastError, toastSuccess } from '../lib/alerts';
 import { useAuth } from '../auth/AuthContext';
 import { useIsMobile } from '../lib/useMediaQuery';
+import { JOURNEY_STATUSES, JOURNEY_STATUS_META, journeyMeta } from '../lib/journeyStatus';
 import type { Agent, AttendanceRecord, Candidate, CandidateDatedFileField, CandidateDepartureDetails, CandidateDocumentFileField, CandidateDocuments, CandidateEmployeeDetails, CandidateSection, CandidateTraining, CandidateVisaDetails, Demand, JobCategory, PibaSubmissionStatus, PreTestCycle, Staff, VisaStatus } from '../types';
 
 const SECTION_TITLES = [
@@ -229,6 +230,7 @@ interface FormState {
   candidate_skill: string;
   job_category_id: number | null;
   registration_date: string;
+  journey_status: string;
 }
 
 const EMPTY: FormState = {
@@ -258,6 +260,7 @@ const EMPTY: FormState = {
   candidate_skill: '',
   job_category_id: null,
   registration_date: new Date().toISOString().slice(0, 10),
+  journey_status: '',
 };
 
 const labelStyle: React.CSSProperties = {
@@ -616,6 +619,7 @@ export default function CandidateFormPage() {
       candidate_skill: c.candidate_skill ?? '',
       job_category_id: c.job_category_id ?? null,
       registration_date: c.registration_date ? c.registration_date.slice(0, 10) : '',
+      journey_status: c.journey_status ?? '',
     });
     // Manual part = whatever follows the last "/" of the stored reg no.
     if (c.candidate_reg_no) {
@@ -1735,8 +1739,17 @@ export default function CandidateFormPage() {
     </div>
   );
 
+  const journey = journeyMeta(form.journey_status);
+
   return (
-    <div className="fade-in-s" style={{ maxWidth: 1080 }}>
+    <div
+      className="fade-in-s"
+      style={{
+        maxWidth: 1080,
+        transition: 'background 0.2s, border-color 0.2s',
+        ...(journey && { background: journey.tint, border: `1px solid ${journey.border}`, borderRadius: 16, padding: 20 }),
+      }}
+    >
       {cameraOpen && (
         <div
           onClick={closeCamera}
@@ -1832,6 +1845,24 @@ export default function CandidateFormPage() {
               <option value="skill">Skill</option>
               <option value="unskill">Unskill</option>
               <option value="training">Training</option>
+            </select>
+          </div>
+
+          <div>
+            <label style={labelStyle}>Status</label>
+            <select
+              className="sr-input"
+              style={{
+                ...inputStyle,
+                ...(journey && { background: journey.bg, color: journey.color, fontWeight: 600, borderColor: journey.border }),
+              }}
+              value={form.journey_status}
+              onChange={(e) => set('journey_status', e.target.value)}
+            >
+              <option value="">-- Select Status --</option>
+              {JOURNEY_STATUSES.map((s) => (
+                <option key={s} value={s}>{JOURNEY_STATUS_META[s].label}</option>
+              ))}
             </select>
           </div>
 

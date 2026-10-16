@@ -75,7 +75,10 @@ export interface CandidateSection {
   submitted_at: string | null;
 }
 
-export type CandidateProgressStatus = 'active' | 'on_hold' | 'dropped' | 'completed';
+/** In process = agreement signed, awaiting departure · departed = gone abroad · cancelled = not departing. */
+export type JourneyStatus = 'in_process' | 'departed' | 'cancelled';
+
+export type CandidateProgressStatus ='active' | 'on_hold' | 'dropped' | 'completed';
 
 /** The status a remark applies. `resumed` puts the candidate back to active. */
 export type RemarkStatus = 'on_hold' | 'dropped' | 'resumed';
@@ -129,6 +132,8 @@ export interface Candidate {
   is_completed: boolean;
   progress_status: CandidateProgressStatus;
   status_changed_at: string | null;
+  /** Manually-selected overseas journey status (drives the status colour). */
+  journey_status: JourneyStatus | null;
   sections?: CandidateSection[];
   latest_remark?: CandidateRemark | null;
 }

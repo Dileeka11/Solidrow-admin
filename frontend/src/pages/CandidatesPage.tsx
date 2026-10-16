@@ -5,9 +5,10 @@ import { EditIcon, EyeIcon, PlusIcon, TrashIcon } from '../components/icons';
 import { confirmDelete, toastError, toastSuccess } from '../lib/alerts';
 import { useAuth } from '../auth/AuthContext';
 import { can } from '../lib/permissions';
+import { journeyMeta } from '../lib/journeyStatus';
 import type { Candidate } from '../types';
 
-const GRID = '52px 1.4fr 1fr 1fr 1.4fr 0.9fr 0.9fr 84px 120px';
+const GRID = '52px 1.4fr 1fr 1fr 1.4fr 0.9fr 0.9fr 84px 100px 120px';
 
 const SKILL_LABEL: Record<string, string> = {
   skill: 'Skill',
@@ -257,6 +258,7 @@ export default function CandidatesPage() {
             Skill{sortArrow('candidate_skill')}
           </div>
           <div>Progress</div>
+          <div>Status</div>
           <div />
         </div>
 
@@ -276,7 +278,9 @@ export default function CandidatesPage() {
           </div>
         )}
 
-        {pageRows.map((c) => (
+        {pageRows.map((c) => {
+          const journey = journeyMeta(c.journey_status);
+          return (
           <div
             key={c.id}
             style={{
@@ -287,6 +291,8 @@ export default function CandidatesPage() {
               fontSize: 13,
               alignItems: 'center',
               borderBottom: '1px solid var(--row-border)',
+              background: journey?.tint,
+              boxShadow: journey ? `inset 4px 0 0 ${journey.color}` : undefined,
             }}
           >
             {c.passport_image_url ? (
@@ -357,6 +363,25 @@ export default function CandidatesPage() {
                 </span>
               )}
             </div>
+            <div>
+              {journey ? (
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    padding: '3px 9px',
+                    borderRadius: 999,
+                    background: journey.bg,
+                    color: journey.color,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {journey.label}
+                </span>
+              ) : (
+                <span style={{ color: 'var(--muted)' }}>—</span>
+              )}
+            </div>
             <div style={{ display: 'flex', gap: 6 }}>
               <button
                 className="sr-icon-btn"
@@ -382,7 +407,8 @@ export default function CandidatesPage() {
               )}
             </div>
           </div>
-        ))}
+          );
+        })}
         </div>
         </div>
 

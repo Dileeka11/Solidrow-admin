@@ -4,6 +4,7 @@ import { api } from '../api/client';
 import { toastError, toastSuccess } from '../lib/alerts';
 import { useAuth } from '../auth/AuthContext';
 import { can } from '../lib/permissions';
+import { journeyMeta } from '../lib/journeyStatus';
 import type {
   AttendanceRecord,
   Candidate,
@@ -564,9 +565,30 @@ export default function CandidateViewPage() {
 
   const c = candidate;
   const isDone = (n: number) => c.sections?.find((s) => s.section_no === n)?.status === 'submitted';
+  const preview = journeyMeta(c.journey_status);
 
   return (
-    <div className="fade-in-s" style={{ maxWidth: 1080 }}>
+    <div
+      className="fade-in-s"
+      style={{
+        maxWidth: 1080,
+        ...(preview && {
+          background: preview.tint,
+          border: `1px solid ${preview.border}`,
+          borderRadius: 16,
+          padding: 20,
+        }),
+      }}
+    >
+      {preview && (
+        <div
+          style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, padding: '10px 14px', borderRadius: 10, background: 'var(--card)', borderLeft: `4px solid ${preview.color}` }}
+        >
+          <span style={{ width: 10, height: 10, borderRadius: '50%', background: preview.color, flexShrink: 0 }} />
+          <span style={{ fontWeight: 700, fontSize: 13, color: preview.color }}>{preview.label}</span>
+          <span style={{ fontSize: 13, color: 'var(--muted)' }}>{preview.hint}</span>
+        </div>
+      )}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
         <div>
           <button

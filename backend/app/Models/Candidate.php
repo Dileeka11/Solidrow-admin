@@ -40,6 +40,7 @@ class Candidate extends Model
         'is_completed',
         'progress_status',
         'status_changed_at',
+        'journey_status',
         'created_by',
     ];
 
