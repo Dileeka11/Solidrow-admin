@@ -1243,7 +1243,27 @@ export default function CandidateFormPage() {
 
   // ── Training helpers ──────────────────────────────────────────────────────
 
-  const [trainingBondFile, setTrainingBondFile] = useState<File | null>(null);
+  const [bondUploading, setBondUploading] = useState(false);
+  const [bondFileName, setBondFileName] = useState<string | null>(null);
+
+  /** Upload the training bond straight away so the admin sees it was stored. */
+  async function uploadTrainingBond(file: File) {
+    if (!id) return;
+    setBondUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('training_bond', file);
+      const r = await api.post<CandidateTraining>(`/candidates/${id}/training/bond`, fd);
+      // Only take the bond fields so unsaved edits elsewhere in the form are kept.
+      setTraining((prev) => ({ ...prev, training_bond_url: r.data.training_bond_url }));
+      setBondFileName(file.name);
+      toastSuccess('Training bond uploaded');
+    } catch {
+      toastError('Could not upload the training bond. Use a PDF/JPG/PNG under 20 MB.');
+    } finally {
+      setBondUploading(false);
+    }
+  }
 
   /**
    * Ensure the training record always has at least one pre-test cycle so both the
@@ -1341,10 +1361,8 @@ export default function CandidateFormPage() {
       fd.append('final_test_number', training.final_test_number ?? '');
       fd.append('final_test_agent', training.final_test_agent ?? '');
       fd.append('demand_id', training.demand_id ? String(training.demand_id) : '');
-      if (trainingBondFile) fd.append('training_bond', trainingBondFile);
       const r = await api.post<CandidateTraining>(`/candidates/${id}/training`, fd);
       setTraining(withDefaultCycle(r.data));
-      setTrainingBondFile(null);
       // Only the final "Save Test Details" completes the section (unlocking the next)
       // and exits; the standalone "Save Pre Test" just persists and stays on the page.
       if (markComplete) await markSectionComplete(sectionNo);
@@ -2291,18 +2309,66 @@ export default function CandidateFormPage() {
                 type="file"
                 accept=".pdf,.jpg,.jpeg,.png"
                 style={inputStyle}
-                onChange={(e) => setTrainingBondFile(e.target.files?.[0] ?? null)}
+                disabled={bondUploading}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = ''; // allow re-picking the same file
+                  if (file) uploadTrainingBond(file);
+                }}
               />
-              {training.training_bond_url && !trainingBondFile && (
-                <a
-                  href={training.training_bond_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  style={{ fontSize: 12, color: 'var(--accent, #6366f1)', marginTop: 4, display: 'block' }}
-                >
-                  View current bond document
-                </a>
+              {bondUploading && (
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>Uploading bond…</div>
               )}
+              {!bondUploading && training.training_bond_url && (() => {
+                const url = training.training_bond_url;
+                const isPdf = /\.pdf($|\?)/i.test(url);
+                return (
+                  <div
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 12, marginTop: 8, padding: 10,
+                      border: '1.5px solid oklch(0.72 0.15 150)', borderRadius: 8,
+                      background: 'color-mix(in oklch, oklch(0.72 0.15 150) 8%, transparent)',
+                    }}
+                  >
+                    <a href={url} target="_blank" rel="noreferrer" style={{ flexShrink: 0 }}>
+                      {isPdf ? (
+                        <div
+                          style={{
+                            width: 56, height: 70, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            borderRadius: 6, border: '1px solid var(--border-soft)', fontSize: 12, fontWeight: 700,
+                            color: 'oklch(0.62 0.19 25)',
+                          }}
+                        >
+                          PDF
+                        </div>
+                      ) : (
+                        <img
+                          src={url}
+                          alt="Training bond"
+                          style={{ width: 56, height: 70, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border-soft)' }}
+                        />
+                      )}
+                    </a>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'oklch(0.55 0.15 150)' }}>✓ Bond uploaded</div>
+                      {bondFileName && (
+                        <div style={{ fontSize: 12, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {bondFileName}
+                        </div>
+                      )}
+                      <a
+                        href={url}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ fontSize: 12, color: 'var(--accent, #6366f1)' }}
+                      >
+                        View bond document
+                      </a>
+                      <div style={{ fontSize: 11, color: 'var(--muted)' }}>Pick another file above to replace it.</div>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           </div>
 

@@ -8,6 +8,7 @@ use App\Models\JobCategory;
 use App\Models\TestNumberCounter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class CandidateTrainingController extends Controller
 {
@@ -71,6 +72,32 @@ class CandidateTrainingController extends Controller
             ['candidate_id' => $candidate->id],
             $data
         );
+
+        return response()->json($this->normalize($training));
+    }
+
+    /**
+     * Upload (or replace) only the training bond file, immediately on pick, so the
+     * admin can see it was stored without saving the whole training section.
+     */
+    public function uploadBond(Request $request, Candidate $candidate)
+    {
+        $request->validate([
+            'training_bond' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:20480'],
+        ]);
+
+        $training = CandidateTraining::firstOrCreate(
+            ['candidate_id' => $candidate->id],
+            ['pre_test_cycles' => [], 'final_test_attendance_records' => []]
+        );
+
+        $old = $training->training_bond;
+        $training->training_bond = $request->file('training_bond')->store('training-bonds', 'public');
+        $training->save();
+
+        if ($old && $old !== $training->training_bond) {
+            Storage::disk('public')->delete($old);
+        }
 
         return response()->json($this->normalize($training));
     }

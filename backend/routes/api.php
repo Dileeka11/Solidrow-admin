@@ -133,6 +133,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Section 2 — Training Details
     Route::get('/candidates/{candidate}/training', [CandidateTrainingController::class, 'show']);
     Route::post('/candidates/{candidate}/training', [CandidateTrainingController::class, 'save']);
+    Route::post('/candidates/{candidate}/training/bond', [CandidateTrainingController::class, 'uploadBond']);
     Route::post('/candidates/{candidate}/training/attendance/add', [CandidateTrainingController::class, 'addAttendance']);
     Route::post('/candidates/{candidate}/training/attendance/remove', [CandidateTrainingController::class, 'removeAttendance']);
     Route::post('/candidates/{candidate}/training/test-number', [CandidateTrainingController::class, 'generateTestNumber']);
