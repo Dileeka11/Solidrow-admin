@@ -26,12 +26,55 @@ class CandidateController extends Controller
         'Departure Details',
     ];
 
+    /** Columns the list view may sort by. */
+    private const SORTABLE = [
+        'registration_no',
+        'candidate_reg_no',
+        'registration_date',
+        'full_name',
+        'country',
+        'candidate_skill',
+    ];
+
     /**
-     * List candidates with their section assignments.
+     * List candidates.
+     *
+     * With `?page=` the list is searched, sorted and paginated in the database
+     * (query params: q, sort, dir, per_page) so only one page of rows is sent.
+     * Instead of every section row, only the submitted-section count is loaded.
+     * Without `page` the full list is returned (legacy behaviour).
      */
-    public function index()
+    public function index(Request $request)
     {
-        return Candidate::with(['sections', 'latestRemark'])->orderByDesc('id')->get();
+        if (! $request->has('page')) {
+            return Candidate::with(['sections', 'latestRemark'])->orderByDesc('id')->get();
+        }
+
+        $sort = in_array($request->query('sort'), self::SORTABLE, true)
+            ? $request->query('sort')
+            : 'id';
+        $dir = $request->query('dir') === 'asc' ? 'asc' : 'desc';
+        $perPage = min(100, max(1, (int) $request->query('per_page', 25)));
+        $q = trim((string) $request->query('q', ''));
+
+        $query = Candidate::query()
+            ->withCount(['sections as submitted_sections_count' => fn ($s) => $s->where('status', 'submitted')])
+            ->with('latestRemark');
+
+        if ($q !== '') {
+            $like = '%' . addcslashes($q, '%_\\') . '%';
+            $query->where(function ($w) use ($like) {
+                foreach (['full_name', 'passport_number', 'nic', 'phone_number', 'whatsapp_number', 'candidate_reg_no', 'registration_no'] as $col) {
+                    $w->orWhere($col, 'like', $like);
+                }
+            });
+        }
+
+        $page = $query->orderBy($sort, $dir)->orderByDesc('id')->paginate($perPage);
+
+        return response()->json(array_merge($page->toArray(), [
+            'all_total' => Candidate::count(),
+        ]));
     }
 
     /**

@@ -135,6 +135,8 @@ export interface Candidate {
   /** Manually-selected overseas journey status (drives the status colour). */
   journey_status: JourneyStatus | null;
   sections?: CandidateSection[];
+  /** Present on the paginated list endpoint instead of `sections`. */
+  submitted_sections_count?: number;
   latest_remark?: CandidateRemark | null;
 }
 

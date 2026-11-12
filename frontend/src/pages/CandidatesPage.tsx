@@ -28,6 +28,13 @@ const PAGE_SIZES = [10, 25, 50, 100];
 type SortKey = 'registration_no' | 'candidate_reg_no' | 'registration_date' | 'full_name' | 'country' | 'candidate_skill';
 type SortDir = 'asc' | 'desc';
 
+type PagedCandidates = {
+  data: Candidate[];
+  total: number;
+  last_page: number;
+  all_total: number;
+};
+
 export default function CandidatesPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -38,27 +45,56 @@ export default function CandidatesPage() {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('full_name');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
+  const [total, setTotal] = useState(0);
+  const [allTotal, setAllTotal] = useState(0);
+  const [reloadKey, setReloadKey] = useState(0);
 
-  async function load() {
-    const res = await api.get<Candidate[]>('/candidates');
-    setCandidates(res.data);
-    setLoading(false);
-  }
-
+  // Wait until the user stops typing before hitting the server.
   useEffect(() => {
-    load();
-  }, []);
+    const t = setTimeout(() => {
+      setDebouncedSearch(search.trim());
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  // Only the current page is fetched; search, sort and paging run in the database.
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    api
+      .get<PagedCandidates>('/candidates', {
+        params: { page, per_page: pageSize, q: debouncedSearch || undefined, sort: sortKey, dir: sortDir },
+      })
+      .then((res) => {
+        if (cancelled) return;
+        setCandidates(res.data.data);
+        setTotal(res.data.total);
+        setAllTotal(res.data.all_total);
+        if (res.data.last_page < page) setPage(Math.max(1, res.data.last_page));
+      })
+      .catch(() => {
+        if (!cancelled) toastError('Could not load candidates.');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [page, pageSize, debouncedSearch, sortKey, sortDir, reloadKey]);
 
   async function handleDelete(c: Candidate) {
     const ok = await confirmDelete(`Remove ${c.full_name} from candidates?`);
     if (!ok) return;
     try {
       await api.delete(`/candidates/${c.id}`);
-      setCandidates((prev) => prev.filter((row) => row.id !== c.id));
+      setReloadKey((k) => k + 1);
       toastSuccess('Candidate deleted');
     } catch {
       toastError('Could not delete candidate.');
@@ -66,43 +102,16 @@ export default function CandidatesPage() {
   }
 
   const submittedCount = (c: Candidate) =>
-    (c.sections ?? []).filter((s) => s.status === 'submitted').length;
+    c.submitted_sections_count ?? (c.sections ?? []).filter((s) => s.status === 'submitted').length;
 
-  const q = search.trim().toLowerCase();
-  const filtered = q
-    ? candidates.filter((c) =>
-        [
-          c.full_name,
-          c.passport_number,
-          c.nic,
-          c.phone_number,
-          c.whatsapp_number,
-          c.candidate_reg_no,
-          c.registration_no,
-        ]
-          .filter(Boolean)
-          .some((v) => String(v).toLowerCase().includes(q)),
-      )
-    : candidates;
-
-  const sorted = [...filtered].sort((a, b) => {
-    const av = String(a[sortKey] ?? '').toLowerCase();
-    const bv = String(b[sortKey] ?? '').toLowerCase();
-    const cmp = av.localeCompare(bv, undefined, { numeric: true });
-    return sortDir === 'asc' ? cmp : -cmp;
-  });
-
-  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
+  const q = debouncedSearch;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const currentPage = Math.min(page, totalPages);
   const start = (currentPage - 1) * pageSize;
-  const pageRows = sorted.slice(start, start + pageSize);
-
-  // Reset to first page whenever the result set changes
-  useEffect(() => {
-    setPage(1);
-  }, [q, sortKey, sortDir, pageSize]);
+  const pageRows = candidates;
 
   function toggleSort(key: SortKey) {
+    setPage(1);
     if (sortKey === key) {
       setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
     } else {
@@ -142,7 +151,7 @@ export default function CandidatesPage() {
         <div>
           <div style={{ fontSize: 24, fontWeight: 700, marginBottom: 2 }}>Candidate Registration</div>
           <div style={{ fontSize: 14, color: 'var(--muted)' }}>
-            {q ? `${filtered.length} of ${candidates.length}` : candidates.length} candidates
+            {q ? `${total} of ${allTotal}` : allTotal} candidates
           </div>
         </div>
         {canAdd && (
@@ -262,17 +271,17 @@ export default function CandidatesPage() {
           <div />
         </div>
 
-        {loading && (
+        {loading && candidates.length === 0 && (
           <div style={{ padding: '20px', fontSize: 13, color: 'var(--muted)' }}>Loading…</div>
         )}
 
-        {!loading && candidates.length === 0 && (
+        {!loading && allTotal === 0 && (
           <div style={{ padding: '20px', fontSize: 13, color: 'var(--muted)' }}>
             No candidates yet. Click “New Registration” to add one.
           </div>
         )}
 
-        {!loading && candidates.length > 0 && filtered.length === 0 && (
+        {!loading && allTotal > 0 && total === 0 && (
           <div style={{ padding: '20px', fontSize: 13, color: 'var(--muted)' }}>
             No candidates match “{search}”.
           </div>
@@ -412,7 +421,7 @@ export default function CandidatesPage() {
         </div>
         </div>
 
-        {!loading && sorted.length > 0 && (
+        {total > 0 && (
           <div
             style={{
               display: 'flex',
@@ -430,7 +439,10 @@ export default function CandidatesPage() {
               <span>Rows per page</span>
               <select
                 value={pageSize}
-                onChange={(e) => setPageSize(Number(e.target.value))}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setPage(1);
+                }}
                 style={{
                   padding: '5px 8px',
                   borderRadius: 6,
@@ -449,7 +461,7 @@ export default function CandidatesPage() {
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <span>
-                {start + 1}–{Math.min(start + pageSize, sorted.length)} of {sorted.length}
+                {start + 1}–{Math.min(start + pageSize, total)} of {total}
               </span>
               <div style={{ display: 'flex', gap: 6 }}>
                 <button
