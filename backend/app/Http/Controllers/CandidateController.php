@@ -59,7 +59,7 @@ class CandidateController extends Controller
 
         $query = Candidate::query()
             ->withCount(['sections as submitted_sections_count' => fn ($s) => $s->where('status', 'submitted')])
-            ->with('latestRemark');
+            ->with('latestRemark.createdBy:id,name');
 
         if ($q !== '') {
             $like = '%' . addcslashes($q, '%_\\') . '%';
@@ -75,6 +75,34 @@ class CandidateController extends Controller
         return response()->json(array_merge($page->toArray(), [
             'all_total' => Candidate::count(),
         ]));
+    }
+
+    /**
+     * Registration report rows: only the columns the report shows, filtered in
+     * the database by registration date range, skill and job category.
+     */
+    public function report(Request $request)
+    {
+        $data = $request->validate([
+            'from' => ['nullable', 'date'],
+            'to' => ['nullable', 'date'],
+            'skill' => ['nullable', 'string', 'max:20'],
+            'job_category_id' => ['nullable', 'integer'],
+        ]);
+
+        return Candidate::query()
+            ->whereNotNull('registration_date')
+            ->when($data['from'] ?? null, fn ($q, $v) => $q->where('registration_date', '>=', $v))
+            ->when($data['to'] ?? null, fn ($q, $v) => $q->where('registration_date', '<=', $v))
+            ->when($data['skill'] ?? null, fn ($q, $v) => $q->where('candidate_skill', $v))
+            ->when($data['job_category_id'] ?? null, fn ($q, $v) => $q->where('job_category_id', $v))
+            ->orderBy('registration_date')
+            ->orderBy('id')
+            ->get([
+                'id', 'registration_date', 'candidate_reg_no', 'full_name', 'country',
+                'candidate_skill', 'job_category_id', 'is_completed',
+            ])
+            ->each(fn ($c) => $c->setAppends([]));
     }
 
     /**

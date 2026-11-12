@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { can } from '../lib/permissions';
@@ -458,7 +458,9 @@ export default function AppLayout() {
         )}
 
         <main style={{ flex: 1, padding: '18px 16px', overflowX: 'hidden' }}>
-          <Outlet />
+          <Suspense fallback={<PageLoading />}>
+            <Outlet />
+          </Suspense>
         </main>
       </div>
     );
@@ -469,8 +471,15 @@ export default function AppLayout() {
     <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', minHeight: '100vh' }}>
       {sidebar}
       <div ref={contentRef} style={{ padding: '32px 40px', overflowY: 'auto' }}>
-        <Outlet />
+        <Suspense fallback={<PageLoading />}>
+            <Outlet />
+          </Suspense>
       </div>
     </div>
   );
+}
+
+/** Shown briefly while a page's code chunk downloads. */
+function PageLoading() {
+  return <div style={{ padding: 20, fontSize: 13, color: 'var(--muted)' }}>Loading…</div>;
 }

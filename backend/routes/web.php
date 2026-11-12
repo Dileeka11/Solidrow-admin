@@ -1,5 +1,7 @@
 <?php
 
+use App\Support\MediaThumbnail;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
@@ -89,10 +91,26 @@ if ($migrateToken !== '') {
 // public storage disk. Works without a `storage` symlink — important on hosting
 // where the Laravel public/ folder is merged into the web root and the name
 // `storage` is already taken by the framework storage directory.
-Route::get('/media/{path}', function (string $path) {
+//
+// `?w=128` returns a small cached JPEG thumbnail instead of the full photo.
+// Uploads get random, never-reused names, so browsers may cache them for long
+// and revalidate cheaply (304) instead of re-downloading through PHP.
+Route::get('/media/{path}', function (Request $request, string $path) {
+    abort_if(str_contains($path, '..') || str_starts_with($path, '.thumbs'), 404);
     abort_unless(Storage::disk('public')->exists($path), 404);
 
-    return response()->file(Storage::disk('public')->path($path));
+    $file = Storage::disk('public')->path($path);
+    $width = (int) $request->query('w', 0);
+    if ($width > 0) {
+        $file = MediaThumbnail::for($file, $path, $width) ?? $file;
+    }
+
+    $response = response()->file($file, [
+        'Cache-Control' => 'private, max-age=2592000, immutable',
+    ]);
+    $response->isNotModified($request);
+
+    return $response;
 })->where('path', '.*');
 
 // Serve the built React SPA for every non-API path (deep links included).

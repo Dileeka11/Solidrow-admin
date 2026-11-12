@@ -124,6 +124,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/section-assignments', [SectionAssignmentController::class, 'update']);
 
     Route::get('/candidates/next-registration-no', [CandidateController::class, 'nextRegistrationNo']);
+    Route::get('/candidates/report', [CandidateController::class, 'report']);
     Route::post('/candidates/{candidate}/submit-section', [CandidateController::class, 'submitSection']);
     // Drop-off / progress remarks (history retained per candidate)
     Route::get('/candidates/{candidate}/remarks', [CandidateRemarkController::class, 'index']);

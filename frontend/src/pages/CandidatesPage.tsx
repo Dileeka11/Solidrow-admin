@@ -6,6 +6,7 @@ import { confirmDelete, toastError, toastSuccess } from '../lib/alerts';
 import { useAuth } from '../auth/AuthContext';
 import { can } from '../lib/permissions';
 import { journeyMeta } from '../lib/journeyStatus';
+import { thumbUrl } from '../lib/media';
 import type { Candidate } from '../types';
 
 const GRID = '52px 1.4fr 1fr 1fr 1.4fr 0.9fr 0.9fr 84px 100px 120px';
@@ -306,8 +307,10 @@ export default function CandidatesPage() {
           >
             {c.passport_image_url ? (
               <img
-                src={c.passport_image_url}
+                src={thumbUrl(c.passport_image_url, 128)}
                 alt={c.full_name}
+                loading="lazy"
+                decoding="async"
                 style={{
                   width: 36,
                   height: 36,

@@ -61,15 +61,21 @@ class DashboardController extends Controller
 
         // Placements per month over the last 6 months — a candidate is
         // "placed" when they have a departure date.
-        $monthlyTrend = collect(range(5, 0))->map(function ($i) {
-            $month = now()->subMonths($i);
+        // One grouped query over a date range (index-friendly) instead of one per month.
+        $start = now()->startOfMonth()->subMonths(5);
+        $departuresByMonth = CandidateDepartureDetail::query()
+            ->where('departure_date', '>=', $start->toDateString())
+            ->where('departure_date', '<', now()->startOfMonth()->addMonth()->toDateString())
+            ->selectRaw("DATE_FORMAT(departure_date, '%Y-%m') as ym, COUNT(*) as value")
+            ->groupBy('ym')
+            ->pluck('value', 'ym');
+
+        $monthlyTrend = collect(range(5, 0))->map(function ($i) use ($departuresByMonth) {
+            $month = now()->startOfMonth()->subMonths($i);
 
             return [
                 'month' => $month->format('M'),
-                'value' => CandidateDepartureDetail::whereNotNull('departure_date')
-                    ->whereYear('departure_date', $month->year)
-                    ->whereMonth('departure_date', $month->month)
-                    ->count(),
+                'value' => (int) ($departuresByMonth[$month->format('Y-m')] ?? 0),
             ];
         })->values();
 

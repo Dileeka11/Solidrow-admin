@@ -88,15 +88,42 @@ class BaddegamaRegistration extends Model
     }
 
     /**
-     * All registrations joined with their location (name + agent) for the admin list.
+     * Registrations joined with their location (name + agent) for the admin
+     * list, with only the columns the list / Excel export show. Optional
+     * search text and location filter are applied in the database.
      */
+    public static function listQuery(?string $search = null, ?int $locationId = null)
+    {
+        $query = DB::table('baddegama_registration as br')
+            ->leftJoin('locations as l', 'br.type', '=', 'l.id')
+            ->select(
+                'br.id', 'br.registration_code', 'br.full_name', 'br.nic', 'br.mobile_number',
+                'br.passport_number', 'br.result', 'br.created_at', 'br.type',
+                'l.name as location_name', 'l.agent as agent_name'
+            )
+            ->orderByDesc('br.created_at')
+            ->orderByDesc('br.id');
+
+        if ($locationId) {
+            $query->where('br.type', $locationId);
+        }
+
+        $search = trim((string) $search);
+        if ($search !== '') {
+            $like = '%' . addcslashes($search, '%_\\') . '%';
+            $query->where(function ($w) use ($like) {
+                foreach (['br.full_name', 'br.registration_code', 'br.nic', 'br.mobile_number', 'br.passport_number'] as $col) {
+                    $w->orWhere($col, 'like', $like);
+                }
+            });
+        }
+
+        return $query;
+    }
+
+    /** All registrations (legacy full list). */
     public static function allWithLocation()
     {
-        return DB::table('baddegama_registration as br')
-            ->leftJoin('locations as l', 'br.type', '=', 'l.id')
-            ->select('br.*', 'l.name as location_name', 'l.agent as agent_name')
-            ->orderByDesc('br.created_at')
-            ->orderByDesc('br.id')
-            ->get();
+        return self::listQuery()->get();
     }
 }

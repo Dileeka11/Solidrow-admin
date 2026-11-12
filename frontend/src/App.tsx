@@ -1,50 +1,84 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
-import type { ReactNode } from 'react';
+import { lazy, Suspense, type ComponentType, type ReactNode } from 'react';
 import ProtectedRoute from './components/ProtectedRoute';
 import { useAuth } from './auth/AuthContext';
 import { can, firstAllowedRoute } from './lib/permissions';
 import AppLayout from './pages/AppLayout';
-import ChartOfAccountsPage from './pages/ChartOfAccountsPage';
-import AccountGroupsPage from './pages/AccountGroupsPage';
-import FinancialYearPage from './pages/FinancialYearPage';
-import JournalEntriesPage from './pages/JournalEntriesPage';
-import ManualJournalEntryPage from './pages/ManualJournalEntryPage';
-import GeneralLedgerPage from './pages/GeneralLedgerPage';
-import TrialBalancePage from './pages/TrialBalancePage';
-import SalesInvoicesPage from './pages/SalesInvoicesPage';
-import SalesInvoiceFormPage from './pages/SalesInvoiceFormPage';
-import DepartmentsPage from './pages/DepartmentsPage';
-import SuppliersPage from './pages/SuppliersPage';
-import ItemCategoriesPage from './pages/ItemCategoriesPage';
-import ItemsPage from './pages/ItemsPage';
-import BanksPage from './pages/BanksPage';
-import PurchaseRequisitionsPage from './pages/PurchaseRequisitionsPage';
-import PurchaseRequisitionFormPage from './pages/PurchaseRequisitionFormPage';
-import PurchaseOrdersPage from './pages/PurchaseOrdersPage';
-import PurchaseOrderFormPage from './pages/PurchaseOrderFormPage';
-import GoodsReceivedNotesPage from './pages/GoodsReceivedNotesPage';
-import GoodsReceivedNoteFormPage from './pages/GoodsReceivedNoteFormPage';
-import SupplierInvoicesPage from './pages/SupplierInvoicesPage';
-import SupplierInvoiceFormPage from './pages/SupplierInvoiceFormPage';
-import CandidatesPage from './pages/CandidatesPage';
-import CandidateFormPage from './pages/CandidateFormPage';
-import CandidateViewPage from './pages/CandidateViewPage';
-import BaddegamaPublicFormPage from './pages/BaddegamaPublicFormPage';
-import BaddegamaRegistrationsPage from './pages/BaddegamaRegistrationsPage';
-import BaddegamaLocationsPage from './pages/BaddegamaLocationsPage';
-import BaddegamaViewPage from './pages/BaddegamaViewPage';
-import DashboardPage from './pages/DashboardPage';
-import AgentsPage from './pages/AgentsPage';
-import JobCategoriesPage from './pages/JobCategoriesPage';
-import DemandsPage from './pages/DemandsPage';
-import LocationsPage from './pages/LocationsPage';
+
+/**
+ * Load a page's code only when it is first opened (keeps the initial download
+ * small). After a new deploy the old chunk files are gone, so if a chunk fails
+ * to load we reload the page once to pick up the fresh build.
+ */
+function lazyPage<T extends ComponentType<object>>(load: () => Promise<{ default: T }>) {
+  return lazy(() =>
+    load().then(
+      (mod) => {
+        try {
+          sessionStorage.removeItem('sr_chunk_reload');
+        } catch {
+          /* storage unavailable */
+        }
+        return mod;
+      },
+      (err) => {
+        let reloaded = false;
+        try {
+          reloaded = sessionStorage.getItem('sr_chunk_reload') === '1';
+          if (!reloaded) sessionStorage.setItem('sr_chunk_reload', '1');
+        } catch {
+          reloaded = true;
+        }
+        if (!reloaded) {
+          window.location.reload();
+          return new Promise<never>(() => {});
+        }
+        throw err;
+      },
+    ),
+  );
+}
+const ChartOfAccountsPage = lazyPage(() => import('./pages/ChartOfAccountsPage'));
+const AccountGroupsPage = lazyPage(() => import('./pages/AccountGroupsPage'));
+const FinancialYearPage = lazyPage(() => import('./pages/FinancialYearPage'));
+const JournalEntriesPage = lazyPage(() => import('./pages/JournalEntriesPage'));
+const ManualJournalEntryPage = lazyPage(() => import('./pages/ManualJournalEntryPage'));
+const GeneralLedgerPage = lazyPage(() => import('./pages/GeneralLedgerPage'));
+const TrialBalancePage = lazyPage(() => import('./pages/TrialBalancePage'));
+const SalesInvoicesPage = lazyPage(() => import('./pages/SalesInvoicesPage'));
+const SalesInvoiceFormPage = lazyPage(() => import('./pages/SalesInvoiceFormPage'));
+const DepartmentsPage = lazyPage(() => import('./pages/DepartmentsPage'));
+const SuppliersPage = lazyPage(() => import('./pages/SuppliersPage'));
+const ItemCategoriesPage = lazyPage(() => import('./pages/ItemCategoriesPage'));
+const ItemsPage = lazyPage(() => import('./pages/ItemsPage'));
+const BanksPage = lazyPage(() => import('./pages/BanksPage'));
+const PurchaseRequisitionsPage = lazyPage(() => import('./pages/PurchaseRequisitionsPage'));
+const PurchaseRequisitionFormPage = lazyPage(() => import('./pages/PurchaseRequisitionFormPage'));
+const PurchaseOrdersPage = lazyPage(() => import('./pages/PurchaseOrdersPage'));
+const PurchaseOrderFormPage = lazyPage(() => import('./pages/PurchaseOrderFormPage'));
+const GoodsReceivedNotesPage = lazyPage(() => import('./pages/GoodsReceivedNotesPage'));
+const GoodsReceivedNoteFormPage = lazyPage(() => import('./pages/GoodsReceivedNoteFormPage'));
+const SupplierInvoicesPage = lazyPage(() => import('./pages/SupplierInvoicesPage'));
+const SupplierInvoiceFormPage = lazyPage(() => import('./pages/SupplierInvoiceFormPage'));
+const CandidatesPage = lazyPage(() => import('./pages/CandidatesPage'));
+const CandidateFormPage = lazyPage(() => import('./pages/CandidateFormPage'));
+const CandidateViewPage = lazyPage(() => import('./pages/CandidateViewPage'));
+const BaddegamaPublicFormPage = lazyPage(() => import('./pages/BaddegamaPublicFormPage'));
+const BaddegamaRegistrationsPage = lazyPage(() => import('./pages/BaddegamaRegistrationsPage'));
+const BaddegamaLocationsPage = lazyPage(() => import('./pages/BaddegamaLocationsPage'));
+const BaddegamaViewPage = lazyPage(() => import('./pages/BaddegamaViewPage'));
+const DashboardPage = lazyPage(() => import('./pages/DashboardPage'));
+const AgentsPage = lazyPage(() => import('./pages/AgentsPage'));
+const JobCategoriesPage = lazyPage(() => import('./pages/JobCategoriesPage'));
+const DemandsPage = lazyPage(() => import('./pages/DemandsPage'));
+const LocationsPage = lazyPage(() => import('./pages/LocationsPage'));
 import LoginPage from './pages/LoginPage';
-import PermissionsPage from './pages/PermissionsPage';
-import ProgressCheckPage from './pages/ProgressCheckPage';
-import ReportsPage from './pages/ReportsPage';
-import RolesPage from './pages/RolesPage';
-import SectionAssignmentPage from './pages/SectionAssignmentPage';
-import StaffPage from './pages/StaffPage';
+const PermissionsPage = lazyPage(() => import('./pages/PermissionsPage'));
+const ProgressCheckPage = lazyPage(() => import('./pages/ProgressCheckPage'));
+const ReportsPage = lazyPage(() => import('./pages/ReportsPage'));
+const RolesPage = lazyPage(() => import('./pages/RolesPage'));
+const SectionAssignmentPage = lazyPage(() => import('./pages/SectionAssignmentPage'));
+const StaffPage = lazyPage(() => import('./pages/StaffPage'));
 
 function LoginRoute() {
   const { user, loading } = useAuth();
@@ -90,6 +124,7 @@ function NoAccess() {
 
 export default function App() {
   return (
+    <Suspense fallback={null}>
     <Routes>
       <Route path="/login" element={<LoginRoute />} />
       <Route path="/no-access" element={<NoAccess />} />
@@ -466,5 +501,6 @@ export default function App() {
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
+    </Suspense>
   );
 }

@@ -13,10 +13,30 @@ use Illuminate\Support\Facades\DB;
  */
 class BaddegamaRegistrationController extends Controller
 {
-    /** List every registration joined with its location name + foreign agent. */
-    public function index()
+    /**
+     * List registrations joined with their location name + foreign agent.
+     *
+     * Query params: q (search), location_id, page, per_page.
+     * With `page` one page is returned (plus totals); without it, every
+     * matching row (used by the Excel export).
+     */
+    public function index(Request $request)
     {
-        return BaddegamaRegistration::allWithLocation();
+        $query = BaddegamaRegistration::listQuery(
+            $request->query('q'),
+            $request->filled('location_id') ? (int) $request->query('location_id') : null,
+        );
+
+        if (! $request->has('page')) {
+            return $query->get();
+        }
+
+        $perPage = min(100, max(1, (int) $request->query('per_page', 50)));
+        $page = $query->paginate($perPage);
+
+        return response()->json(array_merge($page->toArray(), [
+            'all_total' => DB::table('baddegama_registration')->count(),
+        ]));
     }
 
     /** A single registration with the resolved province / country / location names. */

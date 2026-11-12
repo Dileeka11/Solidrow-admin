@@ -67,17 +67,40 @@ export default function ReportsPage() {
   const [jobCatFilter, setJobCatFilter] = useState<string>('');
 
   useEffect(() => {
-    Promise.all([
-      api.get<Candidate[]>('/candidates'),
-      api.get<JobCategory[]>('/job-categories').catch(() => ({ data: [] as JobCategory[] })),
-    ])
-      .then(([cRes, jRes]) => {
-        setCandidates(cRes.data);
-        setJobCategories(jRes.data);
-      })
-      .catch(() => toastError('Could not load candidates.'))
-      .finally(() => setLoading(false));
+    api
+      .get<JobCategory[]>('/job-categories')
+      .then((r) => setJobCategories(r.data))
+      .catch(() => setJobCategories([]));
   }, []);
+
+  // Only the candidates in the chosen range / filters are fetched, and only the
+  // columns this report shows — filtering happens in the database.
+  useEffect(() => {
+    if (from && to && from > to) return;
+    let cancelled = false;
+    setLoading(true);
+    api
+      .get<Candidate[]>('/candidates/report', {
+        params: {
+          from: from || undefined,
+          to: to || undefined,
+          skill: skillFilter || undefined,
+          job_category_id: jobCatFilter || undefined,
+        },
+      })
+      .then((res) => {
+        if (!cancelled) setCandidates(res.data);
+      })
+      .catch(() => {
+        if (!cancelled) toastError('Could not load candidates.');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [from, to, skillFilter, jobCatFilter]);
 
   const jobCatName = (id: number | null) =>
     jobCategories.find((j) => j.id === id)?.name ?? '—';

@@ -35,4 +35,14 @@
     <FilesMatch "\.(js|css)$">
         Header set Cache-Control "public, max-age=31536000, immutable"
     </FilesMatch>
+    # Built images / fonts in /assets also carry a content hash in their name.
+    <FilesMatch "\.(png|jpe?g|gif|webp|svg|ico|woff2?)$">
+        Header set Cache-Control "public, max-age=2592000"
+    </FilesMatch>
+</IfModule>
+
+# Compress text responses (API JSON, JS, CSS, HTML) — typically 70-85% smaller,
+# which matters most for the large list/report payloads.
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE application/json application/javascript text/javascript text/css text/html text/plain image/svg+xml application/xml
 </IfModule>

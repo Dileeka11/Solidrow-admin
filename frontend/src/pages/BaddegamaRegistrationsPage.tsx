@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { EditIcon, EyeIcon, TrashIcon } from '../components/icons';
@@ -22,6 +22,10 @@ type Row = {
 
 type Location = { id: number; name: string; agent: string | null };
 
+type Paged = { data: Row[]; total: number; last_page: number; all_total: number };
+
+const PAGE_SIZE = 50;
+
 const GRID = '48px 1.5fr 1.1fr 1.1fr 1fr 1fr 1fr 0.9fr 0.9fr 1fr 108px';
 
 const RESULT_COLOR: Record<string, { bg: string; fg: string }> = {
@@ -40,41 +44,68 @@ export default function BaddegamaRegistrationsPage() {
   const [locations, setLocations] = useState<Location[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [locationFilter, setLocationFilter] = useState<string>('');
-
-  async function load() {
-    const res = await api.get<Row[]>('/baddegama-registrations');
-    setRows(res.data);
-    setLoading(false);
-  }
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [allTotal, setAllTotal] = useState(0);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
-    load();
     api.get<Location[]>('/baddegama-registrations/locations').then((r) => setLocations(r.data)).catch(() => {});
   }, []);
+
+  // Wait until the user stops typing before searching on the server.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedSearch(search.trim());
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  // Only the current page is fetched; search + location filter run in the database.
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    api
+      .get<Paged>('/baddegama-registrations', {
+        params: { page, per_page: PAGE_SIZE, q: debouncedSearch || undefined, location_id: locationFilter || undefined },
+      })
+      .then((res) => {
+        if (cancelled) return;
+        setRows(res.data.data);
+        setTotal(res.data.total);
+        setAllTotal(res.data.all_total);
+        if (res.data.last_page < page) setPage(Math.max(1, res.data.last_page));
+      })
+      .catch(() => {
+        if (!cancelled) toastError('Could not load registrations.');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [page, debouncedSearch, locationFilter, reloadKey]);
 
   async function handleDelete(r: Row) {
     const ok = await confirmDelete(`Remove ${r.full_name} from registrations?`);
     if (!ok) return;
     try {
       await api.delete(`/baddegama-registrations/${r.id}`);
-      setRows((prev) => prev.filter((x) => x.id !== r.id));
+      setReloadKey((k) => k + 1);
       toastSuccess('Registration deleted');
     } catch {
       toastError('Could not delete registration.');
     }
   }
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return rows.filter((r) => {
-      if (locationFilter && String(r.type ?? '') !== locationFilter) return false;
-      if (!q) return true;
-      return [r.full_name, r.registration_code, r.nic, r.mobile_number, r.passport_number]
-        .filter(Boolean)
-        .some((v) => String(v).toLowerCase().includes(q));
-    });
-  }, [rows, search, locationFilter]);
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const start = (currentPage - 1) * PAGE_SIZE;
 
   const fmtDate = (d: string | null) => {
     if (!d) return '—';
@@ -83,7 +114,20 @@ export default function BaddegamaRegistrationsPage() {
     return dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
   };
 
-  function exportExcel() {
+  async function exportExcel() {
+    setExporting(true);
+    let filtered: Row[];
+    try {
+      const res = await api.get<Row[]>('/baddegama-registrations', {
+        params: { q: debouncedSearch || undefined, location_id: locationFilter || undefined },
+      });
+      filtered = res.data;
+    } catch {
+      toastError('Could not export registrations.');
+      return;
+    } finally {
+      setExporting(false);
+    }
     const headers = ['#', 'Full Name', 'Reg No', 'NIC', 'Mobile Number', 'Location', 'Foreign Agent', 'Passport No', 'Result', 'Created At'];
     const body = filtered
       .map((r, i) => {
@@ -110,14 +154,14 @@ export default function BaddegamaRegistrationsPage() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 24 }}>
         <div>
           <div style={{ fontSize: 24, fontWeight: 700, marginBottom: 2 }}>Manage All Registrations</div>
-          <div style={{ fontSize: 14, color: 'var(--muted)' }}>{filtered.length} of {rows.length} registrations</div>
+          <div style={{ fontSize: 14, color: 'var(--muted)' }}>{debouncedSearch || locationFilter ? `${total} of ${allTotal}` : allTotal} registrations</div>
         </div>
         <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
           <button className="sr-btn-secondary" onClick={() => navigate('/baddegama/locations')} style={{ padding: '11px 16px', borderRadius: 8, fontSize: 14, whiteSpace: 'nowrap' }}>
             Manage Locations
           </button>
-          <button className="sr-btn-primary" onClick={exportExcel} style={{ padding: '11px 18px', borderRadius: 8, fontSize: 14, whiteSpace: 'nowrap' }}>
-            Export Excel
+          <button className="sr-btn-primary" onClick={exportExcel} disabled={exporting} style={{ padding: '11px 18px', borderRadius: 8, fontSize: 14, whiteSpace: 'nowrap' }}>
+            {exporting ? 'Exporting…' : 'Export Excel'}
           </button>
         </div>
       </div>
@@ -133,7 +177,10 @@ export default function BaddegamaRegistrationsPage() {
         </div>
         <select
           value={locationFilter}
-          onChange={(e) => setLocationFilter(e.target.value)}
+          onChange={(e) => {
+            setLocationFilter(e.target.value);
+            setPage(1);
+          }}
           style={{ padding: '10px 14px', borderRadius: 8, border: '1px solid var(--border-soft)', background: 'var(--card)', fontSize: 14 }}
         >
           <option value="">Filter by Location — All</option>
@@ -148,14 +195,14 @@ export default function BaddegamaRegistrationsPage() {
               <div>#</div><div>Full Name</div><div>Reg No</div><div>NIC</div><div>Mobile</div><div>Location</div><div>Foreign Agent</div><div>Passport No</div><div>Result</div><div>Created At</div><div>Action</div>
             </div>
 
-            {loading && <div style={{ padding: 20, fontSize: 13, color: 'var(--muted)' }}>Loading…</div>}
-            {!loading && filtered.length === 0 && <div style={{ padding: 20, fontSize: 13, color: 'var(--muted)' }}>No registrations found.</div>}
+            {loading && rows.length === 0 && <div style={{ padding: 20, fontSize: 13, color: 'var(--muted)' }}>Loading…</div>}
+            {!loading && rows.length === 0 && <div style={{ padding: 20, fontSize: 13, color: 'var(--muted)' }}>No registrations found.</div>}
 
-            {filtered.map((r, i) => {
+            {rows.map((r, i) => {
               const rc = r.result ? RESULT_COLOR[r.result] : null;
               return (
                 <div key={r.id} style={{ display: 'grid', gridTemplateColumns: GRID, columnGap: 12, padding: '13px 20px', fontSize: 13, alignItems: 'center', borderBottom: '1px solid var(--row-border)' }}>
-                  <div style={{ color: 'var(--muted)' }}>{i + 1}</div>
+                  <div style={{ color: 'var(--muted)' }}>{start + i + 1}</div>
                   <div style={{ fontWeight: 500, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.full_name}>{r.full_name}</div>
                   <div style={{ color: 'var(--label-2)', fontSize: 12 }}>{r.registration_code || '—'}</div>
                   <div style={{ color: 'var(--label-2)' }}>{r.nic || '—'}</div>
@@ -179,6 +226,19 @@ export default function BaddegamaRegistrationsPage() {
             })}
           </div>
         </div>
+
+        {total > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 12, padding: '12px 20px', borderTop: '1px solid var(--border-soft)', fontSize: 13, color: 'var(--muted)' }}>
+            <span>
+              {start + 1}–{Math.min(start + PAGE_SIZE, total)} of {total}
+            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <button className="sr-icon-btn" onClick={() => setPage(currentPage - 1)} disabled={currentPage <= 1} aria-label="Previous page" style={{ opacity: currentPage <= 1 ? 0.4 : 1 }}>‹</button>
+              <span style={{ minWidth: 90, textAlign: 'center' }}>Page {currentPage} / {totalPages}</span>
+              <button className="sr-icon-btn" onClick={() => setPage(currentPage + 1)} disabled={currentPage >= totalPages} aria-label="Next page" style={{ opacity: currentPage >= totalPages ? 0.4 : 1 }}>›</button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
