@@ -1,10 +1,13 @@
-import { useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client';
 import { toastError, toastSuccess } from '../lib/alerts';
 import { useAuth } from '../auth/AuthContext';
 import { can } from '../lib/permissions';
-import { journeyMeta } from '../lib/journeyStatus';
+import { deriveJourneyStatus, journeyCardBg, journeyMeta } from '../lib/journeyStatus';
+
+/** Card background for the candidate's journey status (undefined = default card). */
+const CardTintContext = createContext<string | undefined>(undefined);
 import type {
   AttendanceRecord,
   Candidate,
@@ -233,8 +236,9 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(complete);
+  const tint = useContext(CardTintContext);
   return (
-    <div style={cardStyle}>
+    <div style={{ ...cardStyle, ...(tint && { background: tint }) }}>
       <button
         onClick={() => setOpen((o) => !o)}
         style={{
@@ -405,8 +409,9 @@ function RemarksHistory({
     width: '100%',
   };
 
+  const cardTint = useContext(CardTintContext);
   return (
-    <div style={cardStyle}>
+    <div style={{ ...cardStyle, ...(cardTint && { background: cardTint }) }}>
       <div style={sectionTitleStyle}>Remarks &amp; History</div>
       <hr style={hrStyle} />
 
@@ -565,9 +570,19 @@ export default function CandidateViewPage() {
 
   const c = candidate;
   const isDone = (n: number) => c.sections?.find((s) => s.section_no === n)?.status === 'submitted';
-  const preview = journeyMeta(c.journey_status);
+  // Manual status wins; otherwise infer it from passport / agreement / departure data.
+  const derivedStatus = c.journey_status
+    ? null
+    : deriveJourneyStatus({
+        passport_returned: c.passport_returned,
+        agreement_sign_date: visa?.agreement_sign_date,
+        departure_date: departure?.departure_date,
+      });
+  const preview = journeyMeta(c.journey_status ?? derivedStatus);
+  const cardTint = journeyCardBg(preview);
 
   return (
+    <CardTintContext.Provider value={cardTint}>
     <div
       className="fade-in-s"
       style={{
@@ -587,6 +602,11 @@ export default function CandidateViewPage() {
           <span style={{ width: 10, height: 10, borderRadius: '50%', background: preview.color, flexShrink: 0 }} />
           <span style={{ fontWeight: 700, fontSize: 13, color: preview.color }}>{preview.label}</span>
           <span style={{ fontSize: 13, color: 'var(--muted)' }}>{preview.hint}</span>
+          {derivedStatus && (
+            <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--muted)' }} title="Journey status not set manually — inferred from passport / agreement / departure details.">
+              Auto-detected
+            </span>
+          )}
         </div>
       )}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
@@ -819,7 +839,7 @@ export default function CandidateViewPage() {
 
       {/* Sections progress overview */}
       {c.sections && c.sections.length > 0 && (
-        <div style={cardStyle}>
+        <div style={{ ...cardStyle, ...(cardTint && { background: cardTint }) }}>
           <div style={sectionTitleStyle}>Sections Progress</div>
           <hr style={hrStyle} />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -854,5 +874,6 @@ export default function CandidateViewPage() {
         }
       />
     </div>
+    </CardTintContext.Provider>
   );
 }
