@@ -5,7 +5,7 @@ import { EditIcon, EyeIcon, PlusIcon, TrashIcon } from '../components/icons';
 import { confirmDelete, toastError, toastSuccess } from '../lib/alerts';
 import { useAuth } from '../auth/AuthContext';
 import { can } from '../lib/permissions';
-import { journeyMeta } from '../lib/journeyStatus';
+import { deriveJourneyStatus, journeyMeta } from '../lib/journeyStatus';
 import { thumbUrl } from '../lib/media';
 import type { Candidate } from '../types';
 
@@ -289,7 +289,7 @@ export default function CandidatesPage() {
         )}
 
         {pageRows.map((c) => {
-          const journey = journeyMeta(c.journey_status);
+          const journey = journeyMeta(c.journey_status ?? deriveJourneyStatus(c));
           return (
           <div
             key={c.id}

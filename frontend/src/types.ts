@@ -137,6 +137,9 @@ export interface Candidate {
   sections?: CandidateSection[];
   /** Present on the paginated list endpoint instead of `sections`. */
   submitted_sections_count?: number;
+  /** List endpoint only — used to auto-detect the journey status. */
+  agreement_sign_date?: string | null;
+  departure_date?: string | null;
   latest_remark?: CandidateRemark | null;
 }
 

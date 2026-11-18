@@ -58,6 +58,14 @@ class CandidateController extends Controller
         $q = trim((string) $request->query('q', ''));
 
         $query = Candidate::query()
+            ->select('candidates.*')
+            // Dates the list uses to auto-detect the journey status colour.
+            ->addSelect([
+                'agreement_sign_date' => \App\Models\CandidateVisaDetail::select('agreement_sign_date')
+                    ->whereColumn('candidate_id', 'candidates.id')->limit(1),
+                'departure_date' => \App\Models\CandidateDepartureDetail::select('departure_date')
+                    ->whereColumn('candidate_id', 'candidates.id')->limit(1),
+            ])
             ->withCount(['sections as submitted_sections_count' => fn ($s) => $s->where('status', 'submitted')])
             ->with('latestRemark.createdBy:id,name');
 
