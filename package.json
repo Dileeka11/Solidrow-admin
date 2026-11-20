@@ -4,7 +4,8 @@
   "scripts": {
     "dev": "concurrently -k -c \"#c4b5fd,#93c5fd\" -n backend,frontend \"npm run backend\" \"npm run frontend\"",
     "backend": "cd backend && php artisan serve --host=127.0.0.1 --port=8000",
-    "frontend": "npm run dev --prefix frontend"
+    "frontend": "npm run dev --prefix frontend",
+    "sync-worker": "cd backend && php artisan queue:work --queue=sync,default --tries=0"
   },
   "devDependencies": {
     "concurrently": "^9.0.1"

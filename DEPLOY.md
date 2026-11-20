@@ -147,3 +147,43 @@ prints a random password once to the Terminal — copy it immediately.
   `.htaccess` and `index.php` are in the doc root.
 - **Images (passport photos) don't show:** the `storage` symlink is missing or the host
   blocks symlinks — recreate the link, or contact the host.
+
+---
+
+## Candidate registration sync (Local → Live)
+
+Full step-by-step install guide (Sinhala): [deploy/local-office/INSTALL.md](deploy/local-office/INSTALL.md)
+
+Candidates are registered on a **local** install. Every create / update / delete of a
+candidate — or any of its sections (training, documents, visa, employee, departure,
+remarks, section status) — is queued and pushed to live **for that one candidate only**
+(matched by `registration_no`). Uploaded files go with it (only files live doesn't have
+yet). The live DB is never replaced; no migration is needed on live.
+
+**Live** (`registration_app/.env`), then clear config cache:
+
+```
+SYNC_PUSH_ENABLED=false
+SYNC_RECEIVE_TOKEN=<long random secret>
+```
+
+**Local** (`backend/.env`):
+
+```
+SYNC_PUSH_ENABLED=true
+SYNC_TARGET_URL=https://registration.solidrow.lk/api/sync
+SYNC_TOKEN=<same secret>
+```
+
+Keep a worker running on the local machine: `npm run sync-worker`
+(= `php artisan queue:work --queue=sync,default`). If internet drops, pushes wait in the
+`jobs` table and retry automatically (up to 7 days, `SYNC_RETRY_HOURS`).
+
+- First hand-over / re-send: `php artisan sync:push-candidates [--since=YYYY-MM-DD] [--id=N]`
+- Permanent rejects (e.g. NIC already used by a *different* live candidate) land in
+  `failed_jobs`; fix the data, then `php artisan queue:retry all`.
+- Master data (job categories, demands, staff, users) is **not** synced. Start the local
+  DB from a copy of live so IDs match; a job category / demand id missing on live is
+  saved as NULL and logged as a warning.
+- Register candidates only on the local side, so `registration_no` values never clash.
+- Run the `sms:police-report-reminders` scheduler on one side only, or SMS go out twice.

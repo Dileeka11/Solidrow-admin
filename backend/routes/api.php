@@ -41,6 +41,7 @@ use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\SectionAssignmentController;
 use App\Http\Controllers\StaffController;
+use App\Http\Controllers\SyncController;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
 
@@ -72,6 +73,14 @@ Route::get('/run-migrations', function () {
             'message' => $e->getMessage()
         ], 500);
     }
+});
+
+// Local → Live candidate sync (live side). Guarded by SYNC_RECEIVE_TOKEN.
+Route::prefix('sync')->middleware(\App\Http\Middleware\VerifySyncToken::class)->group(function () {
+    Route::post('/files/check', [SyncController::class, 'checkFiles']);
+    Route::post('/files', [SyncController::class, 'storeFile']);
+    Route::post('/candidates', [SyncController::class, 'upsertCandidate']);
+    Route::post('/candidates/delete', [SyncController::class, 'deleteCandidate']);
 });
 
 // Public
