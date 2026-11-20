@@ -41,6 +41,7 @@ use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\SectionAssignmentController;
 use App\Http\Controllers\StaffController;
+use App\Http\Controllers\SyncController;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
 
@@ -72,6 +73,19 @@ Route::get('/run-migrations', function () {
             'message' => $e->getMessage()
         ], 500);
     }
+});
+
+// Candidate sync hub (live side) for the staff PCs. Needs SYNC_ROLE=hub + SYNC_TOKEN.
+Route::prefix('sync')->middleware(\App\Http\Middleware\VerifySyncToken::class)->group(function () {
+    Route::post('/files/check', [SyncController::class, 'checkFiles']);
+    Route::post('/files', [SyncController::class, 'storeFile']);
+    Route::get('/files', [SyncController::class, 'downloadFile']);
+    Route::post('/candidates', [SyncController::class, 'upsertCandidate']);
+    Route::get('/candidates', [SyncController::class, 'allCandidates']);
+    Route::post('/candidates/delete', [SyncController::class, 'deleteCandidate']);
+    Route::get('/changes', [SyncController::class, 'changes']);
+    Route::get('/masters', [SyncController::class, 'masters']);
+    Route::post('/test-number', [SyncController::class, 'testNumber']);
 });
 
 // Public

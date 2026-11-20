@@ -147,3 +147,25 @@ prints a random password once to the Terminal — copy it immediately.
   `.htaccess` and `index.php` are in the doc root.
 - **Images (passport photos) don't show:** the `storage` symlink is missing or the host
   blocks symlinks — recreate the link, or contact the host.
+
+---
+
+## Candidate sync — staff PCs ⇄ live
+
+Every registration staff PC runs its own copy of the app (works offline). The live
+server is the hub: PCs push their candidate changes to it and pull everyone else's
+every minute. Merge is per row (newest `updated_at` wins), remarks are unioned, and
+only candidate rows are written — the live DB is never replaced. Master data
+(users, staff, job categories, demands, agents, …) is owned by live and mirrored to
+the PCs. Registration Nos carry the PC code (`…/3/PC2-1502`) and test numbers are
+reserved on live, so offline PCs never clash. Code: `backend/app/Sync/`,
+`config/sync.php`.
+
+**Live** (`registration_app/.env`): `SYNC_ROLE=hub`, `SYNC_TOKEN=<secret>`, then delete
+`bootstrap/cache/config.php` if present. The `sync_changes` table creates itself on
+first use (no migration needed on live).
+
+**Each PC**: step-by-step (Sinhala) in
+[deploy/local-office/INSTALL.txt](deploy/local-office/INSTALL.txt) — fresh DB,
+`php artisan migrate`, `php artisan sync:pull --full`, then keep
+`start-sync-worker.bat` running.

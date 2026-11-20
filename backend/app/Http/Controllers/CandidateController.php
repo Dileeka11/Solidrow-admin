@@ -328,6 +328,13 @@ class CandidateController extends Controller
         $seq = (int) (Candidate::max('id') ?? 0) + 1;
         $userId = optional($request->user())->id ?? 1;
 
+        // Staff PC (sync node): prefix the sequence with the PC code so two
+        // offline PCs can never issue the same number, e.g. .../3/PC2-1502.
+        $station = \App\Sync\Sync::isNode() ? (string) config('sync.station_code') : '';
+        if ($station !== '') {
+            return sprintf('SDW/%s/%s/%s/%d/%s-%d', date('Y'), date('m'), date('d'), $userId, $station, $seq);
+        }
+
         return sprintf('SDW/%s/%s/%s/%d/%d', date('Y'), date('m'), date('d'), $userId, $seq);
     }
 

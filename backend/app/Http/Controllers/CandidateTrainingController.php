@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Candidate;
 use App\Models\CandidateTraining;
 use App\Models\JobCategory;
-use App\Models\TestNumberCounter;
+use App\Services\TestNumberService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -250,7 +250,16 @@ class CandidateTrainingController extends Controller
             }
         }
 
-        $number = $this->nextTestNumber($code);
+        try {
+            $number = app(TestNumberService::class)->next($code);
+        } catch (\Throwable $e) {
+            // Staff PC offline: numbers are reserved on the live server.
+            report($e);
+
+            return response()->json([
+                'message' => 'Could not reach the live server to reserve a test number. Check the internet connection and try again.',
+            ], 503);
+        }
 
         if ($validated['slot'] === 'final_test') {
             $training->update(['final_test_number' => $number]);
@@ -275,48 +284,6 @@ class CandidateTrainingController extends Controller
         }
 
         return response()->json($this->normalize($training));
-    }
-
-    /**
-     * Atomically reserve the next number for a trade code and return it formatted.
-     * The counter is seeded from any legacy numbers already stored under the code
-     * so we never collide with a previously issued value.
-     */
-    private function nextTestNumber(string $code): string
-    {
-        return DB::transaction(function () use ($code) {
-            $counter = TestNumberCounter::where('code', $code)->lockForUpdate()->first();
-
-            if (! $counter) {
-                $counter = new TestNumberCounter([
-                    'code'        => $code,
-                    'last_number' => $this->existingMaxSequence($code),
-                ]);
-            }
-
-            $counter->last_number += 1;
-            $counter->save();
-
-            return $code . str_pad((string) $counter->last_number, 3, '0', STR_PAD_LEFT);
-        });
-    }
-
-    /** Highest sequence already stored for a code across every test-number source. */
-    private function existingMaxSequence(string $code): int
-    {
-        $seq = fn ($value) => $value && str_starts_with((string) $value, $code)
-            ? (int) preg_replace('/\D/', '', substr((string) $value, strlen($code)))
-            : 0;
-
-        $max = 0;
-        foreach (CandidateTraining::all() as $t) {
-            $max = max($max, $seq($t->pre_test_number), $seq($t->final_test_number));
-            foreach ($t->pre_test_cycles ?? [] as $cycle) {
-                $max = max($max, $seq($cycle['test_number'] ?? null));
-            }
-        }
-
-        return $max;
     }
 
     private function normalize(CandidateTraining $t): array
