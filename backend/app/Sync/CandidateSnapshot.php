@@ -29,6 +29,13 @@ class CandidateSnapshot
         'remarks'  => 'candidate_remarks',
     ];
 
+    public static function buildByRegistrationNo(string $registrationNo): ?array
+    {
+        $id = DB::table('candidates')->where('registration_no', $registrationNo)->value('id');
+
+        return $id ? self::build((int) $id) : null;
+    }
+
     public static function build(int $candidateId): ?array
     {
         $candidate = DB::table('candidates')->where('id', $candidateId)->first();

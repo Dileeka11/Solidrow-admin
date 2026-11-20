@@ -75,12 +75,17 @@ Route::get('/run-migrations', function () {
     }
 });
 
-// Local → Live candidate sync (live side). Guarded by SYNC_RECEIVE_TOKEN.
+// Candidate sync hub (live side) for the staff PCs. Needs SYNC_ROLE=hub + SYNC_TOKEN.
 Route::prefix('sync')->middleware(\App\Http\Middleware\VerifySyncToken::class)->group(function () {
     Route::post('/files/check', [SyncController::class, 'checkFiles']);
     Route::post('/files', [SyncController::class, 'storeFile']);
+    Route::get('/files', [SyncController::class, 'downloadFile']);
     Route::post('/candidates', [SyncController::class, 'upsertCandidate']);
+    Route::get('/candidates', [SyncController::class, 'allCandidates']);
     Route::post('/candidates/delete', [SyncController::class, 'deleteCandidate']);
+    Route::get('/changes', [SyncController::class, 'changes']);
+    Route::get('/masters', [SyncController::class, 'masters']);
+    Route::post('/test-number', [SyncController::class, 'testNumber']);
 });
 
 // Public

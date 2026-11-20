@@ -2,22 +2,21 @@
 
 namespace App\Http\Middleware;
 
+use App\Sync\Sync;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Guards /api/sync/*. The endpoints exist only when SYNC_RECEIVE_TOKEN is set,
- * and every call must carry it as a Bearer token.
+ * Guards /api/sync/*. The endpoints exist only on the hub (SYNC_ROLE=hub with
+ * SYNC_TOKEN set), and every call must carry that token as a Bearer token.
  */
 class VerifySyncToken
 {
     public function handle(Request $request, Closure $next): Response
     {
-        $expected = (string) config('sync.receive_token');
-
-        abort_if($expected === '', 404);
-        abort_unless(hash_equals($expected, (string) $request->bearerToken()), 401, 'Invalid sync token.');
+        abort_unless(Sync::isHub(), 404);
+        abort_unless(hash_equals((string) config('sync.token'), (string) $request->bearerToken()), 401, 'Invalid sync token.');
 
         return $next($request);
     }

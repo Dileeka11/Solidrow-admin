@@ -150,40 +150,22 @@ prints a random password once to the Terminal — copy it immediately.
 
 ---
 
-## Candidate registration sync (Local → Live)
+## Candidate sync — staff PCs ⇄ live
 
-Full step-by-step install guide (Sinhala): [deploy/local-office/INSTALL.md](deploy/local-office/INSTALL.md)
+Every registration staff PC runs its own copy of the app (works offline). The live
+server is the hub: PCs push their candidate changes to it and pull everyone else's
+every minute. Merge is per row (newest `updated_at` wins), remarks are unioned, and
+only candidate rows are written — the live DB is never replaced. Master data
+(users, staff, job categories, demands, agents, …) is owned by live and mirrored to
+the PCs. Registration Nos carry the PC code (`…/3/PC2-1502`) and test numbers are
+reserved on live, so offline PCs never clash. Code: `backend/app/Sync/`,
+`config/sync.php`.
 
-Candidates are registered on a **local** install. Every create / update / delete of a
-candidate — or any of its sections (training, documents, visa, employee, departure,
-remarks, section status) — is queued and pushed to live **for that one candidate only**
-(matched by `registration_no`). Uploaded files go with it (only files live doesn't have
-yet). The live DB is never replaced; no migration is needed on live.
+**Live** (`registration_app/.env`): `SYNC_ROLE=hub`, `SYNC_TOKEN=<secret>`, then delete
+`bootstrap/cache/config.php` if present. The `sync_changes` table creates itself on
+first use (no migration needed on live).
 
-**Live** (`registration_app/.env`), then clear config cache:
-
-```
-SYNC_PUSH_ENABLED=false
-SYNC_RECEIVE_TOKEN=<long random secret>
-```
-
-**Local** (`backend/.env`):
-
-```
-SYNC_PUSH_ENABLED=true
-SYNC_TARGET_URL=https://registration.solidrow.lk/api/sync
-SYNC_TOKEN=<same secret>
-```
-
-Keep a worker running on the local machine: `npm run sync-worker`
-(= `php artisan queue:work --queue=sync,default`). If internet drops, pushes wait in the
-`jobs` table and retry automatically (up to 7 days, `SYNC_RETRY_HOURS`).
-
-- First hand-over / re-send: `php artisan sync:push-candidates [--since=YYYY-MM-DD] [--id=N]`
-- Permanent rejects (e.g. NIC already used by a *different* live candidate) land in
-  `failed_jobs`; fix the data, then `php artisan queue:retry all`.
-- Master data (job categories, demands, staff, users) is **not** synced. Start the local
-  DB from a copy of live so IDs match; a job category / demand id missing on live is
-  saved as NULL and logged as a warning.
-- Register candidates only on the local side, so `registration_no` values never clash.
-- Run the `sms:police-report-reminders` scheduler on one side only, or SMS go out twice.
+**Each PC**: step-by-step (Sinhala) in
+[deploy/local-office/INSTALL.txt](deploy/local-office/INSTALL.txt) — fresh DB,
+`php artisan migrate`, `php artisan sync:pull --full`, then keep
+`start-sync-worker.bat` running.

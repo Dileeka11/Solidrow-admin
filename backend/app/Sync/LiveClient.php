@@ -7,15 +7,16 @@ use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
-/** Thin HTTP client for the live server's /api/sync endpoints. */
+/** Node-side HTTP client for the hub's /api/sync endpoints. */
 class LiveClient
 {
-    /** @return array<int,string> paths the live server does not have yet */
+    // ── push ──────────────────────────────────────────────────────────
+
+    /** @return array<int,string> paths the hub does not have yet */
     public function missingFiles(array $paths): array
     {
-        $response = $this->send(fn (PendingRequest $http) => $http->post($this->url('/files/check'), ['paths' => $paths]));
-
-        return (array) $response->json('missing', []);
+        return (array) $this->send(fn (PendingRequest $http) => $http->post($this->url('/files/check'), ['paths' => $paths]))
+            ->json('missing', []);
     }
 
     public function uploadFile(string $path, string $absolutePath): void
@@ -28,15 +29,56 @@ class LiveClient
 
     public function pushCandidate(array $snapshot): array
     {
-        return (array) $this->send(fn (PendingRequest $http) => $http->post($this->url('/candidates'), $snapshot))->json();
+        return (array) $this->send(fn (PendingRequest $http) => $http
+            ->withHeaders(['X-Sync-Station' => config('sync.station_code')])
+            ->post($this->url('/candidates'), $snapshot))->json();
     }
 
     public function deleteCandidate(string $registrationNo): void
     {
-        $this->send(fn (PendingRequest $http) => $http->post($this->url('/candidates/delete'), [
-            'registration_no' => $registrationNo,
-        ]));
+        $this->send(fn (PendingRequest $http) => $http
+            ->withHeaders(['X-Sync-Station' => config('sync.station_code')])
+            ->post($this->url('/candidates/delete'), ['registration_no' => $registrationNo]));
     }
+
+    // ── pull ──────────────────────────────────────────────────────────
+
+    /** @return array{cursor:int, items:array<int,array>} */
+    public function changes(int $after): array
+    {
+        return (array) $this->send(fn (PendingRequest $http) => $http->timeout(120)
+            ->get($this->url('/changes'), ['after' => $after]))->json();
+    }
+
+    /** Full listing, for the first pull. @return array{next:?int, cursor:int, items:array<int,array>} */
+    public function allCandidates(int $afterId): array
+    {
+        return (array) $this->send(fn (PendingRequest $http) => $http->timeout(120)
+            ->get($this->url('/candidates'), ['after_id' => $afterId]))->json();
+    }
+
+    /** @return array<string,array<int,array>> table => rows */
+    public function masters(): array
+    {
+        return (array) $this->send(fn (PendingRequest $http) => $http->timeout(120)
+            ->get($this->url('/masters')))->json('tables', []);
+    }
+
+    public function downloadFile(string $path, string $absoluteTarget): void
+    {
+        $this->send(fn (PendingRequest $http) => $http->timeout(240)
+            ->sink($absoluteTarget)
+            ->get($this->url('/files'), ['path' => $path]));
+    }
+
+    /** Reserve the next test number for a trade code on the hub. */
+    public function reserveTestNumber(string $code): string
+    {
+        return (string) $this->send(fn (PendingRequest $http) => $http
+            ->post($this->url('/test-number'), ['code' => $code]))->json('number');
+    }
+
+    // ── plumbing ─────────────────────────────────────────────────────
 
     private function send(callable $call): Response
     {
@@ -56,14 +98,13 @@ class LiveClient
             return $response;
         }
 
-        $message = sprintf('Live sync HTTP %d: %s', $response->status(), mb_substr($response->body(), 0, 500));
+        $message = sprintf('Hub sync HTTP %d: %s', $response->status(), mb_substr($response->body(), 0, 500));
 
-        // Data problems (e.g. duplicate NIC on live) will not fix themselves by retrying.
+        // Data problems (e.g. duplicate NIC on the hub) will not fix themselves by retrying.
         if (in_array($response->status(), [400, 409, 413, 422], true)) {
             throw new PermanentSyncException($message);
         }
 
-        // Network / auth / server errors: retry later.
         throw new RuntimeException($message);
     }
 

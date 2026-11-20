@@ -19,8 +19,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // Local install: push every candidate change to the live server.
-        if (config('sync.push_enabled')) {
+        // Candidate sync: a node (staff PC) pushes changes to the hub; the hub
+        // (live) logs changes made on the live site so the PCs pull them.
+        if (\App\Sync\Sync::isNode() || \App\Sync\Sync::isHub()) {
             foreach ([
                 \App\Models\Candidate::class,
                 \App\Models\CandidateSection::class,

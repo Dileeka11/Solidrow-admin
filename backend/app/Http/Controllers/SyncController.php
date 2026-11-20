@@ -2,7 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\TestNumberService;
 use App\Sync\CandidateSnapshot;
+use App\Sync\ChangeLog;
+use App\Sync\SnapshotMerger;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -10,25 +13,13 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 
 /**
- * LIVE side of the Local → Live candidate sync.
- *
- * Receives one candidate at a time and upserts only that candidate's rows
- * (matched by registration_no). Nothing else in the live DB is touched.
- * Writes use the query builder, so no model events fire here.
+ * HUB (live) side of the candidate sync. Staff PCs push candidate changes
+ * here and pull everyone else's. Only candidate rows are written; the merge
+ * is per row (newest updated_at wins), see App\Sync\SnapshotMerger.
  */
 class SyncController extends Controller
 {
-    /** Foreign keys that must exist on live; otherwise they are nulled + reported. */
-    private const FOREIGN_KEYS = [
-        'training'  => ['pre_test_job_category_id' => 'job_categories', 'demand_id' => 'demands'],
-        'employee'  => ['job_category_id' => 'job_categories'],
-    ];
-
-    /** @var array<string,array<int,string>> */
-    private array $columns = [];
-
-    /** @var array<int,string> */
-    private array $warnings = [];
+    // ── files ────────────────────────────────────────────────────────
 
     public function checkFiles(Request $request)
     {
@@ -55,150 +46,114 @@ class SyncController extends Controller
 
         abort_unless(CandidateSnapshot::isAllowedPath($data['path']), 422, 'Path not allowed.');
 
-        Storage::disk('public')->putFileAs(
-            dirname($data['path']),
-            $request->file('file'),
-            basename($data['path'])
-        );
+        Storage::disk('public')->putFileAs(dirname($data['path']), $request->file('file'), basename($data['path']));
 
         return response()->json(['ok' => true]);
     }
 
+    public function downloadFile(Request $request)
+    {
+        $path = (string) $request->query('path', '');
+        abort_unless(CandidateSnapshot::isAllowedPath($path) && Storage::disk('public')->exists($path), 404);
+
+        return response()->file(Storage::disk('public')->path($path));
+    }
+
+    // ── candidates: push in ──────────────────────────────────────────
+
     public function upsertCandidate(Request $request)
     {
         // Raw body on purpose: the global TrimStrings / ConvertEmptyStringsToNull
-        // middleware would otherwise alter the values copied from the local DB.
+        // middleware would otherwise alter values copied from the PC's DB.
         $payload = json_decode($request->getContent(), true);
+        $regNo = $payload['candidate']['registration_no'] ?? null;
 
-        if (! is_array($payload)
-            || ! is_array($payload['candidate'] ?? null)
-            || ! is_string($payload['candidate']['registration_no'] ?? null)
-            || $payload['candidate']['registration_no'] === '') {
+        if (! is_array($payload) || ! is_array($payload['candidate'] ?? null) || ! is_string($regNo) || $regNo === '') {
             return response()->json(['message' => 'candidate.registration_no is required.'], 422);
         }
 
-        try {
-            $candidateId = DB::transaction(fn () => $this->applySnapshot($payload));
-        } catch (QueryException $e) {
-            // e.g. NIC / passport already used by a different candidate on live.
-            return response()->json([
-                'message' => 'Live DB rejected the candidate: ' . $e->getMessage(),
-            ], 409);
+        // Deleted here after the PC last edited it → stay deleted.
+        $deletedAt = ChangeLog::deletedAt($regNo);
+        if ($deletedAt && (string) ($payload['candidate']['updated_at'] ?? '') <= $deletedAt
+            && ! DB::table('candidates')->where('registration_no', $regNo)->exists()) {
+            return response()->json(['ok' => true, 'skipped' => 'deleted', 'warnings' => []]);
         }
 
-        return response()->json([
-            'ok' => true,
-            'candidate_id' => $candidateId,
-            'warnings' => $this->warnings,
-        ]);
+        $merger = new SnapshotMerger();
+        try {
+            $candidateId = $merger->apply($payload);
+        } catch (QueryException $e) {
+            // e.g. NIC / passport already used by a different candidate.
+            return response()->json(['message' => 'Live DB rejected the candidate: ' . $e->getMessage()], 409);
+        }
+
+        ChangeLog::record($regNo, false, $this->station($request));
+
+        return response()->json(['ok' => true, 'candidate_id' => $candidateId, 'warnings' => $merger->warnings]);
     }
 
     public function deleteCandidate(Request $request)
     {
-        $data = $request->validate([
-            'registration_no' => ['required', 'string', 'max:255'],
-        ]);
+        $data = $request->validate(['registration_no' => ['required', 'string', 'max:255']]);
 
-        // Child rows go with it (ON DELETE CASCADE).
-        $deleted = DB::table('candidates')->where('registration_no', $data['registration_no'])->delete();
+        $deleted = (new SnapshotMerger())->deleteByRegistrationNo($data['registration_no']);
+        ChangeLog::record($data['registration_no'], true, $this->station($request));
 
         return response()->json(['ok' => true, 'deleted' => $deleted]);
     }
 
-    private function applySnapshot(array $payload): int
+    // ── candidates: pull out ─────────────────────────────────────────
+
+    public function changes(Request $request)
     {
-        $regNo = $payload['candidate']['registration_no'];
-
-        // ── candidates ────────────────────────────────────────────────────
-        $row = $this->prepare('candidates', $payload['candidate'], 'candidate');
-        $existingId = DB::table('candidates')->where('registration_no', $regNo)->value('id');
-
-        if ($existingId) {
-            DB::table('candidates')->where('id', $existingId)->update($row);
-            $candidateId = (int) $existingId;
-        } else {
-            $candidateId = (int) DB::table('candidates')->insertGetId($row);
-        }
-
-        // ── one-row-per-candidate tables ──────────────────────────────────
-        foreach (CandidateSnapshot::SINGLE_TABLES as $key => $table) {
-            $data = $payload[$key] ?? null;
-            $query = DB::table($table)->where('candidate_id', $candidateId);
-
-            if (! is_array($data) || ! $data) {
-                $query->delete();
-                continue;
-            }
-
-            $row = $this->prepare($table, $data, $key);
-            $row['candidate_id'] = $candidateId;
-
-            if ((clone $query)->exists()) {
-                $query->update($row);
-            } else {
-                DB::table($table)->insert($row);
-            }
-        }
-
-        // ── sections: keyed by section_no ─────────────────────────────────
-        $sectionNos = [];
-        foreach ((array) ($payload['sections'] ?? []) as $section) {
-            if (! is_array($section) || ! isset($section['section_no'])) {
-                continue;
-            }
-            $row = $this->prepare('candidate_sections', $section, 'sections');
-            $row['candidate_id'] = $candidateId;
-            $sectionNos[] = (int) $section['section_no'];
-
-            DB::table('candidate_sections')->updateOrInsert(
-                ['candidate_id' => $candidateId, 'section_no' => (int) $section['section_no']],
-                $row
-            );
-        }
-        DB::table('candidate_sections')
-            ->where('candidate_id', $candidateId)
-            ->when($sectionNos, fn ($q) => $q->whereNotIn('section_no', $sectionNos))
-            ->delete();
-
-        // ── remarks: mirror the full history ─────────────────────────────
-        DB::table('candidate_remarks')->where('candidate_id', $candidateId)->delete();
-        foreach ((array) ($payload['remarks'] ?? []) as $remark) {
-            if (! is_array($remark)) {
-                continue;
-            }
-            $row = $this->prepare('candidate_remarks', $remark, 'remarks');
-            $row['candidate_id'] = $candidateId;
-            DB::table('candidate_remarks')->insert($row);
-        }
-
-        return $candidateId;
+        return response()->json(ChangeLog::since((int) $request->query('after', 0), 100));
     }
 
-    /**
-     * Keep only columns that exist on live, drop local ids, and null any
-     * foreign key whose target row is missing on live.
-     */
-    private function prepare(string $table, array $data, string $key): array
+    /** Paged full listing for a PC's first pull. */
+    public function allCandidates(Request $request)
     {
-        $this->columns[$table] ??= Schema::getColumnListing($table);
+        $afterId = (int) $request->query('after_id', 0);
+        $ids = DB::table('candidates')->where('id', '>', $afterId)->orderBy('id')->limit(50)->pluck('id');
 
-        unset($data['id'], $data['candidate_id']);
-        $row = array_intersect_key($data, array_flip($this->columns[$table]));
-
-        foreach (self::FOREIGN_KEYS[$key] ?? [] as $column => $refTable) {
-            $value = $row[$column] ?? null;
-            if ($value !== null && ! DB::table($refTable)->where('id', $value)->exists()) {
-                $this->warnings[] = "{$table}.{$column}={$value} not found in live {$refTable}; saved as NULL";
-                $row[$column] = null;
+        $items = [];
+        foreach ($ids as $id) {
+            if ($snapshot = CandidateSnapshot::build((int) $id)) {
+                $items[] = ['registration_no' => $snapshot['candidate']['registration_no'], 'deleted' => false, 'snapshot' => $snapshot];
             }
         }
 
-        foreach ($row as $column => $value) {
-            if (is_array($value)) { // defensive: JSON columns should arrive as strings
-                $row[$column] = json_encode($value);
+        return response()->json([
+            'cursor' => ChangeLog::lastId(),
+            'next' => $ids->count() === 50 ? (int) $ids->last() : null,
+            'items' => $items,
+        ]);
+    }
+
+    public function masters()
+    {
+        $tables = [];
+        foreach (config('sync.master_tables') as $table) {
+            if (Schema::hasTable($table)) {
+                $tables[$table] = DB::table($table)->get();
             }
         }
 
-        return $row;
+        return response()->json(['tables' => $tables]);
+    }
+
+    // ── shared counters ──────────────────────────────────────────────
+
+    public function testNumber(Request $request, TestNumberService $numbers)
+    {
+        $data = $request->validate(['code' => ['required', 'string', 'max:20']]);
+
+        return response()->json(['number' => $numbers->next(strtoupper(trim($data['code'])))]);
+    }
+
+    private function station(Request $request): ?string
+    {
+        $station = trim((string) $request->header('X-Sync-Station', ''));
+
+        return $station === '' ? null : mb_substr($station, 0, 20);
     }
 }

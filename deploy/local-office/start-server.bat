@@ -1,4 +1,4 @@
 @echo off
-REM Solidrow local office server - other PCs open http://<this-PC-IP>:8000
+REM Solidrow on this PC - open http://localhost:8000 in the browser.
 cd /d "%~dp0..\..\backend"
-php artisan serve --host=0.0.0.0 --port=8000
+php artisan serve --host=127.0.0.1 --port=8000

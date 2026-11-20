@@ -1,0 +1,308 @@
+﻿﻿==============================================================
+ SOLIDROW — STAFF PC වලට INSTALL කිරීම
+==============================================================
+
+මේකෙන් වෙන්නේ:
+Registration කරන හැම staff කෙනෙක්ගේම PC එකට Solidrow system එක install
+කරනවා. Internet නැති තැනකත් ඒ PC එකෙන් candidates register කරන්න,
+update කරන්න පුළුවන්.
+
+Internet තියෙන ඕනෑම වෙලාවක:
+  * මේ PC එකේ කරපු වෙනස්කම් live server එකට
+    (https://registration.solidrow.lk) auto යනවා.
+  * අනිත් PC වල සහ live site එකේ කරපු වෙනස්කම් විනාඩියෙන් විනාඩියට
+    මේ PC එකට auto එනවා.
+  * හැම PC එකකම ඔක්කොම candidates පේනවා.
+
+Live DB එකේ අනිත් data වලට කිසි දෙයක් වෙන්නේ නෑ.
+
+කොටස් දෙකයි:
+  කොටස 1 — Live server එක set කිරීම   (එක පාරයි)
+  කොටස 2 — හැම staff PC එකකම install කිරීම   (PC එකින් එක)
+
+
+==============================================================
+ කලින් ලෑස්ති කරගන්න ඕනේ දේවල්
+==============================================================
+
+  [ ] cPanel login එක (registration.solidrow.lk)
+  [ ] Solidrow-admin project folder එක (developer ගෙන්)
+  [ ] Install කරන PC ගණන සහ ඒ PC වලට දෙන code ලැයිස්තුවක්:
+        උදා:  PC1 - Kamal ගේ laptop
+              PC2 - Nimali ගේ PC
+              PC3 - Baddegama office PC
+      !! එකම code එක PC දෙකකට දෙන්න එපා.
+
+
+##############################################################
+ කොටස 1 — LIVE SERVER (එක පාරයි)
+##############################################################
+
+--------------------------------------------------------------
+පියවර 1 — Secret token එකක් හදාගන්න
+--------------------------------------------------------------
+PHP තියෙන PC එකක Command Prompt එකේ (නැත්නම් කොටස 2 පියවර 1න්
+XAMPP install කළාට පස්සේ):
+
+    php -r "echo bin2hex(random_bytes(32));"
+
+ලැබෙන අකුරු 64 string එක Notepad එකක save කරගන්න.
+මේ guide එකේ <TOKEN> කියලා තියෙන හැම තැනටම මේක දාන්න.
+හැම PC එකටම එකම token එක.
+
+!! මේ token එක කාටවත් දෙන්න එපා.
+
+
+--------------------------------------------------------------
+පියවර 2 — Live server එකේ .env එක set කරන්න
+--------------------------------------------------------------
+  1. cPanel -> File Manager
+  2. Settings (උඩ දකුණු පැත්තේ) -> "Show Hidden Files" tick කරන්න
+  3. /home/festelsd/registration_app/.env  -> Edit
+  4. File එකේ අන්තිමට මේ lines 2 එකතු කරලා Save කරන්න:
+
+    SYNC_ROLE=hub
+    SYNC_TOKEN=<TOKEN>
+
+  5. /home/festelsd/registration_app/bootstrap/cache/ folder එකේ
+     config.php හෝ routes-v7.php තියෙනවා නම් delete කරන්න.
+     (නැත්නම් කමක් නෑ.)
+
+
+--------------------------------------------------------------
+පියවර 3 — Live server එක check කරන්න
+--------------------------------------------------------------
+Command Prompt එකේ (<TOKEN> replace කරලා):
+
+    curl https://registration.solidrow.lk/api/sync/changes?after=0 -H "Authorization: Bearer <TOKEN>" -H "Accept: application/json"
+
+  {"cursor":... ,"items":[...]} වගේ එකක් ආවොත් -> හරි.
+  401 ආවොත් -> token එක වැරදියි.
+  404 ආවොත් -> .env එක save වුණාද, cache files delete කළාද ආයෙ බලන්න.
+
+
+##############################################################
+ කොටස 2 — හැම STAFF PC එකකම (PC එකින් එක කරන්න)
+##############################################################
+
+මේ කොටසේ පියවර 1 සිට 10 දක්වා, install කරන හැම PC එකකම කරන්න.
+Install කරද්දී internet තියෙන්න ඕනේ.
+
+
+--------------------------------------------------------------
+පියවර 1 — Software install කරන්න
+--------------------------------------------------------------
+  1. XAMPP (PHP 8.2 හෝ ඊට වැඩි)   https://www.apachefriends.org
+  2. Composer                     https://getcomposer.org
+     (install කරද්දී PHP path එක C:\xampp\php\php.exe දෙන්න)
+  3. Node.js 20 LTS               https://nodejs.org
+
+XAMPP Control Panel open කරලා MySQL -> Start.
+MySQL එකේ "Autostart" (Service) tick කරන්න, PC එක on කරද්දී auto
+start වෙන්න. (Apache ඕනේ නෑ.)
+
+PC එකේ date / time හරියට තියෙන්න ඕනේ:
+Settings -> Time & language -> "Set time automatically" ON කරන්න.
+(වෙනස්කම් දෙකක් ගැටුනොත් අලුත්ම එක තෝරන්නේ time එකෙන්.)
+
+
+--------------------------------------------------------------
+පියවර 2 — Project folder එක දාන්න
+--------------------------------------------------------------
+ලැබුණු Solidrow-admin folder එක මෙතනට copy කරන්න:
+
+    C:\Solidrow-admin
+
+Command Prompt එකේ:
+
+    cd C:\Solidrow-admin\backend
+    composer install
+
+
+--------------------------------------------------------------
+පියවර 3 — හිස් database එකක් හදන්න
+--------------------------------------------------------------
+Browser එකේ http://localhost/phpmyadmin
+  -> "New" -> Database name: solidrow_admin
+  -> Collation: utf8mb4_unicode_ci -> Create
+
+(Data දාන්න ඕනේ නෑ — පියවර 6 එකෙන් live එකෙන් auto එනවා.)
+
+
+--------------------------------------------------------------
+පියවර 4 — .env file එක හදන්න
+--------------------------------------------------------------
+Command Prompt එකේ:
+
+    cd C:\Solidrow-admin\backend
+    copy .env.example .env
+    php artisan key:generate
+
+C:\Solidrow-admin\backend\.env file එක Notepad එකෙන් open කරලා මේ lines
+හොයලා values මෙහෙම වෙනස් කරන්න:
+
+    APP_ENV=local
+    APP_DEBUG=false
+    APP_URL=http://localhost:8000
+
+    DB_CONNECTION=mysql
+    DB_HOST=127.0.0.1
+    DB_PORT=3306
+    DB_DATABASE=solidrow_admin
+    DB_USERNAME=root
+    DB_PASSWORD=
+
+    QUEUE_CONNECTION=database
+    CACHE_STORE=database
+
+    SYNC_ROLE=node
+    SYNC_TOKEN=<TOKEN>
+    SYNC_TARGET_URL=https://registration.solidrow.lk/api/sync
+    SYNC_STATION_CODE=PC1
+
+!! SYNC_STATION_CODE එකට මේ PC එකට දුන්න code එක දාන්න
+   (PC1, PC2, PC3 ...). PC දෙකකට එකම code එක දාන්න එපා.
+
+Save කරන්න.
+
+
+--------------------------------------------------------------
+පියවර 5 — Database tables හදන්න
+--------------------------------------------------------------
+Command Prompt එකේ (C:\Solidrow-admin\backend එකේ ඉඳන්):
+
+    php artisan migrate --force
+
+අන්තිමට errors නැතුව "DONE" පේළි ආවොත් හරි.
+
+
+--------------------------------------------------------------
+පියවර 6 — Live server එකෙන් data download කරන්න (එක පාරයි)
+--------------------------------------------------------------
+    php artisan sync:pull --full
+
+Users, staff, job categories වගේ data සහ live එකේ ඉන්න ඔක්කොම
+candidates (photos / documents එක්ක) මේ PC එකට එනවා.
+Candidates ගොඩක් ඉන්නවා නම් විනාඩි කීපයක් යයි.
+
+අන්තිමට "Downloaded ... candidate(s)" ආවොත් හරි.
+"Live server not reachable" ආවොත් -> internet / TOKEN check කරලා
+ආයෙ run කරන්න.
+
+
+--------------------------------------------------------------
+පියවර 7 — Frontend එක build කරන්න
+--------------------------------------------------------------
+    cd C:\Solidrow-admin\frontend
+    npm install
+    npm run build:office
+    xcopy /E /Y C:\Solidrow-admin\frontend\dist\* C:\Solidrow-admin\backend\public\
+
+!! "npm run build:office" ම දාන්න. "npm run build" දැම්මොත් වැරදියි.
+
+(සටහන: පළමු PC එකේ මේ පියවර කළාට පස්සේ, ඊළඟ PC වලට
+ C:\Solidrow-admin\backend\public folder එක copy කළාත් ඇති.)
+
+
+--------------------------------------------------------------
+පියවර 8 — Start කරන්න
+--------------------------------------------------------------
+C:\Solidrow-admin\deploy\local-office\ folder එක open කරලා:
+
+  1. start-server.bat       -> double-click
+  2. start-sync-worker.bat  -> double-click
+
+කළු windows 3ක් open වෙනවා. ඒ කිසිම එකක් close කරන්න එපා.
+(minimize කරලා තියන්න පුළුවන්)
+
+Browser එකේ:  http://localhost:8000
+Live site එකේ username / password එකෙන්ම login වෙන්න පුළුවන්.
+
+
+--------------------------------------------------------------
+පියවර 9 — PC එක on කරද්දී auto start වෙන්න හදන්න
+--------------------------------------------------------------
+  1. Win + R ඔබලා  shell:startup  type කරලා Enter
+  2. start-server.bat සහ start-sync-worker.bat දෙකම right-click
+     -> Create shortcut
+  3. හැදුණු shortcut දෙක, open වුණු startup folder එකට move කරන්න
+
+Desktop එකට http://localhost:8000 shortcut එකකුත් දාන්න පුළුවන්.
+
+
+--------------------------------------------------------------
+පියවර 10 — Test කරන්න
+--------------------------------------------------------------
+  [ ] 1. මේ PC එකේ login වෙලා "TEST PC1" නමින් candidate කෙනෙක්
+         passport photo එකක් එක්ක register කරන්න.
+         Registration No එකේ PC code එක (උදා: .../PC1-1502) තියෙනවද
+         බලන්න.
+  [ ] 2. විනාඩියක් විතර ඉඳලා https://registration.solidrow.lk එකේ
+         ඒ candidate photo එකත් එක්ක ඉන්නවද බලන්න.
+  [ ] 3. Live site එකේ ඒ candidate ට remark එකක් දාන්න
+         -> විනාඩි 1-2කින් මේ PC එකේත් පේනවද බලන්න.
+  [ ] 4. PC දෙකක් install කළාට පස්සේ: PC1 එකේ register කරපු
+         candidate PC2 එකේත් පේනවද බලන්න.
+  [ ] 5. TEST candidate delete කරන්න -> live එකෙනුත් අනිත් PC
+         වලිනුත් අයින් වෙනවද බලන්න.
+
+ඔක්කොම හරි නම් මේ PC එකේ install එක සම්පූර්ණයි.
+ඊළඟ PC එකට කොටස 2 ආයෙ මුල ඉඳන් කරන්න (code එක වෙනස් කරලා).
+
+
+==============================================================
+ ප්‍රශ්නයක් ආවොත්
+==============================================================
+
+  Live එකට / අනිත් PC වලින් data එන්නේ නෑ
+      -> sync windows (start-sync-worker.bat) open ද බලන්න.
+      -> Internet තියෙනවද බලන්න.
+      -> PC එකේ date / time හරිද බලන්න.
+
+  අනිත් PC වල data දැන්ම ගන්න ඕනේ
+      -> C:\Solidrow-admin\backend එකේ ඉඳන්:  php artisan sync:pull
+
+  තාම live එකට යන්න තියෙන ගණන
+      -> http://localhost/phpmyadmin -> solidrow_admin -> "jobs" table
+         (rows 0 නම් ඔක්කොම ගිහින්)
+
+  Fail වුණු ඒවා බලන්න / ආයෙ යවන්න (backend folder එකේ ඉඳන්)
+      -> php artisan queue:failed
+      -> php artisan queue:retry all
+
+  Test number generate කරද්දී "Could not reach the live server"
+      -> Test numbers දෙන්නේ live server එකෙන් (PC දෙකකට එකම number
+         එක නොවැටෙන්න). Internet තියෙද්දී ආයෙ try කරන්න.
+
+  Error විස්තර
+      -> C:\Solidrow-admin\backend\storage\logs\laravel.log
+         file එකේ "sync:" කියලා search කරන්න.
+
+  සාමාන්‍යයෙන් fail වෙන හේතුව:
+      Internet නැති වෙලාවේ PC දෙකක එකම NIC / passport number එකෙන්
+      candidate දෙන්නෙක් register කරපු එක. එකක් delete කරලා
+      "php artisan queue:retry all" දාන්න.
+
+
+==============================================================
+ මතක තියාගන්න
+==============================================================
+
+  1. හැම PC එකකටම වෙනම code එකක් (PC1, PC2 ...). කවදාවත් එකම code
+     එක PC දෙකකට දාන්න එපා.
+
+  2. Job category / Demand / Staff / User / Agent එකතු කරන්න, වෙනස්
+     කරන්න live site එකේ විතරයි. PC වලට ඒවා විනාඩි 10කින් auto එනවා.
+     PC එකේ ඒවා වෙනස් කළොත් ඊළඟ sync එකේදී මැකිලා යනවා.
+
+  3. එකම candidate ගේ එකම කොටස PC දෙකක එකවර වෙනස් කළොත්, අන්තිමට
+     save කරපු එක තියෙනවා. (වෙනස් කොටස් නම් — උදා: එක PC එකක
+     documents, අනිත් එකේ training — දෙකම තියෙනවා.)
+
+  4. Sync window එක වැසුණත් data නැති වෙන්නේ නෑ. ආයෙ open කළාම
+     ඉතුරු ඒවා යනවා / එනවා.
+
+  5. Token එක වෙනස් කරනවා නම් live .env එකෙයි හැම PC එකේම .env
+     එකෙයි එකවර වෙනස් කරන්න.
+
+==============================================================
