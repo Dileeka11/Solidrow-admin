@@ -40,6 +40,12 @@ class CandidateTrainingController extends Controller
             'pre_test_cycles.*.attendance_records'            => ['nullable', 'array'],
             'pre_test_cycles.*.attendance_records.*.date'     => ['nullable', 'date'],
             'pre_test_cycles.*.attendance_records.*.time'     => ['nullable', 'string'],
+            // Listed so validated() keeps them — otherwise absent marks and the
+            // QR scan details are silently dropped on every save.
+            'pre_test_cycles.*.attendance_records.*.status'     => ['nullable', 'in:present,absent'],
+            'pre_test_cycles.*.attendance_records.*.source'     => ['nullable', 'string', 'max:20'],
+            'pre_test_cycles.*.attendance_records.*.staff_id'   => ['nullable', 'integer'],
+            'pre_test_cycles.*.attendance_records.*.staff_name' => ['nullable', 'string', 'max:191'],
             'pre_test_cycles.*.test_date'                     => ['nullable', 'date'],
             'pre_test_cycles.*.test_result'                   => ['nullable', 'in:pass,fail'],
             'pre_test_cycles.*.test_agent'                    => ['nullable', 'string', 'max:191'],
@@ -47,6 +53,10 @@ class CandidateTrainingController extends Controller
             'final_test_attendance_records'                   => ['nullable', 'array'],
             'final_test_attendance_records.*.date'            => ['nullable', 'date'],
             'final_test_attendance_records.*.time'            => ['nullable', 'string'],
+            'final_test_attendance_records.*.status'          => ['nullable', 'in:present,absent'],
+            'final_test_attendance_records.*.source'          => ['nullable', 'string', 'max:20'],
+            'final_test_attendance_records.*.staff_id'        => ['nullable', 'integer'],
+            'final_test_attendance_records.*.staff_name'      => ['nullable', 'string', 'max:191'],
             'final_test_date'                                 => ['nullable', 'date'],
             'final_test_result'                               => ['nullable', 'in:pass,fail'],
             'final_test_agent'                                => ['nullable', 'string', 'max:191'],

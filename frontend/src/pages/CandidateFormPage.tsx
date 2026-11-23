@@ -7,6 +7,7 @@ import passportCardBack from '../assets/passport-card-back.png';
 import passportSticker from '../assets/passport-sticker.png';
 import { api } from '../api/client';
 import { DatePicker } from '../components/DatePicker';
+import { SearchableSelect } from '../components/SearchableSelect';
 import { confirmAction, toastError, toastSuccess } from '../lib/alerts';
 import { useAuth } from '../auth/AuthContext';
 import { useIsMobile } from '../lib/useMediaQuery';
@@ -760,7 +761,6 @@ export default function CandidateFormPage() {
         hydrate(r.data);
         await markSectionComplete(1); // saving Section 1 unlocks Section 2
         toastSuccess('Candidate updated');
-        navigate('/candidates'); // save & exit back to the candidates list
       } else {
         // New registration: keep the record in memory and stay on the form so the
         // agreement can be printed with the saved data before starting the next one.
@@ -1344,9 +1344,9 @@ export default function CandidateFormPage() {
   async function persistTraining(
     sectionNo: 2 | 3,
     label: string,
-    opts: { markComplete?: boolean; exit?: boolean } = {},
+    opts: { markComplete?: boolean } = {},
   ) {
-    const { markComplete = true, exit = true } = opts;
+    const { markComplete = true } = opts;
     const ok = await confirmAction(`Save the ${label}?`, `Save ${label}`, 'Yes, save');
     if (!ok) return;
     if (sectionNo === 2) setTrainingSaving(true); else setTestSaving(true);
@@ -1363,13 +1363,13 @@ export default function CandidateFormPage() {
       fd.append('demand_id', training.demand_id ? String(training.demand_id) : '');
       const r = await api.post<CandidateTraining>(`/candidates/${id}/training`, fd);
       setTraining(withDefaultCycle(r.data));
-      // Only the final "Save Test Details" completes the section (unlocking the next)
-      // and exits; the standalone "Save Pre Test" just persists and stays on the page.
+      // Only the final "Save Test Details" completes the section (unlocking the next);
+      // the standalone "Save Pre Test" just persists. Either way we stay on the page.
       if (markComplete) await markSectionComplete(sectionNo);
       toastSuccess(`${label.charAt(0).toUpperCase()}${label.slice(1)} saved`);
-      if (exit) navigate('/candidates'); // save & exit back to the candidates list
-    } catch {
-      toastError(`Could not save ${label}.`);
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      toastError(msg ? `Could not save ${label}: ${msg}` : `Could not save ${label}.`);
     } finally {
       if (sectionNo === 2) setTrainingSaving(false); else setTestSaving(false);
     }
@@ -1379,7 +1379,7 @@ export default function CandidateFormPage() {
   const saveTests = () => persistTraining(3, 'test details');
   // Pre Test lives in the same training record, so it persists everything but
   // stays on the page (doesn't submit Section 3) so the final test can follow.
-  const savePreTest = () => persistTraining(3, 'pre test details', { markComplete: false, exit: false });
+  const savePreTest = () => persistTraining(3, 'pre test details', { markComplete: false });
 
   /**
    * Generate (or fetch) a unique test number for one slot — a specific pre-test
@@ -1658,7 +1658,6 @@ export default function CandidateFormPage() {
       setDatedFiles({ police_certificate: [], certified_police_report: [] });
       await markSectionComplete(5); // Document Attachment is Section 5 — completing it advances the workflow
       toastSuccess('Documents saved');
-      navigate('/candidates'); // save & exit back to the candidates list
     } catch {
       toastError('Could not save documents.');
     } finally {
@@ -1688,7 +1687,6 @@ export default function CandidateFormPage() {
         : r.data.visa_status === 'visa_cancel' ? ' — visa cancelled SMS queued'
         : '';
       toastSuccess(`Section 6 saved${statusMsg}`);
-      navigate('/candidates'); // save & exit back to the candidates list
     } catch {
       toastError('Could not save visa details.');
     } finally {
@@ -1711,7 +1709,6 @@ export default function CandidateFormPage() {
       setEmployee(r.data);
       await markSectionComplete(4); // Employee Details is now Section 4 — completing it advances the workflow
       toastSuccess('Employee details saved');
-      navigate('/candidates'); // save & exit back to the candidates list
     } catch {
       toastError('Could not save employee details.');
     } finally {
@@ -1737,7 +1734,6 @@ export default function CandidateFormPage() {
       setDeparture(r.data);
       await markSectionComplete(7); // Departure Details is now Section 7 — the final section, finalising the workflow
       toastSuccess('Departure details saved');
-      navigate('/candidates'); // save & exit back to the candidates list
     } catch {
       toastError('Could not save departure details.');
     } finally {
@@ -2926,19 +2922,13 @@ export default function CandidateFormPage() {
             {/* Demand — the candidate is assigned to a demand once the final test is passed */}
             <div style={{ marginTop: 14 }}>
               <label style={labelStyle}>Demand</label>
-              <select
-                className="sr-input"
+              <SearchableSelect
                 style={inputStyle}
-                value={training.demand_id ?? ''}
-                onChange={(e) =>
-                  setTraining((t) => ({ ...t, demand_id: e.target.value ? Number(e.target.value) : null }))
-                }
-              >
-                <option value="">-- Select Demand --</option>
-                {demands.map((d) => (
-                  <option key={d.id} value={d.id}>{d.name}</option>
-                ))}
-              </select>
+                placeholder="-- Select Demand --"
+                options={demands.map((d) => ({ value: d.id, label: d.name }))}
+                value={training.demand_id}
+                onChange={(v) => setTraining((t) => ({ ...t, demand_id: v == null ? null : Number(v) }))}
+              />
               <span style={{ display: 'block', fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
                 Manage the list on the <strong>Demands</strong> page.
               </span>
